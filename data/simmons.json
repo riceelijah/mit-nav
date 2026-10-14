@@ -1,0 +1,2360 @@
+{
+  "note": "Generated from simmons.floorplan.json. Do not edit by hand.",
+  "places": [
+    {
+      "name": "Basement ABC",
+      "kind": "TRANSIT",
+      "floor": 0
+    },
+    {
+      "name": "1ABC",
+      "kind": "TRANSIT",
+      "floor": 1
+    },
+    {
+      "name": "2ABC",
+      "kind": "HALLWAY",
+      "floor": 2
+    },
+    {
+      "name": "3AB",
+      "kind": "HALLWAY",
+      "floor": 3
+    },
+    {
+      "name": "3C",
+      "kind": "HALLWAY",
+      "floor": 3
+    },
+    {
+      "name": "4AB",
+      "kind": "HALLWAY",
+      "floor": 4
+    },
+    {
+      "name": "4C",
+      "kind": "HALLWAY",
+      "floor": 4
+    },
+    {
+      "name": "5ABC",
+      "kind": "HALLWAY",
+      "floor": 5
+    },
+    {
+      "name": "6ABC",
+      "kind": "HALLWAY",
+      "floor": 6
+    },
+    {
+      "name": "7AB",
+      "kind": "HALLWAY",
+      "floor": 7
+    },
+    {
+      "name": "7C",
+      "kind": "HALLWAY",
+      "floor": 7
+    },
+    {
+      "name": "8A",
+      "kind": "HALLWAY",
+      "floor": 8
+    },
+    {
+      "name": "8B",
+      "kind": "HALLWAY",
+      "floor": 8
+    },
+    {
+      "name": "8C",
+      "kind": "HALLWAY",
+      "floor": 8
+    },
+    {
+      "name": "9A",
+      "kind": "HALLWAY",
+      "floor": 9
+    },
+    {
+      "name": "9B",
+      "kind": "HALLWAY",
+      "floor": 9
+    },
+    {
+      "name": "9C",
+      "kind": "HALLWAY",
+      "floor": 9
+    },
+    {
+      "name": "10A",
+      "kind": "HALLWAY",
+      "floor": 10
+    },
+    {
+      "name": "10B",
+      "kind": "HALLWAY",
+      "floor": 10
+    },
+    {
+      "name": "10C",
+      "kind": "HALLWAY",
+      "floor": 10
+    },
+    {
+      "name": "Main Lobby Entrance",
+      "kind": "ENTRANCE",
+      "floor": 1
+    },
+    {
+      "name": "7th Floor Terrace",
+      "kind": "ROOM",
+      "floor": 7
+    },
+    {
+      "name": "8th Floor Terrace (between A and B)",
+      "kind": "ROOM",
+      "floor": 8
+    },
+    {
+      "name": "Mailbox Lounge (156)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "Vending Machine (154)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "Ball Pit (174)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "Music Room (154A)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "TV Lounge (151)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "Old Late Night (170)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "Country Kitchen (150)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "Dining Hall (food service 144/145/166)",
+      "kind": "ROOM",
+      "floor": 1
+    },
+    {
+      "name": "Party Room (222)",
+      "kind": "ROOM",
+      "floor": 2
+    },
+    {
+      "name": "EE Lab (725)",
+      "kind": "ROOM",
+      "floor": 7
+    },
+    {
+      "name": "Wood Shop (037)",
+      "kind": "ROOM",
+      "floor": 0
+    },
+    {
+      "name": "MPR (074 and 197A)",
+      "kind": "ROOM",
+      "floor": 0
+    }
+  ],
+  "links": [
+    [
+      "Basement ABC",
+      "1ABC",
+      "Take the C elevator up to Floor 1 (1ABC).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "Basement ABC",
+      "2ABC",
+      "Take the C elevator up to Floor 2 (2ABC).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "Basement ABC",
+      "3C",
+      "Take the C elevator up to Floor 3 (3C).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "Basement ABC",
+      "4C",
+      "Take the C elevator up to Floor 4 (4C).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5.5
+    ],
+    [
+      "Basement ABC",
+      "5ABC",
+      "Take the C elevator up to Floor 5 (5ABC).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6
+    ],
+    [
+      "Basement ABC",
+      "6ABC",
+      "Take the C elevator up to Floor 6 (6ABC).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6.5
+    ],
+    [
+      "Basement ABC",
+      "7C",
+      "Take the C elevator up to Floor 7 (7C).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      7
+    ],
+    [
+      "Basement ABC",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      7.5
+    ],
+    [
+      "Basement ABC",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      8
+    ],
+    [
+      "Basement ABC",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      8.5
+    ],
+    [
+      "1ABC",
+      "2ABC",
+      "Take the C elevator up to Floor 2 (2ABC).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "1ABC",
+      "3C",
+      "Take the C elevator up to Floor 3 (3C).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "1ABC",
+      "4C",
+      "Take the C elevator up to Floor 4 (4C).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "1ABC",
+      "5ABC",
+      "Take the C elevator up to Floor 5 (5ABC).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5.5
+    ],
+    [
+      "1ABC",
+      "6ABC",
+      "Take the C elevator up to Floor 6 (6ABC).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6
+    ],
+    [
+      "1ABC",
+      "7C",
+      "Take the C elevator up to Floor 7 (7C).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6.5
+    ],
+    [
+      "1ABC",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      7
+    ],
+    [
+      "1ABC",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      7.5
+    ],
+    [
+      "1ABC",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      8
+    ],
+    [
+      "2ABC",
+      "3C",
+      "Take the C elevator up to Floor 3 (3C).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "2ABC",
+      "4C",
+      "Take the C elevator up to Floor 4 (4C).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "2ABC",
+      "5ABC",
+      "Take the C elevator up to Floor 5 (5ABC).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "2ABC",
+      "6ABC",
+      "Take the C elevator up to Floor 6 (6ABC).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5.5
+    ],
+    [
+      "2ABC",
+      "7C",
+      "Take the C elevator up to Floor 7 (7C).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6
+    ],
+    [
+      "2ABC",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6.5
+    ],
+    [
+      "2ABC",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      7
+    ],
+    [
+      "2ABC",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      7.5
+    ],
+    [
+      "3C",
+      "4C",
+      "Take the C elevator up to Floor 4 (4C).",
+      "Take the C elevator down to Floor 3 (3C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "3C",
+      "5ABC",
+      "Take the C elevator up to Floor 5 (5ABC).",
+      "Take the C elevator down to Floor 3 (3C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "3C",
+      "6ABC",
+      "Take the C elevator up to Floor 6 (6ABC).",
+      "Take the C elevator down to Floor 3 (3C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "3C",
+      "7C",
+      "Take the C elevator up to Floor 7 (7C).",
+      "Take the C elevator down to Floor 3 (3C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5.5
+    ],
+    [
+      "3C",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Floor 3 (3C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6
+    ],
+    [
+      "3C",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 3 (3C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6.5
+    ],
+    [
+      "3C",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 3 (3C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      7
+    ],
+    [
+      "4C",
+      "5ABC",
+      "Take the C elevator up to Floor 5 (5ABC).",
+      "Take the C elevator down to Floor 4 (4C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "4C",
+      "6ABC",
+      "Take the C elevator up to Floor 6 (6ABC).",
+      "Take the C elevator down to Floor 4 (4C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "4C",
+      "7C",
+      "Take the C elevator up to Floor 7 (7C).",
+      "Take the C elevator down to Floor 4 (4C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "4C",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Floor 4 (4C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5.5
+    ],
+    [
+      "4C",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 4 (4C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6
+    ],
+    [
+      "4C",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 4 (4C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6.5
+    ],
+    [
+      "5ABC",
+      "6ABC",
+      "Take the C elevator up to Floor 6 (6ABC).",
+      "Take the C elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "5ABC",
+      "7C",
+      "Take the C elevator up to Floor 7 (7C).",
+      "Take the C elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "5ABC",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "5ABC",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5.5
+    ],
+    [
+      "5ABC",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      6
+    ],
+    [
+      "6ABC",
+      "7C",
+      "Take the C elevator up to Floor 7 (7C).",
+      "Take the C elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "6ABC",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "6ABC",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "6ABC",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5.5
+    ],
+    [
+      "7C",
+      "8C",
+      "Take the C elevator up to Floor 8 (8C).",
+      "Take the C elevator down to Floor 7 (7C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "7C",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 7 (7C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "7C",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 7 (7C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      5
+    ],
+    [
+      "8C",
+      "9C",
+      "Take the C elevator up to Floor 9 (9C).",
+      "Take the C elevator down to Floor 8 (8C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "8C",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 8 (8C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4.5
+    ],
+    [
+      "9C",
+      "10C",
+      "Take the C elevator up to Floor 10 (10C).",
+      "Take the C elevator down to Floor 9 (9C).",
+      true,
+      0,
+      0,
+      "C elevator (100E3)",
+      4
+    ],
+    [
+      "Basement ABC",
+      "1ABC",
+      "Take the B elevator up to Floor 1 (1ABC).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "Basement ABC",
+      "2ABC",
+      "Take the B elevator up to Floor 2 (2ABC).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "Basement ABC",
+      "3AB",
+      "Take the B elevator up to Floor 3 (3AB).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "Basement ABC",
+      "4AB",
+      "Take the B elevator up to Floor 4 (4AB).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5.5
+    ],
+    [
+      "Basement ABC",
+      "5ABC",
+      "Take the B elevator up to Floor 5 (5ABC).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6
+    ],
+    [
+      "Basement ABC",
+      "6ABC",
+      "Take the B elevator up to Floor 6 (6ABC).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6.5
+    ],
+    [
+      "Basement ABC",
+      "7AB",
+      "Take the B elevator up to Floor 7 (7AB).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      7
+    ],
+    [
+      "Basement ABC",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      7.5
+    ],
+    [
+      "Basement ABC",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      8
+    ],
+    [
+      "Basement ABC",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      8.5
+    ],
+    [
+      "1ABC",
+      "2ABC",
+      "Take the B elevator up to Floor 2 (2ABC).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "1ABC",
+      "3AB",
+      "Take the B elevator up to Floor 3 (3AB).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "1ABC",
+      "4AB",
+      "Take the B elevator up to Floor 4 (4AB).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "1ABC",
+      "5ABC",
+      "Take the B elevator up to Floor 5 (5ABC).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5.5
+    ],
+    [
+      "1ABC",
+      "6ABC",
+      "Take the B elevator up to Floor 6 (6ABC).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6
+    ],
+    [
+      "1ABC",
+      "7AB",
+      "Take the B elevator up to Floor 7 (7AB).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6.5
+    ],
+    [
+      "1ABC",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      7
+    ],
+    [
+      "1ABC",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      7.5
+    ],
+    [
+      "1ABC",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 1 (1ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      8
+    ],
+    [
+      "2ABC",
+      "3AB",
+      "Take the B elevator up to Floor 3 (3AB).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "2ABC",
+      "4AB",
+      "Take the B elevator up to Floor 4 (4AB).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "2ABC",
+      "5ABC",
+      "Take the B elevator up to Floor 5 (5ABC).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "2ABC",
+      "6ABC",
+      "Take the B elevator up to Floor 6 (6ABC).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5.5
+    ],
+    [
+      "2ABC",
+      "7AB",
+      "Take the B elevator up to Floor 7 (7AB).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6
+    ],
+    [
+      "2ABC",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6.5
+    ],
+    [
+      "2ABC",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      7
+    ],
+    [
+      "2ABC",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      7.5
+    ],
+    [
+      "3AB",
+      "4AB",
+      "Take the B elevator up to Floor 4 (4AB).",
+      "Take the B elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "3AB",
+      "5ABC",
+      "Take the B elevator up to Floor 5 (5ABC).",
+      "Take the B elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "3AB",
+      "6ABC",
+      "Take the B elevator up to Floor 6 (6ABC).",
+      "Take the B elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "3AB",
+      "7AB",
+      "Take the B elevator up to Floor 7 (7AB).",
+      "Take the B elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5.5
+    ],
+    [
+      "3AB",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6
+    ],
+    [
+      "3AB",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6.5
+    ],
+    [
+      "3AB",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      7
+    ],
+    [
+      "4AB",
+      "5ABC",
+      "Take the B elevator up to Floor 5 (5ABC).",
+      "Take the B elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "4AB",
+      "6ABC",
+      "Take the B elevator up to Floor 6 (6ABC).",
+      "Take the B elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "4AB",
+      "7AB",
+      "Take the B elevator up to Floor 7 (7AB).",
+      "Take the B elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "4AB",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5.5
+    ],
+    [
+      "4AB",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6
+    ],
+    [
+      "4AB",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6.5
+    ],
+    [
+      "5ABC",
+      "6ABC",
+      "Take the B elevator up to Floor 6 (6ABC).",
+      "Take the B elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "5ABC",
+      "7AB",
+      "Take the B elevator up to Floor 7 (7AB).",
+      "Take the B elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "5ABC",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "5ABC",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5.5
+    ],
+    [
+      "5ABC",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      6
+    ],
+    [
+      "6ABC",
+      "7AB",
+      "Take the B elevator up to Floor 7 (7AB).",
+      "Take the B elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "6ABC",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "6ABC",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "6ABC",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5.5
+    ],
+    [
+      "7AB",
+      "8B",
+      "Take the B elevator up to Floor 8 (8B).",
+      "Take the B elevator down to Floor 7 (7AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "7AB",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 7 (7AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "7AB",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 7 (7AB).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      5
+    ],
+    [
+      "8B",
+      "9B",
+      "Take the B elevator up to Floor 9 (9B).",
+      "Take the B elevator down to Floor 8 (8B).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "8B",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 8 (8B).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4.5
+    ],
+    [
+      "9B",
+      "10B",
+      "Take the B elevator up to Floor 10 (10B).",
+      "Take the B elevator down to Floor 9 (9B).",
+      true,
+      0,
+      0,
+      "B elevator (100E2)",
+      4
+    ],
+    [
+      "Basement ABC",
+      "2ABC",
+      "Take the A elevator up to Floor 2 (2ABC).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "Basement ABC",
+      "3AB",
+      "Take the A elevator up to Floor 3 (3AB).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5
+    ],
+    [
+      "Basement ABC",
+      "4AB",
+      "Take the A elevator up to Floor 4 (4AB).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5.5
+    ],
+    [
+      "Basement ABC",
+      "5ABC",
+      "Take the A elevator up to Floor 5 (5ABC).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6
+    ],
+    [
+      "Basement ABC",
+      "6ABC",
+      "Take the A elevator up to Floor 6 (6ABC).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6.5
+    ],
+    [
+      "Basement ABC",
+      "7AB",
+      "Take the A elevator up to Floor 7 (7AB).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      7
+    ],
+    [
+      "Basement ABC",
+      "8A",
+      "Take the A elevator up to Floor 8 (8A).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      7.5
+    ],
+    [
+      "Basement ABC",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      8
+    ],
+    [
+      "Basement ABC",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Basement (Basement ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      8.5
+    ],
+    [
+      "2ABC",
+      "3AB",
+      "Take the A elevator up to Floor 3 (3AB).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "2ABC",
+      "4AB",
+      "Take the A elevator up to Floor 4 (4AB).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "2ABC",
+      "5ABC",
+      "Take the A elevator up to Floor 5 (5ABC).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5
+    ],
+    [
+      "2ABC",
+      "6ABC",
+      "Take the A elevator up to Floor 6 (6ABC).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5.5
+    ],
+    [
+      "2ABC",
+      "7AB",
+      "Take the A elevator up to Floor 7 (7AB).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6
+    ],
+    [
+      "2ABC",
+      "8A",
+      "Take the A elevator up to Floor 8 (8A).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6.5
+    ],
+    [
+      "2ABC",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      7
+    ],
+    [
+      "2ABC",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 2 (2ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      7.5
+    ],
+    [
+      "3AB",
+      "4AB",
+      "Take the A elevator up to Floor 4 (4AB).",
+      "Take the A elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "3AB",
+      "5ABC",
+      "Take the A elevator up to Floor 5 (5ABC).",
+      "Take the A elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "3AB",
+      "6ABC",
+      "Take the A elevator up to Floor 6 (6ABC).",
+      "Take the A elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5
+    ],
+    [
+      "3AB",
+      "7AB",
+      "Take the A elevator up to Floor 7 (7AB).",
+      "Take the A elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5.5
+    ],
+    [
+      "3AB",
+      "8A",
+      "Take the A elevator up to Floor 8 (8A).",
+      "Take the A elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6
+    ],
+    [
+      "3AB",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6.5
+    ],
+    [
+      "3AB",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 3 (3AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      7
+    ],
+    [
+      "4AB",
+      "5ABC",
+      "Take the A elevator up to Floor 5 (5ABC).",
+      "Take the A elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "4AB",
+      "6ABC",
+      "Take the A elevator up to Floor 6 (6ABC).",
+      "Take the A elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "4AB",
+      "7AB",
+      "Take the A elevator up to Floor 7 (7AB).",
+      "Take the A elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5
+    ],
+    [
+      "4AB",
+      "8A",
+      "Take the A elevator up to Floor 8 (8A).",
+      "Take the A elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5.5
+    ],
+    [
+      "4AB",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6
+    ],
+    [
+      "4AB",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 4 (4AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6.5
+    ],
+    [
+      "5ABC",
+      "6ABC",
+      "Take the A elevator up to Floor 6 (6ABC).",
+      "Take the A elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "5ABC",
+      "7AB",
+      "Take the A elevator up to Floor 7 (7AB).",
+      "Take the A elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "5ABC",
+      "8A",
+      "Take the A elevator up to Floor 8 (8A).",
+      "Take the A elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5
+    ],
+    [
+      "5ABC",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5.5
+    ],
+    [
+      "5ABC",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 5 (5ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      6
+    ],
+    [
+      "6ABC",
+      "7AB",
+      "Take the A elevator up to Floor 7 (7AB).",
+      "Take the A elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "6ABC",
+      "8A",
+      "Take the A elevator up to Floor 8 (8A).",
+      "Take the A elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "6ABC",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5
+    ],
+    [
+      "6ABC",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 6 (6ABC).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5.5
+    ],
+    [
+      "7AB",
+      "8A",
+      "Take the A elevator up to Floor 8 (8A).",
+      "Take the A elevator down to Floor 7 (7AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "7AB",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Floor 7 (7AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "7AB",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 7 (7AB).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      5
+    ],
+    [
+      "8A",
+      "9A",
+      "Take the A elevator up to Floor 9 (9A).",
+      "Take the A elevator down to Floor 8 (8A).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "8A",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 8 (8A).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4.5
+    ],
+    [
+      "9A",
+      "10A",
+      "Take the A elevator up to Floor 10 (10A).",
+      "Take the A elevator down to Floor 9 (9A).",
+      true,
+      0,
+      0,
+      "A elevator (100E1)",
+      4
+    ],
+    [
+      "Basement ABC",
+      "1ABC",
+      "Take the C stairs up to Floor 1.",
+      "Take the C stairs down to Basement.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "1ABC",
+      "2ABC",
+      "Take the C stairs up to Floor 2.",
+      "Take the C stairs down to Floor 1.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "2ABC",
+      "3C",
+      "Take the C stairs up to Floor 3.",
+      "Take the C stairs down to Floor 2.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "2ABC",
+      "3AB",
+      "Take the B stairs up to Floor 3.",
+      "Take the B stairs down to Floor 2.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "2ABC",
+      "3AB",
+      "Take the A stairs up to Floor 3.",
+      "Take the A stairs down to Floor 2.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "3C",
+      "4C",
+      "Take the C stairs up to Floor 4.",
+      "Take the C stairs down to Floor 3.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "3AB",
+      "4AB",
+      "Take the B stairs up to Floor 4.",
+      "Take the B stairs down to Floor 3.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "3AB",
+      "4AB",
+      "Take the A stairs up to Floor 4.",
+      "Take the A stairs down to Floor 3.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "4C",
+      "5ABC",
+      "Take the C stairs up to Floor 5.",
+      "Take the C stairs down to Floor 4.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "4AB",
+      "5ABC",
+      "Take the B stairs up to Floor 5.",
+      "Take the B stairs down to Floor 4.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "4AB",
+      "5ABC",
+      "Take the A stairs up to Floor 5.",
+      "Take the A stairs down to Floor 4.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "5ABC",
+      "6ABC",
+      "Take the C stairs up to Floor 6.",
+      "Take the C stairs down to Floor 5.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "5ABC",
+      "6ABC",
+      "Take the B stairs up to Floor 6.",
+      "Take the B stairs down to Floor 5.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "5ABC",
+      "6ABC",
+      "Take the A stairs up to Floor 6.",
+      "Take the A stairs down to Floor 5.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "6ABC",
+      "7C",
+      "Take the C stairs up to Floor 7.",
+      "Take the C stairs down to Floor 6.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "6ABC",
+      "7AB",
+      "Take the B stairs up to Floor 7.",
+      "Take the B stairs down to Floor 6.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "6ABC",
+      "7AB",
+      "Take the A stairs up to Floor 7.",
+      "Take the A stairs down to Floor 6.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "7C",
+      "8C",
+      "Take the C stairs up to Floor 8.",
+      "Take the C stairs down to Floor 7.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "7AB",
+      "8B",
+      "Take the B stairs up to Floor 8.",
+      "Take the B stairs down to Floor 7.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "7AB",
+      "8A",
+      "Take the A stairs up to Floor 8.",
+      "Take the A stairs down to Floor 7.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "8C",
+      "9C",
+      "Take the C stairs up to Floor 9.",
+      "Take the C stairs down to Floor 8.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "8B",
+      "9B",
+      "Take the B stairs up to Floor 9.",
+      "Take the B stairs down to Floor 8.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "8A",
+      "9A",
+      "Take the A stairs up to Floor 9.",
+      "Take the A stairs down to Floor 8.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "9C",
+      "10C",
+      "Take the C stairs up to Floor 10.",
+      "Take the C stairs down to Floor 9.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "9B",
+      "10B",
+      "Take the B stairs up to Floor 10.",
+      "Take the B stairs down to Floor 9.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "9A",
+      "10A",
+      "Take the A stairs up to Floor 10.",
+      "Take the A stairs down to Floor 9.",
+      false,
+      0,
+      0,
+      "",
+      2
+    ],
+    [
+      "Main Lobby Entrance",
+      "1ABC",
+      "Come in through the lobby doors at the east end of the building, next to the C elevator.",
+      "Leave through the lobby doors at the east end of the building.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "7AB",
+      "7th Floor Terrace",
+      "Go through the terrace door from 7AB onto the terrace.",
+      "Go back inside through the terrace door to 7AB.",
+      true,
+      0,
+      6,
+      "",
+      1
+    ],
+    [
+      "7C",
+      "7th Floor Terrace",
+      "Go through the terrace door from 7C onto the terrace.",
+      "Go back inside through the terrace door to 7C.",
+      true,
+      0,
+      6,
+      "",
+      1
+    ],
+    [
+      "8A",
+      "8th Floor Terrace (between A and B)",
+      "Go through the terrace door from 8A onto the terrace.",
+      "Go back inside through the terrace door to 8A.",
+      true,
+      0,
+      6,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "Mailbox Lounge (156)",
+      "Walk to the lounge by the mailboxes, room 156.",
+      "Leave the mailbox lounge and return to the lobby area.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "Vending Machine (154)",
+      "Walk to Vending Machine (154).",
+      "Leave Vending Machine (154) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "Ball Pit (174)",
+      "Walk to Ball Pit (174).",
+      "Leave Ball Pit (174) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "Music Room (154A)",
+      "Walk to Music Room (154A).",
+      "Leave Music Room (154A) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "TV Lounge (151)",
+      "Walk to TV Lounge (151).",
+      "Leave TV Lounge (151) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "Old Late Night (170)",
+      "Walk to Old Late Night (170).",
+      "Leave Old Late Night (170) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "Country Kitchen (150)",
+      "Walk to Country Kitchen (150).",
+      "Leave Country Kitchen (150) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "1ABC",
+      "Dining Hall (food service 144/145/166)",
+      "Follow the corridor to the dining area (food service rooms 144, 145 and 166).",
+      "Leave the dining area and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "2ABC",
+      "Party Room (222)",
+      "Walk to Party Room (222).",
+      "Leave Party Room (222) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "7AB",
+      "EE Lab (725)",
+      "Walk to EE Lab (725).",
+      "Leave EE Lab (725) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "Basement ABC",
+      "Wood Shop (037)",
+      "Walk to Wood Shop (037).",
+      "Leave Wood Shop (037) and return to the corridor.",
+      true,
+      0,
+      0,
+      "",
+      1
+    ],
+    [
+      "Basement ABC",
+      "MPR (074 and 197A)",
+      "Go in through door 074 to the MPR.",
+      "Leave through door 074 back to Basement ABC.",
+      true,
+      0,
+      0,
+      "",
+      6
+    ],
+    [
+      "1ABC",
+      "MPR (074 and 197A)",
+      "Go in through door 197A to the MPR.",
+      "Leave through door 197A back to 1ABC.",
+      true,
+      0,
+      0,
+      "",
+      6
+    ]
+  ]
+}
