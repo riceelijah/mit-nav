@@ -13,6 +13,8 @@ type Link = [string, string, string, string, boolean, number, number, string, nu
 const WALK = 1;
 // A room with two doors is a destination, not a shortcut between levels, so cutting through it costs a lot.
 const ROOM_DOOR = 6;
+// Stepping through a terrace door is essentially free (while it is open), so terraces act as bridges between sections.
+const TERRACE_DOOR = 0.1;
 const STAIRS_PER_FLIGHT = 2;
 const elevatorRide = (floors: number) => 3.5 + 0.5 * floors;
 const places: Place[] = [];
@@ -85,7 +87,7 @@ for (const t of plan.terraces) {
       from, t.name,
       `Go through the terrace door from ${from} onto the terrace.`,
       `Go back inside through the terrace door to ${from}.`,
-      t.accessible, t.closedFrom, t.closedUntil, "", WALK,
+      t.accessible, t.closedFrom, t.closedUntil, "", TERRACE_DOOR,
     ]);
   }
 }
