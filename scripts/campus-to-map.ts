@@ -8,6 +8,7 @@
 //                         downloaded on the first run.
 //   centers.json          MapIT's public building centres, downloaded on the first run, for
 //                         buildings OpenStreetMap has no outline for.
+//   whereis.json          Building names from whereis.mit.edu for buildings OpenStreetMap leaves unnamed.
 //
 // Every building becomes a place joined to its nearest neighbours by outdoor walks. A building with a
 // room list also gets one corridor per floor, its elevators (one service each, so flagging any ride
@@ -48,7 +49,8 @@ const DESTINATIONS = new Set([
   "ATHLETIC FACIL", "MEETING ROOM", "CHAPEL", "THEATER",
 ]);
 
-const buildingPlace = (b: Building) => (b.name ? `Building ${b.ref} (${b.name})` : `Building ${b.ref}`);
+// A building people know by name reads "Stata Center (Building 32)"; one without a name is just "Building 32".
+const buildingPlace = (b: Building) => (b.name ? `${b.name} (Building ${b.ref})` : `Building ${b.ref}`);
 const hubName = (ref: string, code: string) => `Building ${ref}, floor ${code}`;
 const title = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -197,6 +199,21 @@ async function loadBuildings(): Promise<Building[]> {
     const p = toMeters(Number(c.long), Number(c.lat));
     byRef.set(c.building, { ref: c.building, name: "", rings: [[p, p]], center: p });
   }
+  // OpenStreetMap's short names ("Stata Center") read best; whereis.mit.edu fills in the rest.
+  const whereisFile = new URL("whereis.json", raw);
+  const whereis: Record<string, string> = existsSync(whereisFile) ? JSON.parse(readFileSync(whereisFile, "utf8")) : {};
+  for (const b of byRef.values()) {
+    if (b.name || b.ref in whereis) continue;
+    const response = await fetch(`https://whereis.mit.edu/search?type=query&q=${encodeURIComponent(b.ref)}&output=json`);
+    const hits = response.ok ? await response.json() : [];
+    whereis[b.ref] = hits.find((h: any) => h.bldgnum === b.ref)?.name ?? "";
+  }
+  writeFileSync(whereisFile, JSON.stringify(whereis, null, 2));
+  for (const b of byRef.values()) {
+    // Drop names that only repeat the number, such as "Building 24" or "Maclaurin Buildings (10)" -> "Maclaurin Buildings".
+    const name = (whereis[b.ref] ?? "").replace(new RegExp(`\\s*\\(${b.ref}\\)$`), "");
+    if (!b.name && name && !new RegExp(`^(Building )?${b.ref}$`, "i").test(name)) b.name = name;
+  }
   for (const b of byRef.values()) {
     const all = b.rings.flat();
     b.center = [all.reduce((s, p) => s + p[0], 0) / all.length, all.reduce((s, p) => s + p[1], 0) / all.length];
@@ -249,8 +266,8 @@ export async function buildCampus() {
     const meters = Math.round(Math.hypot(a.center[0] - b.center[0], a.center[1] - b.center[1]));
     links.push([
       buildingPlace(a), buildingPlace(b),
-      `Walk outside to Building ${b.ref}, about ${meters} m to the ${direction(a.center, b.center)}.`,
-      `Walk outside to Building ${a.ref}, about ${meters} m to the ${direction(b.center, a.center)}.`,
+      `Walk outside to ${buildingPlace(b)}, about ${meters} m to the ${direction(a.center, b.center)}.`,
+      `Walk outside to ${buildingPlace(a)}, about ${meters} m to the ${direction(b.center, a.center)}.`,
       true, 0, 0, "", outdoorWalk(meters),
     ]);
   }
@@ -265,7 +282,7 @@ export async function buildCampus() {
     if (plan.ground) {
       links.push([
         buildingPlace(b), hubName(b.ref, plan.ground),
-        `Go inside Building ${b.ref} to floor ${plan.ground}.`, `Leave Building ${b.ref}.`,
+        `Go inside ${buildingPlace(b)} to floor ${plan.ground}.`, `Leave ${buildingPlace(b)}.`,
         true, 0, 0, "", ENTER,
       ]);
     }
@@ -279,8 +296,8 @@ export async function buildCampus() {
         if (!b.floors.has(code) || !/^\d+$/.test(code)) continue;
         links.push([
           hubName(buildings[i].ref, code), hubName(buildings[j].ref, code),
-          `Continue into Building ${buildings[j].ref} on floor ${code}.`,
-          `Continue into Building ${buildings[i].ref} on floor ${code}.`,
+          `Continue into ${buildingPlace(buildings[j])} on floor ${code}.`,
+          `Continue into ${buildingPlace(buildings[i])} on floor ${code}.`,
           true, 0, 0, "", WALK,
         ]);
       }
