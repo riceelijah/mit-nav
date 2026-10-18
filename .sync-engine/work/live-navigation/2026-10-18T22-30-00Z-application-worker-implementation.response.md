@@ -1,6 +1,8 @@
 ## Status
 Complete
 
+Code, tests and checks complete. Regenerating data/campus.json with newly downloaded room lists is coordinator data work outside this grant, logged in the brief.
+
 ## Changed
 - src/concepts/Wayfinding.ts: positions on places, addPlace takes them, `_route` kind/latitude/longitude, `_place`/`_search` positions, `_nearest` (ground metres, earliest on tie, off-Earth → none), `groundMeters`.
 - src/compositions/Campus.ts: Nearest former, NearestPlace endpoint (numbers validator), Route/PlaceSearch positions, AddPlace positions; src/compositions/inputs.ts `numbers`.

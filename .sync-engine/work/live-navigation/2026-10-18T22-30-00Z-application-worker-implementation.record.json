@@ -1,5 +1,5 @@
 {
-  "state": "prepared",
+  "state": "finalized",
   "work": {
     "slug": "live-navigation",
     "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation"
@@ -106,7 +106,9 @@
     "longRunningProcesses": false
   },
   "response": {
-    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation/2026-10-18T22-30-00Z-application-worker-implementation.response.md"
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation/2026-10-18T22-30-00Z-application-worker-implementation.response.md",
+    "sha256": "a2060f6319020701f8fd28021acf6c19ace4911723a00fd51014f838085221f5",
+    "bytes": 1371
   },
   "retainedSources": [
     {
@@ -284,5 +286,8 @@
         "sha256": "04b7229c367b7627872672e11b30648e63db03252d58c34da3cb94f76f7c4c7b"
       }
     ]
-  }
+  },
+  "status": "completed",
+  "result": "complete",
+  "enforcement": "prompt-guided"
 }

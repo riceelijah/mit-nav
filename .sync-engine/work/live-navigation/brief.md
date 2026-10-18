@@ -37,3 +37,4 @@ None.
 
 - Work item started.
 - Designer simulated; critic (fresh agent) Revise F1..F7 → repaired → Approve. Implemented; 53 tests; browser checks with mocked geolocation pass.
+- Coordinator regenerated data/campus.json with 10 more building room lists (48, E17, E18, E19, E53, W1, W4, W7, W35, W51) downloaded during this run; data work, not role work. design/journey.md updated after handback.
