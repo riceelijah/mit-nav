@@ -1,8 +1,9 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
-import { each, form, former, reaction, when } from "@mit-sdg/sync-engine/language";
+import { each, form, former, reaction, when, whether } from "@mit-sdg/sync-engine/language";
+import { signedIn } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
-const { Wayfinding, Reporting } = concepts;
+const { Wayfinding, Reporting, Registering, Sessioning } = concepts;
 
 const PlaceSearch = former(
   "the places matching (text)",
@@ -14,11 +15,15 @@ const PlaceSearch = former(
 
 const ProblemList = former(
   "the open problem reports",
-  (_input, { report, reporter, reportedLink, reason, sourceName, destinationName, forward }) =>
+  (_input, { report, reporter, reportedLink, reason, sourceName, destinationName, forward, username }) =>
     form({
+      // whether(...) keeps a report whose reporter has no username (made before accounts), with a null name.
       reports: each(Reporting._open({}).is({ report, reporter, target: reportedLink, reason }))
-        .where(Wayfinding._link({ link: reportedLink }).is({ sourceName, destinationName, forward }))
-        .form({ report, reporter, link: reportedLink, reason, sourceName, destinationName, forward }),
+        .where(
+          Wayfinding._link({ link: reportedLink }).is({ sourceName, destinationName, forward }),
+          whether(Registering._username({ user: reporter }).is({ username })),
+        )
+        .form({ report, reporter: username, link: reportedLink, reason, sourceName, destinationName, forward }),
     }),
 );
 
@@ -39,7 +44,7 @@ const BlockedList = former(
 
 const Route = former(
   "the route from (source) to (destination)",
-  ({ source, destination, accessibleOnly, hour }, { step, link, instruction, placeName, floor }) =>
+  ({ source, destination, accessibleOnly, hour }, { step, link, instruction, placeName, floor, distance }) =>
     form({
       steps: each(
         Wayfinding._route({ source, destination, accessibleOnly, hour }).is({
@@ -48,8 +53,9 @@ const Route = former(
           instruction,
           placeName,
           floor,
+          distance,
         }),
-      ).form({ step, link, instruction, placeName, floor }),
+      ).form({ step, link, instruction, placeName, floor, distance }),
     }),
 );
 
@@ -94,21 +100,23 @@ const FindRoute = endpoint(
 
 const BlockLink = endpoint(
   "/problems/block",
-  ({ link, reporter, reason, report }) =>
-    receive({ link, reporter, reason })
+  ({ session, user, link, reason, report }) =>
+    receive({ session, link, reason })
+      .then(Sessioning.use({ session }).responds({ subject: user }))
       .then(Wayfinding.block({ link }).responds({ link }))
-      .then(Reporting.report({ reporter, target: link, reason }).responds({ report }))
+      .then(Reporting.report({ reporter: user, target: link, reason }).responds({ report }))
       .then(respond({ report })),
-  { input: { required: ["link", "reporter", "reason"] } },
+  { validators: { input: signedIn("link", "reason") } },
 );
 
 const UnblockLink = endpoint(
   "/problems/unblock",
-  ({ link }) =>
-    receive({ link })
+  ({ session, user, link }) =>
+    receive({ session, link })
+      .then(Sessioning.use({ session }).responds({ subject: user }))
       .then(Wayfinding.unblock({ link }).responds({ link }))
       .then(respond({ link })),
-  { input: { required: ["link"] } },
+  { validators: { input: signedIn("link") } },
 );
 
 // Whoever clears a blockage, the reports about it stop being open.

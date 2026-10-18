@@ -14,6 +14,84 @@ export type Json = null | boolean | number | string | Json[] | { [key: string]: 
 export type AppWideError = never;
 
 export type CampusWire = {
+  "/auth/commons/choose": {
+    input: {
+      "attempt": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["_linkable"]>[0], ["attempt"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["link"]>[0], ["attempt"]>]>>;
+      "username": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Registering"]["register"]>[0], ["username"]>>;
+    };
+    output: {
+      "expiresAt": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["expiresAt"]>>;
+      "session": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["session"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: AppWideError | "ALREADY_LINKED" | "INVALID_INPUT" | "INVALID_USERNAME" | "NOT_CONFIRMED" | "SIGN_IN_EXPIRED" | "USERNAME_TAKEN" };
+  };
+  "/auth/commons/finish": {
+    input: {
+      "attempt": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["finish"]>[0], ["attempt"]>>;
+      "code": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["finish"]>[0], ["code"]>>;
+      "state": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["finish"]>[0], ["nonce"]>>;
+    };
+    output: {
+      "expiresAt": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["expiresAt"]>>;
+      "session": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["session"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    } | {
+      "expiresAt": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["expiresAt"]>>;
+      "session": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["session"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: AppWideError | "ALREADY_LINKED" | "INVALID_INPUT" | "INVALID_USERNAME" | "NOT_CONFIRMED" | "SIGN_IN_EXPIRED" | "SIGN_IN_REFUSED" | "USERNAME_TAKEN" };
+  };
+  "/auth/commons/start": {
+    input: Record<string, never>;
+    output: {
+      "address": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["start"]>>, ["address"]>>;
+      "attempt": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["start"]>>, ["attempt"]>>;
+      "expiresAt": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["start"]>>, ["expiresAt"]>>;
+    };
+    error: { error: AppWideError };
+  };
+  "/auth/login": {
+    input: {
+      "password": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Authenticating"]["authenticate"]>[0], ["password"]>>;
+      "username": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Registering"]["_byUsername"]>[0], ["username"]>>;
+    };
+    output: {
+      "expiresAt": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["expiresAt"]>>;
+      "session": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["session"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: AppWideError | "INVALID_CREDENTIALS" | "INVALID_INPUT" };
+  };
+  "/auth/logout": {
+    input: {
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["end"]>[0], ["session"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_SIGNED_IN" };
+  };
+  "/auth/me": {
+    input: {
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+    };
+    output: {
+      "username": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Registering"]["_username"]>>>, ["username"]>>;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_SIGNED_IN" };
+  };
+  "/auth/register": {
+    input: {
+      "password": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Authenticating"]["_acceptable"]>[0], ["password"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Authenticating"]["set"]>[0], ["password"]>]>>;
+      "username": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Registering"]["register"]>[0], ["username"]>>;
+    };
+    output: {
+      "expiresAt": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["expiresAt"]>>;
+      "session": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>>, ["session"]>>;
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "INVALID_PASSWORD" | "INVALID_USERNAME" | "PASSWORD_SET" | "USERNAME_TAKEN" };
+  };
   "/map/add-place": {
     input: {
       "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
@@ -55,15 +133,15 @@ export type CampusWire = {
         }[];
       };
       "problems": {
-        "reports": {
+        "reports": ({
           "destinationName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>>>, ["destinationName"]>>;
           "forward": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>>>, ["forward"]>>;
           "link": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>[0], ["link"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["target"]>]>>;
           "reason": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["reason"]>>;
           "report": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["report"]>>;
-          "reporter": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["reporter"]>>;
+          "reporter": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Registering"]["_username"]>>>, ["username"]>> | null;
           "sourceName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>>>, ["sourceName"]>>;
-        }[];
+        })[];
       };
     };
     error: { error: AppWideError };
@@ -84,25 +162,133 @@ export type CampusWire = {
     };
     error: { error: AppWideError | "INVALID_INPUT" };
   };
+  "/me": {
+    input: {
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+    };
+    output: {
+      "favorites": {
+        "favorites": {
+          "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["floor"]>>;
+          "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["kind"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "place": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Favoriting"]["_favorites"]>>>, ["item"]>]>>;
+        }[];
+      };
+      "history": {
+        "history": {
+          "destination": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["destination"]>]>>;
+          "destinationName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "entry": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["entry"]>>;
+          "meters": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["meters"]>>;
+          "source": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["source"]>]>>;
+          "sourceName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+        }[];
+      };
+      "preferences": {
+        "preferences": {
+          "stepFree": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["stepFree"]>>;
+          "useLocation": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["useLocation"]>>;
+        }[];
+      };
+      "totals": {
+        "totals": {
+          "meters": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_totals"]>>>, ["meters"]>>;
+          "trips": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_totals"]>>>, ["trips"]>>;
+        }[];
+      };
+      "trips": {
+        "trips": {
+          "accessibleOnly": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["accessibleOnly"]>>;
+          "destination": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["destination"]>]>>;
+          "destinationName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["name"]>>;
+          "source": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["source"]>]>>;
+          "sourceName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "trip": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["trip"]>>;
+        }[];
+      };
+    };
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_SIGNED_IN" };
+  };
+  "/me/favorites/add": {
+    input: {
+      "place": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Favoriting"]["favorite"]>[0], ["item"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: AppWideError | "ALREADY_FAVORITE" | "INVALID_INPUT" | "NOT_SIGNED_IN" | "NO_SUCH_PLACE" };
+  };
+  "/me/favorites/remove": {
+    input: {
+      "place": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Favoriting"]["unfavorite"]>[0], ["item"]>>;
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_FAVORITE" | "NOT_SIGNED_IN" };
+  };
+  "/me/preferences/set": {
+    input: {
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+      "stepFree": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["stepFree"]>>;
+      "useLocation": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["useLocation"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_SIGNED_IN" };
+  };
+  "/me/trips/finish": {
+    input: {
+      "destination": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>[0], ["destination"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+      "meters": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>[0], ["meters"]>>;
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+      "source": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>[0], ["source"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+    };
+    output: {
+      "entry": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>>, ["entry"]>>;
+    };
+    error: { error: AppWideError | "INVALID_DISTANCE" | "INVALID_INPUT" | "NOT_SIGNED_IN" | "NO_SUCH_PLACE" };
+  };
+  "/me/trips/remove": {
+    input: {
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+      "trip": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["remove"]>[0], ["trip"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_SIGNED_IN" | "NO_SUCH_TRIP" };
+  };
+  "/me/trips/save": {
+    input: {
+      "accessibleOnly": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["accessibleOnly"]>>;
+      "destination": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["destination"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["name"]>>;
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
+      "source": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["source"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+    };
+    output: {
+      "trip": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>>, ["trip"]>>;
+    };
+    error: { error: AppWideError | "EMPTY_TRIP_NAME" | "INVALID_INPUT" | "NOT_SIGNED_IN" | "NO_SUCH_PLACE" | "TRIP_NAME_TAKEN" };
+  };
   "/problems/block": {
     input: {
       "link": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["block"]>[0], ["link"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>[0], ["target"]>]>>;
       "reason": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>[0], ["reason"]>>;
-      "reporter": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>[0], ["reporter"]>>;
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
     };
     output: {
       "report": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>>, ["report"]>>;
     };
-    error: { error: AppWideError | "ALREADY_BLOCKED" | "INVALID_INPUT" | "NO_SUCH_LINK" };
+    error: { error: AppWideError | "ALREADY_BLOCKED" | "INVALID_INPUT" | "NOT_SIGNED_IN" | "NO_SUCH_LINK" };
   };
   "/problems/unblock": {
     input: {
       "link": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["unblock"]>[0], ["link"]>>;
+      "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
     };
     output: {
       "link": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["unblock"]>[0], ["link"]>, AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["unblock"]>>, ["link"]>]>>;
     };
-    error: { error: AppWideError | "INVALID_INPUT" | "NOT_BLOCKED" | "NO_SUCH_LINK" };
+    error: { error: AppWideError | "INVALID_INPUT" | "NOT_BLOCKED" | "NOT_SIGNED_IN" | "NO_SUCH_LINK" };
   };
   "/route/find": {
     input: {
@@ -114,6 +300,7 @@ export type CampusWire = {
     output: {
       "route": {
         "steps": {
+          "distance": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["distance"]>>;
           "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["floor"]>>;
           "instruction": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["instruction"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["link"]>>;
@@ -129,6 +316,66 @@ export type CampusWire = {
 export type HttpAppWideError = never;
 
 export type CampusWireHttp = {
+  "/auth/commons/choose": {
+    input: {
+      "username": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Registering"]["register"]>[0], ["username"]>>;
+    };
+    output: {
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: HttpAppWideError | "CONFLICT" | "FORBIDDEN" | "INVALID_REQUEST" };
+  };
+  "/auth/commons/finish": {
+    input: {
+      "code": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["finish"]>[0], ["code"]>>;
+      "state": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["finish"]>[0], ["nonce"]>>;
+    };
+    output: {
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    } | {
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: HttpAppWideError | "CONFLICT" | "FORBIDDEN" | "INVALID_REQUEST" };
+  };
+  "/auth/commons/start": {
+    input: Record<string, never>;
+    output: {
+      "address": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["CommonsFederating"]["start"]>>, ["address"]>>;
+    };
+    error: { error: HttpAppWideError };
+  };
+  "/auth/login": {
+    input: {
+      "password": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Authenticating"]["authenticate"]>[0], ["password"]>>;
+      "username": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Registering"]["_byUsername"]>[0], ["username"]>>;
+    };
+    output: {
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "UNAUTHORIZED" };
+  };
+  "/auth/logout": {
+    input: Record<string, never>;
+    output: Record<string, never>;
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "UNAUTHORIZED" };
+  };
+  "/auth/me": {
+    input: Record<string, never>;
+    output: {
+      "username": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Registering"]["_username"]>>>, ["username"]>>;
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "UNAUTHORIZED" };
+  };
+  "/auth/register": {
+    input: {
+      "password": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Authenticating"]["_acceptable"]>[0], ["password"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Authenticating"]["set"]>[0], ["password"]>]>>;
+      "username": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Registering"]["register"]>[0], ["username"]>>;
+    };
+    output: {
+      "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
+    };
+    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" };
+  };
   "/map/add-place": {
     input: {
       "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
@@ -170,15 +417,15 @@ export type CampusWireHttp = {
         }[];
       };
       "problems": {
-        "reports": {
+        "reports": ({
           "destinationName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>>>, ["destinationName"]>>;
           "forward": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>>>, ["forward"]>>;
           "link": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>[0], ["link"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["target"]>]>>;
           "reason": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["reason"]>>;
           "report": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["report"]>>;
-          "reporter": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["_open"]>>>, ["reporter"]>>;
+          "reporter": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Registering"]["_username"]>>>, ["username"]>> | null;
           "sourceName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_link"]>>>, ["sourceName"]>>;
-        }[];
+        })[];
       };
     };
     error: { error: HttpAppWideError };
@@ -199,16 +446,114 @@ export type CampusWireHttp = {
     };
     error: { error: HttpAppWideError | "INVALID_REQUEST" };
   };
+  "/me": {
+    input: Record<string, never>;
+    output: {
+      "favorites": {
+        "favorites": {
+          "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["floor"]>>;
+          "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["kind"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "place": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Favoriting"]["_favorites"]>>>, ["item"]>]>>;
+        }[];
+      };
+      "history": {
+        "history": {
+          "destination": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["destination"]>]>>;
+          "destinationName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "entry": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["entry"]>>;
+          "meters": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["meters"]>>;
+          "source": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_history"]>>>, ["source"]>]>>;
+          "sourceName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+        }[];
+      };
+      "preferences": {
+        "preferences": {
+          "stepFree": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["stepFree"]>>;
+          "useLocation": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["useLocation"]>>;
+        }[];
+      };
+      "totals": {
+        "totals": {
+          "meters": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_totals"]>>>, ["meters"]>>;
+          "trips": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["_totals"]>>>, ["trips"]>>;
+        }[];
+      };
+      "trips": {
+        "trips": {
+          "accessibleOnly": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["accessibleOnly"]>>;
+          "destination": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["destination"]>]>>;
+          "destinationName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["name"]>>;
+          "source": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>, AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["source"]>]>>;
+          "sourceName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>>>, ["name"]>>;
+          "trip": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["_trips"]>>>, ["trip"]>>;
+        }[];
+      };
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "UNAUTHORIZED" };
+  };
+  "/me/favorites/add": {
+    input: {
+      "place": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Favoriting"]["favorite"]>[0], ["item"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+    };
+    output: Record<string, never>;
+    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" | "NOT_FOUND" | "UNAUTHORIZED" };
+  };
+  "/me/favorites/remove": {
+    input: {
+      "place": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Favoriting"]["unfavorite"]>[0], ["item"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "NOT_FOUND" | "UNAUTHORIZED" };
+  };
+  "/me/preferences/set": {
+    input: {
+      "stepFree": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["stepFree"]>>;
+      "useLocation": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["useLocation"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "UNAUTHORIZED" };
+  };
+  "/me/trips/finish": {
+    input: {
+      "destination": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>[0], ["destination"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+      "meters": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>[0], ["meters"]>>;
+      "source": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>[0], ["source"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+    };
+    output: {
+      "entry": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Journaling"]["finish"]>>, ["entry"]>>;
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "NOT_FOUND" | "UNAUTHORIZED" };
+  };
+  "/me/trips/remove": {
+    input: {
+      "trip": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["remove"]>[0], ["trip"]>>;
+    };
+    output: Record<string, never>;
+    error: { error: HttpAppWideError | "INVALID_REQUEST" | "NOT_FOUND" | "UNAUTHORIZED" };
+  };
+  "/me/trips/save": {
+    input: {
+      "accessibleOnly": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["accessibleOnly"]>>;
+      "destination": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["destination"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["name"]>>;
+      "source": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>[0], ["source"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_place"]>[0], ["place"]>]>>;
+    };
+    output: {
+      "trip": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Planning"]["save"]>>, ["trip"]>>;
+    };
+    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" | "NOT_FOUND" | "UNAUTHORIZED" };
+  };
   "/problems/block": {
     input: {
       "link": Jsonify<OneOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["block"]>[0], ["link"]>, AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>[0], ["target"]>]>>;
       "reason": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>[0], ["reason"]>>;
-      "reporter": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>[0], ["reporter"]>>;
     };
     output: {
       "report": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Reporting"]["report"]>>, ["report"]>>;
     };
-    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" | "NOT_FOUND" };
+    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" | "NOT_FOUND" | "UNAUTHORIZED" };
   };
   "/problems/unblock": {
     input: {
@@ -217,7 +562,7 @@ export type CampusWireHttp = {
     output: {
       "link": Jsonify<AllOf<[AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["unblock"]>[0], ["link"]>, AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["unblock"]>>, ["link"]>]>>;
     };
-    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" | "NOT_FOUND" };
+    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" | "NOT_FOUND" | "UNAUTHORIZED" };
   };
   "/route/find": {
     input: {
@@ -229,6 +574,7 @@ export type CampusWireHttp = {
     output: {
       "route": {
         "steps": {
+          "distance": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["distance"]>>;
           "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["floor"]>>;
           "instruction": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["instruction"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["link"]>>;

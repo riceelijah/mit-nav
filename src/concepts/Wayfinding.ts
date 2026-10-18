@@ -165,6 +165,11 @@ export class WayfindingConcept {
       }));
   }
 
+  async _place({ place }: { place: string }) {
+    const found = await this.places.findOne({ _id: place });
+    return found ? [{ name: found.name, kind: found.kind, floor: found.floor }] : [];
+  }
+
   async _search({ text }: { text: string }) {
     const q = text.trim().toLowerCase();
     // ponytail: scans every place per keystroke (~10k, a few ms); a text index if the map grows much larger.
@@ -285,6 +290,7 @@ export class WayfindingConcept {
       instruction,
       placeName: place.name,
       floor: place.floor,
+      distance: link.distance ?? 1,
     }));
   }
 }

@@ -1,12 +1,8 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { createGateway } from "@mit-sdg/sync-engine/boundary";
-import { createHttpHandler } from "@mit-sdg/sync-engine-http/handler";
-import { assembleApplication } from "../src/assembly.ts";
-import { policy } from "../src/http.ts";
 import { WayfindingConcept } from "../src/concepts/Wayfinding.ts";
 import { interior, parseCsv, parseFloor } from "../scripts/campus-to-map.ts";
-import { freshDb } from "./helpers.ts";
+import { freshApi, freshDb, signedUp } from "./helpers.ts";
 
 const csv = `"FLOOR","ROOM NUMBER","SQ FT","ROOM USE","DEPARTMENT","MAJOR USE"
 "1","9-100CA","1,043","CORRIDOR","DP OF FACILITIES","CIRCULATION AREA"
@@ -59,11 +55,8 @@ test("_sameService answers the other rides of an elevator, and nothing for an un
 });
 
 test("clearing one ride of an elevator resolves the reports on its other rides", async () => {
-  const { db, close } = await freshDb();
-  const application = assembleApplication(db);
-  const api = createHttpHandler({ application, gateway: createGateway({ application }), policy });
-  const post = async (path: string, body: object) =>
-    (await api(new Request(`http://x/api${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }))).json() as Promise<any>;
+  const { close, browser } = await freshApi();
+  const post = await signedUp(browser, "ana");
   const floor = async (n: number) => (await post("/map/add-place", { name: `Floor ${n}`, kind: "HALLWAY", floor: n })).place;
   const [one, two, three] = [await floor(1), await floor(2), await floor(3)];
   const ride = async (source: string, destination: string) =>
@@ -71,9 +64,9 @@ test("clearing one ride of an elevator resolves the reports on its other rides",
   const low = await ride(one, two);
   const high = await ride(two, three);
 
-  expect((await post("/problems/block", { link: low, reporter: "Ana", reason: "Doors stuck" })).report).toBeTruthy();
+  expect((await post("/problems/block", { link: low, reason: "Doors stuck" })).report).toBeTruthy();
   // The whole elevator is out, so a second flag on another ride is refused and records nothing.
-  expect((await post("/problems/block", { link: high, reporter: "Bo", reason: "Same" })).error).toBe("CONFLICT");
+  expect((await post("/problems/block", { link: high, reason: "Same" })).error).toBe("CONFLICT");
   expect((await post("/map/overview", {})).problems.reports.length).toBe(1);
 
   await post("/problems/unblock", { link: high });
@@ -145,11 +138,8 @@ test("_link and _blocked describe connections; a blocked connection without a re
 });
 
 test("search endpoint answers matches, and an empty list when nothing matches", async () => {
-  const { db, close } = await freshDb();
-  const application = assembleApplication(db);
-  const api = createHttpHandler({ application, gateway: createGateway({ application }), policy });
-  const post = async (path: string, body: object) =>
-    (await api(new Request(`http://x/api${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }))).json() as Promise<any>;
+  const { close, browser } = await freshApi();
+  const post = browser();
   await post("/map/add-place", { name: "32-123 Lecture Hall", kind: "ROOM", floor: 1 });
   expect((await post("/map/search", { text: "32-1" })).places.places.map((p: any) => p.name)).toEqual(["32-123 Lecture Hall"]);
   expect((await post("/map/search", { text: "zzz" })).places.places).toEqual([]);

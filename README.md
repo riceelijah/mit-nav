@@ -1,6 +1,6 @@
 # MIT Navigator
 
-Step-by-step directions across MIT, from building to building and floor to floor, with a step-free option. It grew out of a Simmons Hall navigator, and Simmons keeps its detailed hand-made map. Anyone can flag a passage (for example an elevator) as blocked, and everyone's directions avoid it until someone marks it clear. See `design/` for the concept and composition specs.
+Step-by-step directions across MIT, from building to building and floor to floor, with a step-free option. It grew out of a Simmons Hall navigator, and Simmons keeps its detailed hand-made map. Sign in with your MIT class account (Commons) or a username and password to report problems and to keep favorites, saved trips, preferences, and a trip journal. Anyone can flag a passage (for example an elevator) as blocked, and everyone's directions avoid it until someone marks it clear. See `design/` for the concept and composition specs.
 
 ## Run it
 
@@ -19,7 +19,7 @@ bun run seed       # in a second terminal, once, to load the map
 
 Each building becomes a place joined to nearby buildings by outdoor walks. A building with a room list also gets a corridor per floor, its elevators and stairs, and its rooms; buildings whose footprints touch are joined indoors on shared floors. After regenerating, run `bun run db:reset`, `bun run db:up`, and seed again.
 
-Open http://127.0.0.1:8080. `bun test` runs the tests with an in-memory stand-in for MongoDB (no setup needed); `bun run test:real` runs them against the container database after `bun run db:up`. `bun run db:reset` empties the database.
+Open http://127.0.0.1:8080. `bun test` runs the tests on an in-memory MongoDB (no setup needed; the first run downloads a MongoDB binary); `bun run test:real` runs them against the container database after `bun run db:up`. `bun run db:reset` empties the database.
 
 ## Core user journey
 

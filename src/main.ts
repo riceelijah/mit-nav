@@ -1,10 +1,13 @@
 import { createGateway } from "@mit-sdg/sync-engine/boundary";
 import { createHttpHandler } from "@mit-sdg/sync-engine-http/handler";
 import { assembleApplication } from "./assembly.ts";
-import { policy } from "./http.ts";
+import { policy, publicOrigin } from "./http.ts";
+import { CommonsProvider } from "./concepts/Federating/provider.ts";
 import { db } from "./db.ts";
 
-const application = assembleApplication();
+// People sign in with their class account on Commons; COMMONS_ORIGIN overrides where that is.
+const commons = new CommonsProvider({ origin: process.env.COMMONS_ORIGIN ?? "https://class.mit-sdg.dev", app: publicOrigin });
+const application = assembleApplication(db, commons);
 const gateway = createGateway({ application });
 const api = createHttpHandler({ application, gateway, policy });
 

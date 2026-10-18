@@ -15,6 +15,8 @@ const server = Bun.serve({
   port: Number(process.env.PORT ?? 8080),
   routes: {
     "/": homepage,
+    // Commons sends the browser back here with a one-time code; the page finishes signing in.
+    "/auth/commons/callback": homepage,
     "/api/*": proxy,
     "/health": proxy,
   },
