@@ -1,0 +1,1 @@
+Add place positions and the nearest-building query to Wayfinding; positions in route steps, search and _place answers; Campus composition prose for the map, tracking and rerouting (client side) and a NearestPlace endpoint. Check syntax.

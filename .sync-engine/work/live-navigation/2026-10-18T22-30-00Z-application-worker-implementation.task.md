@@ -1,0 +1,1 @@
+Implement live navigation per approved design: Wayfinding positions/_nearest/kind in route; NearestPlace endpoint + Nearest former; converter emits positions; seed passes them; frontend map (Leaflet 1.9.4 CDN), location tracking, manual done, rerouting; tests.

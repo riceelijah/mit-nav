@@ -13,6 +13,8 @@ interface PlaceDoc {
   name: string;
   kind: Kind;
   floor: number;
+  latitude: number;
+  longitude: number;
   order: number;
 }
 
@@ -41,6 +43,14 @@ function isClosed(from: number, until: number, hour: number) {
   return from < until ? hour >= from && hour < until : hour >= from || hour < until;
 }
 
+/** Distance along the ground in metres; flat-earth is exact enough across a campus. */
+export function groundMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const metersPerDegree = 111_320;
+  const x = (lon2 - lon1) * metersPerDegree * Math.cos((((lat1 + lat2) / 2) * Math.PI) / 180);
+  const y = (lat2 - lat1) * metersPerDegree;
+  return Math.hypot(x, y);
+}
+
 /** A connection as people read it: its two places by name, its directions, and its service. */
 async function describe(places: Collection<PlaceDoc>, l: LinkDoc) {
   const [source, destination] = await Promise.all([places.findOne({ _id: l.source }), places.findOne({ _id: l.destination })]);
@@ -57,7 +67,7 @@ export class WayfindingConcept {
     this.links = db.collection<LinkDoc>("wayfinding.links");
   }
 
-  async addPlace({ name, kind, floor }: { name: string; kind: Kind; floor: number }) {
+  async addPlace({ name, kind, floor, latitude, longitude }: { name: string; kind: Kind; floor: number; latitude: number; longitude: number }) {
     if (!this.indexed) {
       // The unique index is what stops two places from sharing a name, even in a race.
       await this.places.createIndex({ name: 1 }, { unique: true });
@@ -66,7 +76,7 @@ export class WayfindingConcept {
     const place = crypto.randomUUID();
     try {
       const order = await this.places.countDocuments({});
-      await this.places.insertOne({ _id: place, name, kind, floor, order });
+      await this.places.insertOne({ _id: place, name, kind, floor, latitude, longitude, order });
     } catch (error) {
       if (error instanceof MongoServerError && error.code === 11000) {
         throw new DuplicatePlace("A place with that name already exists.");
@@ -167,7 +177,21 @@ export class WayfindingConcept {
 
   async _place({ place }: { place: string }) {
     const found = await this.places.findOne({ _id: place });
-    return found ? [{ name: found.name, kind: found.kind, floor: found.floor }] : [];
+    return found ? [{ name: found.name, kind: found.kind, floor: found.floor, latitude: found.latitude ?? 0, longitude: found.longitude ?? 0 }] : [];
+  }
+
+  async _nearest({ latitude, longitude }: { latitude: number; longitude: number }) {
+    if (!(Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180)) return [];
+    const rows = (await this.places.find({ kind: "ENTRANCE" }).toArray())
+      .filter((p) => p.latitude || p.longitude)
+      .sort((a, b) => a.order - b.order);
+    let best: PlaceDoc | undefined;
+    let bestMeters = Infinity;
+    for (const p of rows) {
+      const meters = groundMeters(latitude, longitude, p.latitude, p.longitude);
+      if (meters < bestMeters) [best, bestMeters] = [p, meters]; // strict, so the earliest added wins a tie
+    }
+    return best ? [{ place: best._id, name: best.name, latitude: best.latitude, longitude: best.longitude }] : [];
   }
 
   async _search({ text }: { text: string }) {
@@ -178,7 +202,7 @@ export class WayfindingConcept {
       .filter((p) => p.kind !== "TRANSIT" && p.name.toLowerCase().includes(q))
       .sort((a, b) => Number(b.kind === "ENTRANCE") - Number(a.kind === "ENTRANCE") || byName(a.name, b.name))
       .slice(0, SEARCH_LIMIT)
-      .map(({ _id, name, kind, floor }) => ({ place: _id, name, kind, floor }));
+      .map(({ _id, name, kind, floor, latitude, longitude }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0 }));
   }
 
   async _link({ link }: { link: string }) {
@@ -289,8 +313,11 @@ export class WayfindingConcept {
       link: link._id,
       instruction,
       placeName: place.name,
+      kind: place.kind,
       floor: place.floor,
       distance: link.distance ?? 1,
+      latitude: place.latitude ?? 0,
+      longitude: place.longitude ?? 0,
     }));
   }
 }

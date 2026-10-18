@@ -16,6 +16,13 @@ async function post(path: string, body: object) {
   return (await response.json()) as any;
 }
 
+// Simmons' hand-made map has no positions, so its places share Simmons Hall's from the campus map.
+const simmonsHall = maps[1].places.find((p: any) => p.name.endsWith("(Building W79)"));
+for (const place of maps[0].places) {
+  place.latitude ??= simmonsHall?.latitude ?? 0;
+  place.longitude ??= simmonsHall?.longitude ?? 0;
+}
+
 // The campus map links to Simmons places by name, so every place is added before any connection.
 const ids = new Map<string, string>();
 for (const place of maps.flatMap((m) => m.places)) {

@@ -1,0 +1,135 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "live-navigation",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation"
+  },
+  "role": "critic",
+  "phase": "contracts",
+  "execution": "delegated",
+  "independent": true,
+  "harness": "claude-code",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation/2026-10-18T22-27-46Z-critic-contracts.prompt.md",
+    "sha256": "b5700057caf167f086a01e596c9ef7141edf40641037541c18351426c45bf513"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation/2026-10-18T22-27-46Z-critic-contracts.capabilities.json",
+    "sha256": "2491c8b75843e5ed2a58c1fd64dd107b45c7923f1575cb76e94ac4a572e4dad8"
+  },
+  "grant": {
+    "readableAreas": [],
+    "writableAreas": [],
+    "toolKinds": [],
+    "projectShell": "none",
+    "network": false,
+    "generatedOutput": false,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation/2026-10-18T22-27-46Z-critic-contracts.response.md",
+    "sha256": "2683d2da7bfc3436e245a80bad69ee0f6b2ba0b45bbc59f35025ec629adcc7fe",
+    "bytes": 1053
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/live-navigation/brief.md",
+      "sha256": "80c1910312c6216059011fb50e23a5fb95d114293b9958833aa9ee4f747bb342"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/live-navigation/2026-10-18T22-27-46Z-critic-contracts.baseline.json",
+      "sha256": "98248dec0ca5c784f68ad03342262e75e3544995b360b8f3650b267df8ebbe9d"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "39c42b8c357abf468308b0bc17377b737a9c10ae029afee2effb7f00af4e1b98",
+    "beforeFiles": [
+      {
+        "path": "compositions/Accounts.md",
+        "sha256": "a32a9c8c00a35ef084d71c636a6e8d35e041cb63782d815e76b262866b6fcd39"
+      },
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "d1890e1c4e4800f8960725e4003ee3a23f2e2c1a8867e624a7afbca81841c562"
+      },
+      {
+        "path": "compositions/Commons.md",
+        "sha256": "0a97f4ac87dfffd5db28437ca2a2d88183e6c39301bb56cded80ed096e3f7ebb"
+      },
+      {
+        "path": "compositions/Passwords.md",
+        "sha256": "20527c7d49bd1bec22679eae148b887eb45219e6574f3fc595df68252c5c8eea"
+      },
+      {
+        "path": "compositions/Saved.md",
+        "sha256": "2a937533cd859612b29e551587e035d4b0f9308bad8447633a8d3c91e33f7402"
+      },
+      {
+        "path": "concepts/Authenticating.md",
+        "sha256": "0c415f85ad32f100f229269d30c76f7d978baff4f711426ca55ffca1d54639e7"
+      },
+      {
+        "path": "concepts/Favoriting.md",
+        "sha256": "e6a5b50cd86c255f638deba57e5cc591478d9728211626785355eb777e0a180d"
+      },
+      {
+        "path": "concepts/Federating.md",
+        "sha256": "fdd29a2154b9d7c68938d278eaada07e80779250ec03c16f3b0f8e2768c3b699"
+      },
+      {
+        "path": "concepts/Journaling.md",
+        "sha256": "b78e730e76b63f3b27226ebe7d339c1e907d1f00b810d77a73df2a7d093382d1"
+      },
+      {
+        "path": "concepts/Planning.md",
+        "sha256": "8ed59003ff3b56ebb33572ec329804cb4031ee1d0ec0c5e075164b28b61d2fdf"
+      },
+      {
+        "path": "concepts/Preferring.md",
+        "sha256": "cc96b32b2a1379e4fd1034855a0a22eaa041ce6d12c9040af845077fa7c0a6a9"
+      },
+      {
+        "path": "concepts/Registering.md",
+        "sha256": "72e2f72dba60dc1c7def945510c7337ae1805d7d30fd757f6f5beac83d86e9cb"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Sessioning.md",
+        "sha256": "b47a9125cadab0e938b6298ac2cd782d7592eefdbd76caa879d4c8366e0ef9bc"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "f41062bfbb28d8bb3bb5cc43bb97798416843d406235e6bf24893341d0115558"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "de6be3f9904ebc7d49b7ce4fa3fab5a41f7731780a3bb88a43cefe07f10d53d5"
+      },
+      {
+        "path": "types.md",
+        "sha256": "04b7229c367b7627872672e11b30648e63db03252d58c34da3cb94f76f7c4c7b"
+      }
+    ]
+  },
+  "review": {
+    "subject": "design",
+    "digest": "39c42b8c357abf468308b0bc17377b737a9c10ae029afee2effb7f00af4e1b98"
+  },
+  "status": "completed",
+  "result": "revise",
+  "agentId": "a0bf862f1b8d34999",
+  "enforcement": "prompt-guided"
+}

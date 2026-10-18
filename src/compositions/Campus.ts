@@ -1,15 +1,15 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
 import { each, form, former, reaction, when, whether } from "@mit-sdg/sync-engine/language";
-import { signedIn } from "./inputs.ts";
+import { numbers, signedIn } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
 const { Wayfinding, Reporting, Registering, Sessioning } = concepts;
 
 const PlaceSearch = former(
   "the places matching (text)",
-  ({ text }, { place, name, kind, floor }) =>
+  ({ text }, { place, name, kind, floor, latitude, longitude }) =>
     form({
-      places: each(Wayfinding._search({ text }).is({ place, name, kind, floor })).form({ place, name, kind, floor }),
+      places: each(Wayfinding._search({ text }).is({ place, name, kind, floor, latitude, longitude })).form({ place, name, kind, floor, latitude, longitude }),
     }),
 );
 
@@ -44,7 +44,7 @@ const BlockedList = former(
 
 const Route = former(
   "the route from (source) to (destination)",
-  ({ source, destination, accessibleOnly, hour }, { step, link, instruction, placeName, floor, distance }) =>
+  ({ source, destination, accessibleOnly, hour }, { step, link, instruction, placeName, kind, floor, distance, latitude, longitude }) =>
     form({
       steps: each(
         Wayfinding._route({ source, destination, accessibleOnly, hour }).is({
@@ -52,10 +52,13 @@ const Route = former(
           link,
           instruction,
           placeName,
+          kind,
           floor,
           distance,
+          latitude,
+          longitude,
         }),
-      ).form({ step, link, instruction, placeName, floor, distance }),
+      ).form({ step, link, instruction, placeName, kind, floor, distance, latitude, longitude }),
     }),
 );
 
@@ -71,11 +74,11 @@ const SearchPlaces = endpoint(
 
 const AddPlace = endpoint(
   "/map/add-place",
-  ({ name, kind, floor, place }) =>
-    receive({ name, kind, floor })
-      .then(Wayfinding.addPlace({ name, kind, floor }).responds({ place }))
+  ({ name, kind, floor, latitude, longitude, place }) =>
+    receive({ name, kind, floor, latitude, longitude })
+      .then(Wayfinding.addPlace({ name, kind, floor, latitude, longitude }).responds({ place }))
       .then(respond({ place })),
-  { input: { required: ["name", "kind", "floor"] } },
+  { input: { required: ["name", "kind", "floor", "latitude", "longitude"] } },
 );
 
 const Connect = endpoint(
@@ -87,6 +90,26 @@ const Connect = endpoint(
       )
       .then(respond({ link })),
   { input: { required: ["source", "destination", "forward", "backward", "accessible", "closedFrom", "closedUntil", "service", "distance"] } },
+);
+
+const Nearest = former(
+  "the building nearest (latitude, longitude)",
+  ({ latitude, longitude }, { place, name, placeLatitude, placeLongitude }) =>
+    form({
+      places: each(Wayfinding._nearest({ latitude, longitude }).is({ place, name, latitude: placeLatitude, longitude: placeLongitude })).form({
+        place,
+        name,
+        latitude: placeLatitude,
+        longitude: placeLongitude,
+      }),
+    }),
+);
+
+// A person's position is used only to answer this request; nothing stores it.
+const NearestPlace = endpoint(
+  "/route/nearest",
+  ({ latitude, longitude }) => receive({ latitude, longitude }).then(respond({ nearest: Nearest({ latitude, longitude }) })),
+  { validators: { input: numbers("latitude", "longitude") } },
 );
 
 const FindRoute = endpoint(
@@ -133,7 +156,7 @@ const ClearingResolvesSharedReports = reaction(({ link, other }) =>
 
 export const composition = {
   Browsing: { PlaceSearch, ProblemList, BlockedList, ShowOverview, SearchPlaces },
-  Routing: { Route, FindRoute },
+  Routing: { Route, FindRoute, Nearest, NearestPlace },
   Problems: { BlockLink, UnblockLink, UnblockResolvesReports, ClearingResolvesSharedReports },
   Setup: { AddPlace, Connect },
 };

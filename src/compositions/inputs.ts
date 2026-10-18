@@ -27,3 +27,12 @@ export const signedIn =
       fields.every((field) => body[field] !== undefined && body[field] !== null);
     return ok ? { ok: true } : { ok: false, detail: `expected ${fields.join(", ")}` };
   };
+
+/** Accepts a body whose named fields are all finite numbers, such as a latitude and longitude. */
+export const numbers =
+  (...fields: string[]): EndpointValidator =>
+  (value) => {
+    const body = value as Record<string, unknown> | null;
+    const ok = typeof body === "object" && body !== null && fields.every((f) => typeof body[f] === "number" && Number.isFinite(body[f]));
+    return ok ? { ok: true } : { ok: false, detail: `expected numbers ${fields.join(", ")}` };
+  };

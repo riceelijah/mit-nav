@@ -19,7 +19,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
-export type Place = { name: string; kind: Kind; floor: number };
+export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number };
 // source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance
 export type Link = [string, string, string, string, boolean, number, number, string, number];
 type Point = [number, number];
@@ -95,7 +95,7 @@ export function interior(ref: string, csv: string) {
     }
   }
   const byLevel = (m: Map<string, number>) => [...m].sort((a, b) => a[1] - b[1]);
-  for (const [c, level] of byLevel(hubs)) places.push({ name: hubName(ref, c), kind: "TRANSIT", floor: level });
+  for (const [c, level] of byLevel(hubs)) places.push({ name: hubName(ref, c), kind: "TRANSIT", floor: level, latitude: 0, longitude: 0 });
   for (const [id, served] of [...elevators].sort()) {
     const floors = byLevel(served);
     for (let i = 0; i < floors.length; i++) {
@@ -122,7 +122,7 @@ export function interior(ref: string, csv: string) {
     }
   }
   for (const r of rooms) {
-    places.push({ name: r.name, kind: "ROOM", floor: r.level });
+    places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0 });
     links.push([
       hubName(ref, r.code), r.name,
       `Walk to ${r.number} (${title(r.use).toLowerCase()}).`, `Leave ${r.number} for the floor ${r.code} corridor.`,
@@ -142,6 +142,11 @@ const toMeters = (lon: number, lat: number): Point => [
   (lon + 71.09) * 111320 * Math.cos((LAT0 * Math.PI) / 180),
   (lat - LAT0) * 110540,
 ];
+/** The inverse of toMeters, rounded to about 1 cm. */
+const toLatLon = ([x, y]: Point) => ({
+  latitude: Number((y / 110540 + LAT0).toFixed(7)),
+  longitude: Number((x / (111320 * Math.cos((LAT0 * Math.PI) / 180)) - 71.09).toFixed(7)),
+});
 function segmentDistance([px, py]: Point, [ax, ay]: Point, [bx, by]: Point) {
   const dx = bx - ax, dy = by - ay;
   const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
@@ -253,7 +258,7 @@ export async function buildCampus() {
   const lists = new Set(existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".csv")).map((f) => f.slice(0, -4)) : []);
   lists.delete("W79"); // Simmons has its own hand-made map.
 
-  for (const b of buildings) places.push({ name: buildingPlace(b), kind: "ENTRANCE", floor: 1 });
+  for (const b of buildings) places.push({ name: buildingPlace(b), kind: "ENTRANCE", floor: 1, ...toLatLon(b.center) });
 
   const gaps = new Map<string, number>();
   const gap = (i: number, j: number) => {
@@ -277,7 +282,8 @@ export async function buildCampus() {
     if (!lists.has(b.ref)) continue;
     const plan = interior(b.ref, readFileSync(new URL(`${b.ref}.csv`, dir), "utf8"));
     inside.set(b.ref, plan);
-    places.push(...plan.places);
+    // Floors and rooms share their building's position; a phone cannot tell them apart indoors.
+    places.push(...plan.places.map((p) => ({ ...p, ...toLatLon(b.center) })));
     links.push(...plan.links);
     if (plan.ground) {
       links.push([

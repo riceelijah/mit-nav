@@ -8,6 +8,34 @@ type Place = { place: string; name: string; kind: string; floor: number };
 const floorLabel = (floor: number) => (floor === 0 ? "Basement" : `Floor ${floor}`);
 // Route distances are in cost units; an outdoor walk costs 1 + metres/50, so each unit is about 50 m.
 const METERS_PER_UNIT = 50;
+// Within this many metres of a building's centre counts as reaching it; further than OFF_COURSE from the route, twice in a row, reroutes.
+const REACHED = 40;
+const OFF_COURSE = 75;
+const MIT: [number, number] = [42.3601, -71.0942];
+declare const L: any; // Leaflet, loaded from unpkg in index.html
+
+type Point = [number, number];
+const known = (p: { latitude?: number; longitude?: number } | null | undefined) => !!p && !!(p.latitude || p.longitude);
+/** Distance along the ground in metres; flat-earth is exact enough across a campus. */
+function groundMeters([lat1, lon1]: Point, [lat2, lon2]: Point) {
+  const x = (lon2 - lon1) * 111_320 * Math.cos((((lat1 + lat2) / 2) * Math.PI) / 180);
+  return Math.hypot(x, (lat2 - lat1) * 111_320);
+}
+/** Distance in metres from a point to the line through `line`, measured in a local flat frame around the point. */
+function metersFromLine(p: Point, line: Point[]) {
+  if (line.length === 1) return groundMeters(p, line[0]);
+  const k = Math.cos((p[0] * Math.PI) / 180);
+  const flat = ([lat, lon]: Point) => [(lon - p[1]) * 111_320 * k, (lat - p[0]) * 111_320];
+  let best = Infinity;
+  for (let i = 0; i + 1 < line.length; i++) {
+    const [ax, ay] = flat(line[i]), [bx, by] = flat(line[i + 1]);
+    const dx = bx - ax, dy = by - ay;
+    const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+    best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return best;
+}
+
 const distanceLabel = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
 
 /** The place with exactly this name, found through search (the browser never holds the whole map). */
@@ -85,9 +113,11 @@ const app = createApp({
       </p>
       <template v-if="steps.length">
         <p class="floor">{{ steps.length }} steps, about {{ distanceLabel(routeMeters) }} (estimated)</p>
+        <label class="check"><input type="checkbox" v-model="tracking" /> Follow my location (steps outside tick off as you reach each building; mark indoor steps done yourself)</label>
         <ol class="steps">
-          <li v-for="s in steps" :key="s.step">
+          <li v-for="(s, i) in steps" :key="s.step" :class="{ done: i < doneCount, current: i === doneCount }">
             {{ s.instruction }} <span class="floor">(arrive: {{ s.placeName }}, floor {{ s.floor }})</span>
+            <button v-if="i === doneCount" class="flag" @click="doneCount++">Done</button>
             <button class="flag danger" @click="startFlag(s.link)">Flag blocked</button>
             <div v-if="flagging === s.link" class="inline">
               <input type="text" v-model="reason" placeholder="What is wrong? (e.g. elevator out of service)" />
@@ -98,6 +128,7 @@ const app = createApp({
         <button v-if="me" class="primary arrived" @click="finishTrip" :disabled="finished">{{ finished ? 'Trip recorded' : "I've arrived" }}</button>
       </template>
       <p v-if="message" :class="['msg', messageKind]">{{ message }}</p>
+      <div id="map" aria-label="Map of the route"></div>
     </section>
 
     <template v-if="me && mine">
@@ -173,6 +204,8 @@ const app = createApp({
     const prefLocation = ref(false);
     const tripName = ref("");
     const finished = ref(false);
+    const tracking = ref(false);
+    const doneCount = ref(0);
     const now = new Date();
     const time = ref(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
     const hour = computed(() => {
@@ -275,7 +308,89 @@ const app = createApp({
       if ("error" in result) return say(`Could not find a route: ${result.error}`, "bad");
       steps.value = result.route.steps;
       searched.value = true;
+      doneCount.value = 0;
+      draw();
     }
+
+    // ---- The map: the route as a line through the places it reaches, and where the person is. ----
+    let map: any, routeLayer: any, meMarker: any;
+    const routeLine = (): Point[] => {
+      const points: Point[] = [];
+      const add = (p: any) => {
+        if (!known(p)) return;
+        const pt: Point = [p.latitude, p.longitude];
+        const last = points[points.length - 1];
+        if (!last || last[0] !== pt[0] || last[1] !== pt[1]) points.push(pt);
+      };
+      add(from.value);
+      steps.value.forEach(add);
+      return points;
+    };
+    function draw() {
+      if (!map) return;
+      routeLayer.clearLayers();
+      const line = routeLine();
+      if (!line.length) return;
+      L.polyline(line, { color: "#a31f34", weight: 5, opacity: 0.85 }).addTo(routeLayer);
+      L.circleMarker(line[0], { radius: 7, color: "#1f7a3f", fillOpacity: 1 }).bindTooltip("Start").addTo(routeLayer);
+      L.circleMarker(line[line.length - 1], { radius: 7, color: "#a31f34", fillOpacity: 1 }).bindTooltip("Destination").addTo(routeLayer);
+      map.fitBounds(L.latLngBounds(line).pad(0.25), { maxZoom: 18 });
+    }
+
+    // ---- Following the person's location (only while they have it turned on). ----
+    let watchId: number | undefined;
+    let offReadings = 0;
+    let rerouting = false;
+    watch(tracking, (on) => {
+      if (on && !("geolocation" in navigator)) { tracking.value = false; return say("This browser can't share your location.", "bad"); }
+      if (on) {
+        offReadings = 0;
+        watchId = navigator.geolocation.watchPosition(
+          (p) => onReading([p.coords.latitude, p.coords.longitude]),
+          () => { tracking.value = false; say("Couldn't get your location. Check that the browser may use it.", "bad"); },
+          { enableHighAccuracy: true, maximumAge: 5000 },
+        );
+      } else {
+        if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+        watchId = undefined;
+        meMarker?.remove(); meMarker = undefined;
+      }
+    });
+    async function onReading(here: Point) {
+      if (map) {
+        meMarker ??= L.circleMarker(here, { radius: 8, color: "#1a5fb4", fillColor: "#1a5fb4", fillOpacity: 0.9 }).bindTooltip("You").addTo(map);
+        meMarker.setLatLng(here);
+      }
+      // Only a step that arrives at a building can be checked from outside; reaching it finishes every step before it.
+      steps.value.forEach((s, i) => {
+        if (i >= doneCount.value && s.kind === "ENTRANCE" && known(s) && groundMeters(here, [s.latitude, s.longitude]) <= REACHED) doneCount.value = i + 1;
+      });
+      const line = routeLine();
+      if (!line.length || doneCount.value >= steps.value.length || rerouting) return;
+      offReadings = metersFromLine(here, line) > OFF_COURSE ? offReadings + 1 : 0;
+      if (offReadings >= 2) await reroute(here);
+    }
+    async function reroute(here: Point) {
+      rerouting = true;
+      offReadings = 0; // two fresh readings are needed before rerouting again
+      try {
+        const answer = await client.route.nearest({ latitude: here[0], longitude: here[1] });
+        const nearest = "error" in answer ? undefined : answer.nearest.places[0];
+        if (!nearest || !to.value) return say("You seem to be off the route, and no nearby building was found. Keep to the line on the map.", "bad");
+        const result = await client.route.find({ source: nearest.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, hour: nowHour() });
+        if ("error" in result || !result.route.steps.length) return say(`You seem to be off the route, and there is no route from ${nearest.name}. Keep to the old route.`, "bad");
+        skipNextRoute = true;
+        from.value = { ...nearest, kind: "ENTRANCE", floor: 1 };
+        steps.value = result.route.steps;
+        doneCount.value = 0;
+        draw();
+        say(`You went off course, so here is a new route from ${nearest.name}.`);
+      } finally {
+        rerouting = false;
+      }
+    }
+    const nowHour = () => { const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
+    let skipNextRoute = false;
 
     const signInFirst = (what: string) => { showSignIn.value = true; say(`Sign in to ${what}.`, "bad"); };
     function startFlag(link: string) {
@@ -333,11 +448,23 @@ const app = createApp({
       await loadMine();
     }
 
-    watch([from, to, accessibleOnly, time], () => { message.value = ""; findRoute(); });
+    watch([from, to, accessibleOnly, time], () => {
+      if (skipNextRoute) { skipNextRoute = false; return; } // the reroute already found this route
+      message.value = "";
+      findRoute();
+    });
     onMounted(async () => {
+      map = L.map("map").setView(MIT, 16);
+      // Tiles get the site's origin as referrer (OSM requires one); the rest of the page sends none.
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        referrerPolicy: "strict-origin-when-cross-origin",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+      routeLayer = L.layerGroup().addTo(map);
       if (window.location.pathname === "/auth/commons/callback") await finishCommons();
       else await loadMe();
-      if (me.value) accessibleOnly.value = prefStepFree.value;
+      if (me.value) { accessibleOnly.value = prefStepFree.value; tracking.value = prefLocation.value; }
       const [start, end] = await Promise.all([placeNamed("Main Lobby Entrance"), placeNamed("32-123 Lecture Hall"), load()]);
       from.value ??= start;
       to.value ??= end;
@@ -346,7 +473,7 @@ const app = createApp({
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
       reports, unreported, steps, from, to, accessibleOnly, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      startFlag, block, unblock, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
+      startFlag, block, unblock, tracking, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });

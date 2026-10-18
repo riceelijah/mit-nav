@@ -96,6 +96,8 @@ export type CampusWire = {
     input: {
       "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
       "kind": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["kind"]>>;
+      "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["latitude"]>>;
+      "longitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["longitude"]>>;
       "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["name"]>>;
     };
     output: {
@@ -155,6 +157,8 @@ export type CampusWire = {
         "places": {
           "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["floor"]>>;
           "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["kind"]>>;
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["latitude"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["longitude"]>>;
           "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["name"]>>;
           "place": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["place"]>>;
         }[];
@@ -303,9 +307,29 @@ export type CampusWire = {
           "distance": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["distance"]>>;
           "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["floor"]>>;
           "instruction": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["instruction"]>>;
+          "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["kind"]>>;
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["latitude"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["link"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["longitude"]>>;
           "placeName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["placeName"]>>;
           "step": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["step"]>>;
+        }[];
+      };
+    };
+    error: { error: AppWideError | "INVALID_INPUT" };
+  };
+  "/route/nearest": {
+    input: {
+      "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>[0], ["latitude"]>>;
+      "longitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>[0], ["longitude"]>>;
+    };
+    output: {
+      "nearest": {
+        "places": {
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["latitude"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["longitude"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["name"]>>;
+          "place": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["place"]>>;
         }[];
       };
     };
@@ -380,6 +404,8 @@ export type CampusWireHttp = {
     input: {
       "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
       "kind": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["kind"]>>;
+      "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["latitude"]>>;
+      "longitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["longitude"]>>;
       "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["name"]>>;
     };
     output: {
@@ -439,6 +465,8 @@ export type CampusWireHttp = {
         "places": {
           "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["floor"]>>;
           "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["kind"]>>;
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["latitude"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["longitude"]>>;
           "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["name"]>>;
           "place": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_search"]>>>, ["place"]>>;
         }[];
@@ -577,9 +605,29 @@ export type CampusWireHttp = {
           "distance": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["distance"]>>;
           "floor": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["floor"]>>;
           "instruction": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["instruction"]>>;
+          "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["kind"]>>;
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["latitude"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["link"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["longitude"]>>;
           "placeName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["placeName"]>>;
           "step": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["step"]>>;
+        }[];
+      };
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" };
+  };
+  "/route/nearest": {
+    input: {
+      "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>[0], ["latitude"]>>;
+      "longitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>[0], ["longitude"]>>;
+    };
+    output: {
+      "nearest": {
+        "places": {
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["latitude"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["longitude"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["name"]>>;
+          "place": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_nearest"]>>>, ["place"]>>;
         }[];
       };
     };

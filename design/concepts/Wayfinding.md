@@ -6,7 +6,7 @@ Describe how the places on a campus connect, from buildings and outdoor walks do
 
 ## Principle
 
-Someone adds the lobby and a room on the second floor and connects them by an elevator and by a staircase. A visitor who needs a step-free route is sent by the elevator, and one who does not is sent by whichever connection is shortest. When the elevator is blocked, the step-free visitor is told that no route exists, while everyone else is still sent by the stairs. Once the elevator is unblocked, it is offered again. A door onto a terrace that is closed overnight is offered during the day and never offered at 2 in the morning.
+Someone adds the lobby and a room on the second floor, each with where it is on the map, and connects them by an elevator and by a staircase. A visitor who needs a step-free route is sent by the elevator, and one who does not is sent by whichever connection is shortest. When the elevator is blocked, the step-free visitor is told that no route exists, while everyone else is still sent by the stairs. Once the elevator is unblocked, it is offered again. A door onto a terrace that is closed overnight is offered during the day and never offered at 2 in the morning.
 
 ## Types
 
@@ -22,6 +22,10 @@ a set of Places with
   a unique name String
   a kind Kind
   a floor Number
+  a latitude Number
+  a longitude Number
+
+  Rule: a place whose latitude and longitude are both 0 has no known position
 
 a seq of Links with
   a source Place
@@ -42,13 +46,13 @@ a seq of Links with
 ## Actions
 
 ```actions
-addPlace(name: String, kind: Kind, floor: Number) : returns (place: Place)
+addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number) : returns (place: Place)
   where some place has name
   then
     refuses DUPLICATE_PLACE "A place with that name already exists."
   where no place has name
   then
-    add a new place with name and kind and floor
+    add a new place with name and kind and floor and latitude and longitude
     returns place
 
 connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number) : returns (link: Link)
@@ -92,9 +96,11 @@ _places() : many (place: Place, name: String, kind: Kind, floor: Number)
   Answers every place, ordered by floor and then in the order the places were added (so whoever builds the map can list a floor's places from the entrance outward), and no rows when there are none.
 _links() : many (link: Link, sourceName: String, destinationName: String, forward: String, accessible: Flag, blocked: Flag, closedFrom: Number, closedUntil: Number, service: String)
   Answers every connection with the names of its two places, in the order the connections were made.
-_place(place: Place) : optional (name: String, kind: Kind, floor: Number)
-  Answers the place's name, kind and floor when the place is known, and nothing otherwise.
-_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number)
+_place(place: Place) : optional (name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)
+  Answers the place's name, kind, floor and position when the place is known, and nothing otherwise.
+_nearest(latitude: Number, longitude: Number) : optional (place: Place, name: String, latitude: Number, longitude: Number)
+  Answers the entrance with a known position closest to the given position, measuring distance along the ground in metres (so a degree of longitude counts for less than a degree of latitude), the one added first on a tie, and nothing when no entrance has a known position or the given position is not on Earth (latitude outside -90 to 90 or longitude outside -180 to 180).
+_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)
   Answers at most 40 places that are not TRANSIT whose name contains the text, ignoring case, with entrances first and then by name in natural number order (so 2 comes before 10); an empty text answers the first 40 places in that order, and no rows when nothing matches.
 _link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)
   Answers the names of the connection's two places, its forward directions, and its service when the link is known, and nothing otherwise.
@@ -102,6 +108,6 @@ _blocked() : many (link: Link, sourceName: String, destinationName: String, forw
   Answers every blocked connection with the names of its two places, its forward directions, and its service, in the order the connections were made, and no rows when nothing is blocked.
 _sameService(link: Link) : many (other: Link)
   Answers every other connection that shares the link's service, in the order the connections were made, and no rows when the link is unknown or its service is empty.
-_route(source: Place, destination: Place, accessibleOnly: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, floor: Number, distance: Number)
-  Answers the shortest route from source to destination, where each connection costs the distance it was given when it was made (so a builder can make a short flight of stairs cheaper than waiting for an elevator), as numbered steps starting at 1, each with the distance its connection was given, never using a blocked connection or one that is closed at the given hour of the day (0 up to 24, so 6.5 is half past six in the morning), and when accessibleOnly is true never using a connection that is not accessible. Answers no rows when either place is unknown or no route exists, and one row per step in order otherwise. Ties are broken in favor of connections made earlier.
+_route(source: Place, destination: Place, accessibleOnly: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number)
+  Answers the shortest route from source to destination, where each connection costs the distance it was given when it was made (so a builder can make a short flight of stairs cheaper than waiting for an elevator), as numbered steps starting at 1, each with the distance its connection was given and the kind and position of the place it arrives at, never using a blocked connection or one that is closed at the given hour of the day (0 up to 24, so 6.5 is half past six in the morning), and when accessibleOnly is true never using a connection that is not accessible. Answers no rows when either place is unknown or no route exists, and one row per step in order otherwise. Ties are broken in favor of connections made earlier.
 ```
