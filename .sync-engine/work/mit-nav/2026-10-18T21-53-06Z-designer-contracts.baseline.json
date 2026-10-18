@@ -1,0 +1,313 @@
+{
+  "files": [
+    {
+      "path": ".dockerignore",
+      "sha256": "34390c516d0a0d2d4570cde1542a08c9142d03e98d461b0239337e385462332f"
+    },
+    {
+      "path": ".env",
+      "sha256": "3bfd1cbfbefac3231cc2a507393f8765f85eb6965d7916060bc91a9c613e3eed"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "3bfd1cbfbefac3231cc2a507393f8765f85eb6965d7916060bc91a9c613e3eed"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "efb2efdb9469bd4465b723172b0142d80f736251c68619c25a618d4700f6175e"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.baseline.json",
+      "sha256": "f125fa4b7d8a02b72631bae6d236795e14f04cce2e1ee971a6e25a2b82c516ec"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.capabilities.json",
+      "sha256": "6dfbe288df79270f3919ff6844562d73583e4dd5d2447f341bb2c04685426e37"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.prompt.md",
+      "sha256": "9416ce8cba684a90498f2526d8bab4d59be931d21165a2fc2d517edd70b0f0da"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.record.json",
+      "sha256": "cda504c07e89d2fbf153d5c7bc726749cb613c23b085c4d716a52d61b94c9d9a"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.response.md",
+      "sha256": "c930b510fe4eb78a0014f7038bddd34fcbea2fa71c4268cd8164d7bb44a539b0"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.task.md",
+      "sha256": "d3fd7d36e3d1fa1da3088aa9325208e03c290bdb6f0cc72586548a367c8626fb"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-48Z-critic-contracts.baseline.json",
+      "sha256": "acff0197b12557f3019f1d1275fcbd0d04f6234c8d5f79b309fb686c0d1d88b9"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-48Z-critic-contracts.capabilities.json",
+      "sha256": "2491c8b75843e5ed2a58c1fd64dd107b45c7923f1575cb76e94ac4a572e4dad8"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-48Z-critic-contracts.prompt.md",
+      "sha256": "1da86e57195f3fb64834fadd31d462bf2aa6afc588083f6b768fb01245ded88f"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-48Z-critic-contracts.record.json",
+      "sha256": "01fdd46d2e8c44eacf61ebba8636294c36c9e9c9b33799e2cacc70dd748bb808"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-48Z-critic-contracts.response.md",
+      "sha256": "f0b5613e48c2988c4db01143a35924340e5fb29955e1930e0f4da672da1c4152"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/2026-10-18T21-50-48Z-critic-contracts.task.md",
+      "sha256": "f70920497a75a358001f5e25b767fc3e41659d1b0b14fc4ed5c598451b0a02ef"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/grants/critic.json",
+      "sha256": "2491c8b75843e5ed2a58c1fd64dd107b45c7923f1575cb76e94ac4a572e4dad8"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/grants/designer.json",
+      "sha256": "6dfbe288df79270f3919ff6844562d73583e4dd5d2447f341bb2c04685426e37"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/tasks/critic-contracts.md",
+      "sha256": "f70920497a75a358001f5e25b767fc3e41659d1b0b14fc4ed5c598451b0a02ef"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/tasks/designer-contracts.md",
+      "sha256": "d3fd7d36e3d1fa1da3088aa9325208e03c290bdb6f0cc72586548a367c8626fb"
+    },
+    {
+      "path": ".sync-engine/work/mit-nav/tasks/designer-repair.md",
+      "sha256": "b46cabf9378afd4390fe7b8943283ac9916e3b919027f02801cdfd85e5714b21"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "8b7684033bd45ef5dec3e1cdf0ba90453cd4f9c2df37ec93d0ecdf09d63377d6"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "eab2163bf8b517f6d3732760727b04224ac35a60b50e0b66782ffc888049206b"
+    },
+    {
+      "path": "README.md",
+      "sha256": "dfbb95af4687c2d421b9faf17df343ef5368955ac681294e0e5e11ff2f79023d"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "3e70d0971bda906e482d76c0abfa0de0022bee42673e17946b992e908646627c"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "7ea2db6eeba9e92ab84032b460aa2763b4ca8adb464e7c713b3d7fff9626ca8b"
+    },
+    {
+      "path": "data/raw/osm.json",
+      "sha256": "c86dda5bc792d37a8d9e68dffbac7ff726360814b986b1607bcef38b04e54f45"
+    },
+    {
+      "path": "data/raw/pdfs/32_1.pdf",
+      "sha256": "8359f131802dff762734c88a4df92e6b14a67cb11722f4ff0232c649e9bdeaac"
+    },
+    {
+      "path": "data/raw/rooms/1.csv",
+      "sha256": "eaeeb31f4e0fd706ae63665a0487ca51870a87d82486f4f9bd17981fa79dbdad"
+    },
+    {
+      "path": "data/raw/rooms/10.csv",
+      "sha256": "e193c21f4b5a5881fbc3f42e539200d6cca05afc193c64b2ef41bd878b9c9f89"
+    },
+    {
+      "path": "data/raw/rooms/11.csv",
+      "sha256": "4ffa947f29178abb082535ee1132d12af46cb383bef7f18ab194b2ef19368aa1"
+    },
+    {
+      "path": "data/raw/rooms/13.csv",
+      "sha256": "1466dfc721d25ee78e1b93530100ff69afb55aa13cb066b87b5c131a644429b5"
+    },
+    {
+      "path": "data/raw/rooms/2.csv",
+      "sha256": "e006ddec812f1a297265d7577827c44b33f8eaf807998551821894eca5a2235d"
+    },
+    {
+      "path": "data/raw/rooms/26.csv",
+      "sha256": "8bda950a1077bd9ad73eae60f05d60b8d9a4b495542661ed6eff6dbe8c037a05"
+    },
+    {
+      "path": "data/raw/rooms/3.csv",
+      "sha256": "c02f05dca4f43d0774666fb8dd8655d22f646018b3344d7349a8c10eddc3fbd9"
+    },
+    {
+      "path": "data/raw/rooms/32.csv",
+      "sha256": "10186132ce747594d2721755614169beb8a476340dfcf011c2570be93ae51c56"
+    },
+    {
+      "path": "data/raw/rooms/34.csv",
+      "sha256": "bef4dff32dc16d1cd197499d3a14be6b21405ad44569bf1ccbabdf1d8e5a7404"
+    },
+    {
+      "path": "data/raw/rooms/36.csv",
+      "sha256": "4063475904c282f558b0afbb033ef956e5ab540104b0402b21398f41eece9a6b"
+    },
+    {
+      "path": "data/raw/rooms/38.csv",
+      "sha256": "3eae9097315ad360ff6c14e7671cdf12cecbc9a3455d43272e8119e0759dc62f"
+    },
+    {
+      "path": "data/raw/rooms/4.csv",
+      "sha256": "1877d57583615023db80f16be825a2ddc18135f88125a5b559155bf194a52848"
+    },
+    {
+      "path": "data/raw/rooms/5.csv",
+      "sha256": "e4c5ceeb04098382cb141e068a1b7a792404a9b7e51f93f0960cb1cc8f6fe49c"
+    },
+    {
+      "path": "data/raw/rooms/6.csv",
+      "sha256": "399411c56cda67f77a3ba7655684f24c49afee97854e7fdb84f804791cdd8e34"
+    },
+    {
+      "path": "data/raw/rooms/7.csv",
+      "sha256": "e15a166e153d3b36187a7f385f92aa49f7a5ee4fb6db4094da0a43dc24cad1ab"
+    },
+    {
+      "path": "data/raw/rooms/8.csv",
+      "sha256": "50e30b0431ffafd80626bcb369e64ccb0050af2e6d09a9dc6d5ce0751c159e3d"
+    },
+    {
+      "path": "data/simmons.floorplan.json",
+      "sha256": "aaaa4abb5484f50dd89abc6fdaaae31d15407ede82819ae5d7e5110884d75ff9"
+    },
+    {
+      "path": "data/simmons.json",
+      "sha256": "0230cf53cb45493f6e266a88440ea26c39e7c648b15cd69f6387416f72824549"
+    },
+    {
+      "path": "demo/p2-demo.mov",
+      "sha256": "eceeca6ae8963a6c371da4093642ebd2f6b238653c12f41915ed52eaff349b08"
+    },
+    {
+      "path": "design/compositions/Campus.md",
+      "sha256": "0923d1716dcfb6e5738b6fef5a2e91072665222be4c0905a82b0300f6fa298c6"
+    },
+    {
+      "path": "design/concepts/Reporting.md",
+      "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+    },
+    {
+      "path": "design/concepts/Wayfinding.md",
+      "sha256": "8b3aea4b2ad54806421428660b96453c9ccba704658cecd704f79798ff61b3ae"
+    },
+    {
+      "path": "design/journey.md",
+      "sha256": "b525bcaf7505f62b45ed8032968f8aeb39766798b6cc74b5500c24e0730199a1"
+    },
+    {
+      "path": "design/types.md",
+      "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+    },
+    {
+      "path": "generated.config.ts",
+      "sha256": "cb66777cc2b607ffaaf02fb3423c76fa50534e2d06983e204d4fd9891ac5b1f2"
+    },
+    {
+      "path": "generated/simmons-hall-navigation.md",
+      "sha256": "d23c92f62eae269f5c0a6f3c994dd2901dc23db6f9058b2aefc8e0e28b226e0a"
+    },
+    {
+      "path": "generated/wire.ts",
+      "sha256": "fc391e0dd7720057275f21eceb97db6d9f122e9261276fdaf74b30f76ff8ac56"
+    },
+    {
+      "path": "package.json",
+      "sha256": "c63bef3914f252663624e3304fecae6e1253d232e121fe5576dfb224eef6e7a1"
+    },
+    {
+      "path": "scripts/check-api.ts",
+      "sha256": "6ec7938a78ad19d027f9056c6b3dcdf84a90fdd1ecdff554f4c09bd9af857512"
+    },
+    {
+      "path": "scripts/floorplan-to-map.ts",
+      "sha256": "d72ba7bc30767cdb1954e389e115140750c9756f60f83403a8b135da2d24047f"
+    },
+    {
+      "path": "scripts/seed.ts",
+      "sha256": "3a3c9dd99353fd63469a1c9c99dd9db78886d5935bdebb61b6fa4f32ee24e342"
+    },
+    {
+      "path": "src/assembly.ts",
+      "sha256": "004b8d9a56045ccea2c3d5770261261a80c503a23a4bb60a907938be3f6bd060"
+    },
+    {
+      "path": "src/compositions/Simmons.ts",
+      "sha256": "c9c41a4cc122cc1bea4ce0dd6b4f425fa07656d79dc60ffeff2236a12b606add"
+    },
+    {
+      "path": "src/concepts.ts",
+      "sha256": "d4ab12ee76029f3a1d0294a50c9e3495122451f2d0e43547db1372df7b807b55"
+    },
+    {
+      "path": "src/concepts/Reporting.ts",
+      "sha256": "2836c0eba77979c94f7815c2a31aa5b9db40ec14492abeffb56a5ec3c641bb57"
+    },
+    {
+      "path": "src/concepts/Wayfinding.ts",
+      "sha256": "46b04c168156cc8e35636252bf5ec2bb93900fed8747a9c74cb6f3fb07f168fb"
+    },
+    {
+      "path": "src/db.ts",
+      "sha256": "9a53f0e523ec0af7c07d8d9622ec3a58cfdb935ae3f99c0300a7d36192eefff8"
+    },
+    {
+      "path": "src/http.ts",
+      "sha256": "c5b6662f89a426ac9f04c5bf204aed073a5b7088abe9e06cb12fab17f80c7316"
+    },
+    {
+      "path": "src/main.ts",
+      "sha256": "f6738ffcf9892175d13040cb9a4e4b6642a8ed92c9265d1195ba5d2b5a572fb4"
+    },
+    {
+      "path": "src/text.d.ts",
+      "sha256": "21757631b0551048169422a47c4808bbc43340e93b76429aa9a8da393f29f5f6"
+    },
+    {
+      "path": "tests/app.test.ts",
+      "sha256": "3d2e0bf7acbc7d1e32bdebff42b92d1748127746b0c7ca44be328c9b8e79dd0b"
+    },
+    {
+      "path": "tests/helpers.ts",
+      "sha256": "aaf5e32f66c2542b552a2b2f2b6fc7e10e7fe9280b9b1f552b1cde569cff2455"
+    },
+    {
+      "path": "tests/wayfinding.test.ts",
+      "sha256": "df44787da13a3608ade3c2dd1d4e3c4a3b6067b6910b99ee22cbfc0a9a9d7cf5"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "bc3890ad059bc1ebb043ad7184b42992e6f9bfd24912a0bf9768f148e4a6d14e"
+    },
+    {
+      "path": "web/app.ts",
+      "sha256": "dde435d32f603b4db88569722cb7dd6b4975525f342579b26ac225834190764e"
+    },
+    {
+      "path": "web/index.html",
+      "sha256": "d00970e8ae415c6c506a09d983c72790bd0e6ab0804d9c03a06c0e3d454554fc"
+    },
+    {
+      "path": "web/server.ts",
+      "sha256": "0bff811b0bcb430f3be03f097c3dda3b80271bf82dea257827a2a775d8269b20"
+    },
+    {
+      "path": "web/styles.css",
+      "sha256": "29b73897c04302d990c5e8ba556d6fa7fc7d1430104c7960889a8b05b91f683a"
+    },
+    {
+      "path": "web/vue.d.ts",
+      "sha256": "011a962d374ecb1b0cde4a546bc7b2dcc94f8b2f649f559195a6554025fddeb4"
+    }
+  ],
+  "controlsSha256": "bc9c7e3d071d4e7bde345ae31676cffe7a19a2b88fc85caed5d2ca14d3eb39d4"
+}

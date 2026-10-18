@@ -1,0 +1,70 @@
+{
+  "readableAreas": [
+    {
+      "area": "application",
+      "path": "."
+    }
+  ],
+  "writableAreas": [
+    {
+      "area": "owned-concept",
+      "path": "src/concepts/Wayfinding.ts"
+    },
+    {
+      "area": "owned-integration",
+      "path": "data"
+    },
+    {
+      "area": "owned-integration",
+      "path": "generated"
+    },
+    {
+      "area": "owned-integration",
+      "path": "scripts"
+    },
+    {
+      "area": "owned-integration",
+      "path": "src/assembly.ts"
+    },
+    {
+      "area": "owned-integration",
+      "path": "src/compositions"
+    },
+    {
+      "area": "owned-configuration",
+      "path": ".gitignore"
+    },
+    {
+      "area": "owned-configuration",
+      "path": "AGENTS.md"
+    },
+    {
+      "area": "owned-configuration",
+      "path": "README.md"
+    },
+    {
+      "area": "owned-configuration",
+      "path": "generated.config.ts"
+    },
+    {
+      "area": "owned-configuration",
+      "path": "package.json"
+    },
+    {
+      "area": "owned-frontend",
+      "path": "web"
+    },
+    {
+      "area": "owned-test",
+      "path": "tests"
+    }
+  ],
+  "toolKinds": [
+    "repository-read",
+    "repository-write"
+  ],
+  "projectShell": "project-validation",
+  "network": true,
+  "generatedOutput": true,
+  "longRunningProcesses": false
+}

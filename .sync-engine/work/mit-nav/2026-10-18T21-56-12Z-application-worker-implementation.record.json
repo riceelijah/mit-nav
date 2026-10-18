@@ -1,0 +1,174 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "mit-nav",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav"
+  },
+  "role": "application-worker",
+  "phase": "implementation",
+  "execution": "simulated",
+  "independent": false,
+  "harness": "coordinator",
+  "simulationReason": "coordinator implements under deadline; user asked to follow the skill and build the converter",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-56-12Z-application-worker-implementation.prompt.md",
+    "sha256": "b05b1c00e5cca0cf6dc7cf14d0ba95f7c12bb6f09295fffbf795ce4f651fd5e5"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-56-12Z-application-worker-implementation.capabilities.json",
+    "sha256": "715665e22c40f90f109b95ccd3625a23f4241cae4274adb0584d54de181fe668"
+  },
+  "grant": {
+    "readableAreas": [
+      {
+        "area": "application",
+        "path": "."
+      }
+    ],
+    "writableAreas": [
+      {
+        "area": "owned-concept",
+        "path": "src/concepts/Wayfinding.ts"
+      },
+      {
+        "area": "owned-integration",
+        "path": "data"
+      },
+      {
+        "area": "owned-integration",
+        "path": "generated"
+      },
+      {
+        "area": "owned-integration",
+        "path": "scripts"
+      },
+      {
+        "area": "owned-integration",
+        "path": "src/assembly.ts"
+      },
+      {
+        "area": "owned-integration",
+        "path": "src/compositions"
+      },
+      {
+        "area": "owned-configuration",
+        "path": ".gitignore"
+      },
+      {
+        "area": "owned-configuration",
+        "path": "AGENTS.md"
+      },
+      {
+        "area": "owned-configuration",
+        "path": "README.md"
+      },
+      {
+        "area": "owned-configuration",
+        "path": "generated.config.ts"
+      },
+      {
+        "area": "owned-configuration",
+        "path": "package.json"
+      },
+      {
+        "area": "owned-frontend",
+        "path": "web"
+      },
+      {
+        "area": "owned-test",
+        "path": "tests"
+      }
+    ],
+    "toolKinds": [
+      "repository-read",
+      "repository-write"
+    ],
+    "projectShell": "project-validation",
+    "network": true,
+    "generatedOutput": true,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-56-12Z-application-worker-implementation.response.md",
+    "sha256": "5b2fa8980c701efc231be27a77e75b542ca185b0437619d2395fa8f17bb6acf4",
+    "bytes": 1297
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/mit-nav/brief.md",
+      "sha256": "5e3722f7db1252c263c75d3a25f4746a12e55713360609b221b98159fdded390"
+    },
+    {
+      "inputId": "types",
+      "displayName": "design/types.md",
+      "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+    },
+    {
+      "inputId": "compositions",
+      "displayName": "design/compositions/Campus.md",
+      "sha256": "e094f33841352444eb37bd095e67818ecb96725e0eb3eed54736ef067b1c00bc"
+    },
+    {
+      "inputId": "concept-specifications",
+      "displayName": "design/concepts/Reporting.md",
+      "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+    },
+    {
+      "inputId": "concept-specifications",
+      "displayName": "design/concepts/Wayfinding.md",
+      "sha256": "1fc5dc5f4058d22a7b22924833d13ff69ae92828820a59b940284cb7de1aebd2"
+    },
+    {
+      "inputId": "concept-public-surfaces",
+      "displayName": "src/concepts.ts",
+      "sha256": "d4ab12ee76029f3a1d0294a50c9e3495122451f2d0e43547db1372df7b807b55"
+    },
+    {
+      "inputId": "context",
+      "displayName": "../../../../../../private/var/folders/nh/2rss2pjn1y7fwmc7wgkyn8sr0000gn/T/bunx-501-@mit-sdg/sync-engine-skill@1.1.0/node_modules/@mit-sdg/sync-engine-skill/skills/sync-engine/prompts/guidance/api/application-example.md",
+      "sha256": "813740df77d003d363da5a869d4ed675c4d4cc6f4a2a1c8db5ae2caeb428d54e"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-56-12Z-application-worker-implementation.baseline.json",
+      "sha256": "b24044ee62bb94c50f2dd3c5e272148f377b7b9533433da5efa312204b09c46c"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "e9e2e99c13ec1aa23a03d6ba7781fccf7275af67041ae4c74df1f6b3d703486f",
+    "beforeFiles": [
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "e094f33841352444eb37bd095e67818ecb96725e0eb3eed54736ef067b1c00bc"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "1fc5dc5f4058d22a7b22924833d13ff69ae92828820a59b940284cb7de1aebd2"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "b525bcaf7505f62b45ed8032968f8aeb39766798b6cc74b5500c24e0730199a1"
+      },
+      {
+        "path": "types.md",
+        "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+      }
+    ]
+  },
+  "status": "completed",
+  "result": "complete",
+  "enforcement": "prompt-guided"
+}

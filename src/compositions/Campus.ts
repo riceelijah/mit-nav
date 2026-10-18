@@ -4,35 +4,35 @@ import { concepts } from "../concepts.ts";
 
 const { Wayfinding, Reporting } = concepts;
 
-const Overview = former(
-  "the Simmons Hall overview",
-  (
-    _input,
-    { place, name, kind, floor, link, sourceName, destinationName, forward, accessible, blocked, closedFrom, closedUntil, service },
-    // Reports are about connections, so the report's target is bound to its own variable.
-  ) =>
+const PlaceSearch = former(
+  "the places matching (text)",
+  ({ text }, { place, name, kind, floor }) =>
     form({
-      places: each(Wayfinding._places({}).is({ place, name, kind, floor })).form({
-        place,
-        name,
-        kind,
-        floor,
-      }),
-      links: each(
-        Wayfinding._links({}).is({ link, sourceName, destinationName, forward, accessible, blocked, closedFrom, closedUntil, service }),
-      ).form({ link, sourceName, destinationName, forward, accessible, blocked, closedFrom, closedUntil, service }),
+      places: each(Wayfinding._search({ text }).is({ place, name, kind, floor })).form({ place, name, kind, floor }),
     }),
 );
 
 const ProblemList = former(
   "the open problem reports",
-  (_input, { report, reporter, reportedLink, reason }) =>
+  (_input, { report, reporter, reportedLink, reason, sourceName, destinationName, forward }) =>
     form({
-      reports: each(Reporting._open({}).is({ report, reporter, target: reportedLink, reason })).form({
-        report,
-        reporter,
-        link: reportedLink,
-        reason,
+      reports: each(Reporting._open({}).is({ report, reporter, target: reportedLink, reason }))
+        .where(Wayfinding._link({ link: reportedLink }).is({ sourceName, destinationName, forward }))
+        .form({ report, reporter, link: reportedLink, reason, sourceName, destinationName, forward }),
+    }),
+);
+
+// Every blocked connection, so one blocked without a report (or an elevator ride blocked with its siblings) can still be cleared.
+const BlockedList = former(
+  "the blocked connections",
+  (_input, { link, sourceName, destinationName, forward, service }) =>
+    form({
+      links: each(Wayfinding._blocked({}).is({ link, sourceName, destinationName, forward, service })).form({
+        link,
+        sourceName,
+        destinationName,
+        forward,
+        service,
       }),
     }),
 );
@@ -54,7 +54,13 @@ const Route = former(
 );
 
 const ShowOverview = endpoint("/map/overview", () =>
-  receive({}).then(respond({ overview: Overview({}), problems: ProblemList({}) })),
+  receive({}).then(respond({ problems: ProblemList({}), blocked: BlockedList({}) })),
+);
+
+const SearchPlaces = endpoint(
+  "/map/search",
+  ({ text }) => receive({ text }).then(respond({ places: PlaceSearch({ text }) })),
+  { input: { required: ["text"] } },
 );
 
 const AddPlace = endpoint(
@@ -110,9 +116,16 @@ const UnblockResolvesReports = reaction(({ link }) =>
   when(Wayfinding.unblock({}).responds({ link })).then(Reporting.resolve({ target: link })),
 );
 
+// Clearing one ride of an elevator clears them all, so the reports on the other rides close too.
+const ClearingResolvesSharedReports = reaction(({ link, other }) =>
+  when(Wayfinding.unblock({}).responds({ link }))
+    .where(Wayfinding._sameService({ link }).is({ other }))
+    .then(Reporting.resolve({ target: other })),
+);
+
 export const composition = {
-  Browsing: { Overview, ProblemList, ShowOverview },
+  Browsing: { PlaceSearch, ProblemList, BlockedList, ShowOverview, SearchPlaces },
   Routing: { Route, FindRoute },
-  Problems: { BlockLink, UnblockLink, UnblockResolvesReports },
+  Problems: { BlockLink, UnblockLink, UnblockResolvesReports, ClearingResolvesSharedReports },
   Setup: { AddPlace, Connect },
 };

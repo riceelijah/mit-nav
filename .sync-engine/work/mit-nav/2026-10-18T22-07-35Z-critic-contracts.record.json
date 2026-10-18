@@ -1,0 +1,93 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "mit-nav",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav"
+  },
+  "role": "critic",
+  "phase": "contracts",
+  "execution": "delegated",
+  "independent": true,
+  "harness": "claude-code",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-07-35Z-critic-contracts.prompt.md",
+    "sha256": "914c7389462dca8d1cc8c5f2693f1a0a16bdad53ddd68b508577fb43e97134bf"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-07-35Z-critic-contracts.capabilities.json",
+    "sha256": "2491c8b75843e5ed2a58c1fd64dd107b45c7923f1575cb76e94ac4a572e4dad8"
+  },
+  "grant": {
+    "readableAreas": [],
+    "writableAreas": [],
+    "toolKinds": [],
+    "projectShell": "none",
+    "network": false,
+    "generatedOutput": false,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-07-35Z-critic-contracts.response.md",
+    "sha256": "2eb99eba139c32b4b91f90cc58b6291dba32525fb32f805196964d9134aa1ad3",
+    "bytes": 1251
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/mit-nav/brief.md",
+      "sha256": "d42ccb8a3bc53b460f37f024fa21874a7743a77e3826d02a775a332ae4fe9ea2"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-07-35Z-critic-contracts.baseline.json",
+      "sha256": "ecb1e7ef3803034ea5d285c7a3fe35e2a3fbc947f135a85d27c323b67a266aab"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "a638def355fe8d0e56abc8828c7714d6c2e4ad403ba0e6f13d0cac2638ef447a",
+    "beforeFiles": [
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "d2c56c926506c694cb6cd593eaa2f170300b278887393221e7da8328b66184e5"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "3346f152d5ec8429144e9a2b045af70369d4d9b8ee849d21873f58c7fe3d0029"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "de6be3f9904ebc7d49b7ce4fa3fab5a41f7731780a3bb88a43cefe07f10d53d5"
+      },
+      {
+        "path": "types.md",
+        "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+      }
+    ]
+  },
+  "review": {
+    "subject": "design",
+    "digest": "a638def355fe8d0e56abc8828c7714d6c2e4ad403ba0e6f13d0cac2638ef447a"
+  },
+  "relationship": {
+    "kind": "continuation",
+    "recordPath": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-55-01Z-critic-verification.record.json",
+    "targetHarness": "claude-code",
+    "targetAgentId": "ac5ee33d74b31d099"
+  },
+  "status": "blocked",
+  "result": "blocked",
+  "agentId": "ac5ee33d74b31d099",
+  "enforcement": "prompt-guided"
+}

@@ -31,10 +31,20 @@ interface LinkDoc {
   distance: number;
 }
 
+const SEARCH_LIMIT = 40;
+// Building and room numbers sort the way people read them: 2 before 10, 32-123 before 32-G904.
+const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+
 /** Closed from `from` up to `until`, wrapping past midnight; equal values mean never closed. */
 function isClosed(from: number, until: number, hour: number) {
   if (from === until) return false;
   return from < until ? hour >= from && hour < until : hour >= from || hour < until;
+}
+
+/** A connection as people read it: its two places by name, its directions, and its service. */
+async function describe(places: Collection<PlaceDoc>, l: LinkDoc) {
+  const [source, destination] = await Promise.all([places.findOne({ _id: l.source }), places.findOne({ _id: l.destination })]);
+  return { sourceName: source?.name ?? "?", destinationName: destination?.name ?? "?", forward: l.forward, service: l.service ?? "" };
 }
 
 export class WayfindingConcept {
@@ -155,6 +165,37 @@ export class WayfindingConcept {
       }));
   }
 
+  async _search({ text }: { text: string }) {
+    const q = text.trim().toLowerCase();
+    // ponytail: scans every place per keystroke (~10k, a few ms); a text index if the map grows much larger.
+    const rows = await this.places.find({}).toArray();
+    return rows
+      .filter((p) => p.kind !== "TRANSIT" && p.name.toLowerCase().includes(q))
+      .sort((a, b) => Number(b.kind === "ENTRANCE") - Number(a.kind === "ENTRANCE") || byName(a.name, b.name))
+      .slice(0, SEARCH_LIMIT)
+      .map(({ _id, name, kind, floor }) => ({ place: _id, name, kind, floor }));
+  }
+
+  async _link({ link }: { link: string }) {
+    const l = await this.links.findOne({ _id: link });
+    return l ? [await describe(this.places, l)] : [];
+  }
+
+  async _blocked(_input: Record<string, never>) {
+    const rows = (await this.links.find({ blocked: true }).toArray()).sort((a, b) => a.order - b.order);
+    return Promise.all(rows.map(async (l) => ({ link: l._id, ...(await describe(this.places, l)) })));
+  }
+
+  async _sameService({ link }: { link: string }) {
+    const existing = await this.links.findOne({ _id: link });
+    if (!existing?.service) return [];
+    const rows = await this.links.find({ service: existing.service }).toArray();
+    return rows
+      .filter((l) => l._id !== link)
+      .sort((a, b) => a.order - b.order)
+      .map((l) => ({ other: l._id }));
+  }
+
   async _route({
     source,
     destination,
@@ -170,7 +211,7 @@ export class WayfindingConcept {
     if (!places.has(source) || !places.has(destination) || source === destination) return [];
     const links = (await this.links.find({}).toArray()).sort((a, b) => a.order - b.order);
 
-    // Dijkstra finds the shortest route. Each connection costs the distance it was given when it was made.
+    // Dijkstra finds the cheapest route. Each connection costs the distance it was given when it was made.
     // Blocked connections and ones closed at this hour are never used, and neither are inaccessible ones when asked to avoid them.
     const usable = links.filter(
       (l) => !l.blocked && !isClosed(l.closedFrom ?? 0, l.closedUntil ?? 0, hour) && (!accessibleOnly || l.accessible),
@@ -183,23 +224,50 @@ export class WayfindingConcept {
     const dist = new Map<string, number>([[source, 0]]);
     const came = new Map<string, { from: string; link: LinkDoc; instruction: string }>();
     const done = new Set<string>();
-    const discovered: string[] = [source];
-    for (;;) {
-      // Pick the unfinished place with the smallest distance, earliest discovered first on ties.
-      let here: string | undefined;
-      for (const id of discovered) {
-        if (done.has(id)) continue;
-        if (here === undefined || dist.get(id)! < dist.get(here)!) here = id;
+    // Binary heap of [distance, discovery order, place]: the smallest distance comes out first, and the
+    // place discovered earliest wins a tie, so ties still go to connections made earlier.
+    const order = new Map<string, number>([[source, 0]]);
+    const heap: [number, number, string][] = [[0, 0, source]];
+    const less = (a: [number, number, string], b: [number, number, string]) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+    const push = (item: [number, number, string]) => {
+      heap.push(item);
+      for (let i = heap.length - 1; i > 0; ) {
+        const parent = (i - 1) >> 1;
+        if (!less(heap[i], heap[parent])) break;
+        [heap[i], heap[parent]] = [heap[parent], heap[i]];
+        i = parent;
       }
-      if (here === undefined || here === destination) break;
+    };
+    const pop = () => {
+      const top = heap[0];
+      const last = heap.pop()!;
+      if (heap.length) {
+        heap[0] = last;
+        for (let i = 0; ; ) {
+          const l = 2 * i + 1, r = l + 1;
+          let m = i;
+          if (l < heap.length && less(heap[l], heap[m])) m = l;
+          if (r < heap.length && less(heap[r], heap[m])) m = r;
+          if (m === i) break;
+          [heap[i], heap[m]] = [heap[m], heap[i]];
+          i = m;
+        }
+      }
+      return top;
+    };
+    while (heap.length) {
+      const [d, , here] = pop();
+      if (done.has(here) || d > dist.get(here)!) continue; // a stale entry for a place already improved
+      if (here === destination) break;
       done.add(here);
       for (const edge of next.get(here) ?? []) {
         if (done.has(edge.to)) continue;
-        const candidate = dist.get(here)! + (edge.link.distance ?? 1);
-        if (!dist.has(edge.to)) discovered.push(edge.to);
+        const candidate = d + (edge.link.distance ?? 1);
+        if (!order.has(edge.to)) order.set(edge.to, order.size);
         if (!dist.has(edge.to) || candidate < dist.get(edge.to)!) {
           dist.set(edge.to, candidate);
           came.set(edge.to, { from: here, link: edge.link, instruction: edge.instruction });
+          push([candidate, order.get(edge.to)!, edge.to]);
         }
       }
     }

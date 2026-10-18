@@ -1,0 +1,1 @@
+Verify the repair of findings M-1, M-2, M-3, M-4, M-5 against the updated design/compositions/Campus.md and design/concepts/Wayfinding.md. For M-6, the prior approved texts are supplied as context (prior-Simmons.md, prior-Wayfinding.md).

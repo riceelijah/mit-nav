@@ -1,0 +1,1 @@
+Review the search change: Wayfinding _search and _link, Campus PlaceSearch / SearchPlaces / ProblemList / ShowOverview, against the brief's new active decision (browser never receives the whole map). Report Verdict with numbered findings.

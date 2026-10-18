@@ -28,7 +28,9 @@ test("journey: find route, block elevator, reroute, clear it", async () => {
 
   const overview = await post("/map/overview", {});
   expect(overview.problems.reports.map((r: any) => [r.reporter, r.reason])).toEqual([["Iris", "Out of service"]]);
-  expect(overview.overview.links.find((l: any) => l.link === elevator).blocked).toBe(true);
+  // Reports name the connection's places and directions, and the blocked list shows it too.
+  expect(overview.problems.reports.map((r: any) => [r.sourceName, r.destinationName, r.forward])).toEqual([["Lobby", "Room 215", "Elevator up"]]);
+  expect(overview.blocked.links.map((l: any) => l.link)).toEqual([elevator]);
 
   const again = await post("/problems/block", { link: elevator, reporter: "Bo", reason: "dup" });
   expect(again.error).toBe("CONFLICT");

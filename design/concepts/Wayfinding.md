@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe how the places in a building connect, so a visitor can be given directions that avoid any passage that is currently unusable.
+Describe how the places on a campus connect, from buildings and outdoor walks down to the floors, stairs, elevators and rooms inside them, so a visitor can be given directions that avoid any passage that is currently unusable.
 
 ## Principle
 
@@ -92,6 +92,14 @@ _places() : many (place: Place, name: String, kind: Kind, floor: Number)
   Answers every place, ordered by floor and then in the order the places were added (so whoever builds the map can list a floor's places from the entrance outward), and no rows when there are none.
 _links() : many (link: Link, sourceName: String, destinationName: String, forward: String, accessible: Flag, blocked: Flag, closedFrom: Number, closedUntil: Number, service: String)
   Answers every connection with the names of its two places, in the order the connections were made.
+_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number)
+  Answers at most 40 places that are not TRANSIT whose name contains the text, ignoring case, with entrances first and then by name in natural number order (so 2 comes before 10); an empty text answers the first 40 places in that order, and no rows when nothing matches.
+_link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)
+  Answers the names of the connection's two places, its forward directions, and its service when the link is known, and nothing otherwise.
+_blocked() : many (link: Link, sourceName: String, destinationName: String, forward: String, service: String)
+  Answers every blocked connection with the names of its two places, its forward directions, and its service, in the order the connections were made, and no rows when nothing is blocked.
+_sameService(link: Link) : many (other: Link)
+  Answers every other connection that shares the link's service, in the order the connections were made, and no rows when the link is unknown or its service is empty.
 _route(source: Place, destination: Place, accessibleOnly: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, floor: Number)
   Answers the shortest route from source to destination, where each connection costs the distance it was given when it was made (so a builder can make a short flight of stairs cheaper than waiting for an elevator), as numbered steps starting at 1, never using a blocked connection or one that is closed at the given hour of the day (0 up to 24, so 6.5 is half past six in the morning), and when accessibleOnly is true never using a connection that is not accessible. Answers no rows when either place is unknown or no route exists, and one row per step in order otherwise. Ties are broken in favor of connections made earlier.
 ```

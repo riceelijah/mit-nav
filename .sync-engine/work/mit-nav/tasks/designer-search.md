@@ -1,0 +1,4 @@
+Replace whole-map listing with search, per the brief's new active decision.
+- Wayfinding: add query `_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number)` — at most 40 places that are not TRANSIT whose name contains the text ignoring case; entrances first, then by name in natural number order (2 before 10); empty text answers the first 40 in that order. Add query `_link(link: Link) : many (sourceName: String, destinationName: String, forward: String, service: String)` — one row for a known link, none otherwise. Keep `_places` and `_links` (seed tooling and tests may use them).
+- Campus composition: the overview request answers only the open problems, each with its connection's two place names and direction (no full place/connection lists). Add endpoint Campus.Browsing.SearchPlaces at /map/search taking `text` and answering the matching places. Keep everything else.
+Check design syntax.

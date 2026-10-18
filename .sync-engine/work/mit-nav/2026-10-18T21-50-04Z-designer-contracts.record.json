@@ -1,0 +1,126 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "mit-nav",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav"
+  },
+  "role": "designer",
+  "phase": "contracts",
+  "execution": "simulated",
+  "independent": false,
+  "harness": "coordinator",
+  "simulationReason": "coordinator simulates designer; small prose and rename change under deadline",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.prompt.md",
+    "sha256": "9416ce8cba684a90498f2526d8bab4d59be931d21165a2fc2d517edd70b0f0da"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.capabilities.json",
+    "sha256": "6dfbe288df79270f3919ff6844562d73583e4dd5d2447f341bb2c04685426e37"
+  },
+  "grant": {
+    "readableAreas": [],
+    "writableAreas": [
+      {
+        "area": "assigned-design",
+        "path": "compositions/Campus.md"
+      },
+      {
+        "area": "assigned-design",
+        "path": "compositions/Simmons.md"
+      },
+      {
+        "area": "assigned-design",
+        "path": "concepts/Wayfinding.md"
+      },
+      {
+        "area": "assigned-design",
+        "path": "types.md"
+      }
+    ],
+    "toolKinds": [
+      "repository-read",
+      "repository-write"
+    ],
+    "projectShell": "project-validation",
+    "network": false,
+    "generatedOutput": false,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.response.md",
+    "sha256": "c930b510fe4eb78a0014f7038bddd34fcbea2fa71c4268cd8164d7bb44a539b0",
+    "bytes": 556
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/mit-nav/brief.md",
+      "sha256": "3929e75dc3393c7e4f1654992c176fc000e014d35921c52bfa9f460109938660"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T21-50-04Z-designer-contracts.baseline.json",
+      "sha256": "f125fa4b7d8a02b72631bae6d236795e14f04cce2e1ee971a6e25a2b82c516ec"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "5318bc85c44bce97259e468be95b33b27b8f47dccf225e39d9406b8cff504a4c",
+    "beforeFiles": [
+      {
+        "path": "compositions/Simmons.md",
+        "sha256": "e80638e55f39d4d7d1003d8ed5a73a6a8242d864b90b56dc686efdd4cdd821c6"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "cec252831eacfdae846e95c746ce9be119cdb0b73b0e18c2d2d584313e4ff11f"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "b525bcaf7505f62b45ed8032968f8aeb39766798b6cc74b5500c24e0730199a1"
+      },
+      {
+        "path": "types.md",
+        "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+      }
+    ],
+    "after": "431dcd1d0a2d6cd3e4edbf23cc20342522b2c87a246a35fb0c5bf3ca414aa6c7",
+    "afterFiles": [
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "0923d1716dcfb6e5738b6fef5a2e91072665222be4c0905a82b0300f6fa298c6"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "8b3aea4b2ad54806421428660b96453c9ccba704658cecd704f79798ff61b3ae"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "b525bcaf7505f62b45ed8032968f8aeb39766798b6cc74b5500c24e0730199a1"
+      },
+      {
+        "path": "types.md",
+        "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+      }
+    ]
+  },
+  "status": "completed",
+  "result": "complete",
+  "enforcement": "prompt-guided"
+}

@@ -1,5 +1,5 @@
 import { assemble } from "@mit-sdg/sync-engine/assembly";
-import { composition } from "./compositions/Simmons.ts";
+import { composition } from "./compositions/Campus.ts";
 import { WayfindingConcept } from "./concepts/Wayfinding.ts";
 import { ReportingConcept } from "./concepts/Reporting.ts";
 import { applicationConceptSet } from "./concepts.ts";
@@ -12,7 +12,7 @@ export function assembleApplication(database = db) {
       Wayfinding: new WayfindingConcept(database),
       Reporting: new ReportingConcept(database),
     },
-    composition: { Simmons: composition },
+    composition: { Campus: composition },
     // Print what went wrong. Otherwise a failure only shows up as INTERNAL_ERROR.
     rawFaultReporter: ({ error }) => console.error(error),
   });

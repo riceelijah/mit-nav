@@ -4,14 +4,14 @@ import { policy } from "./src/http.ts";
 
 export default {
   assemble: assembleApplication,
-  title: "Simmons Hall Navigation",
-  wireName: "SimmonsWire",
+  title: "MIT Campus Navigation",
+  wireName: "CampusWire",
   design: {
     version: 1,
     documents: [
       new URL("./design/types.md", import.meta.url),
-      new URL("./design/compositions/Simmons.md", import.meta.url),
+      new URL("./design/compositions/Campus.md", import.meta.url),
     ],
   },
-  projections: [httpWire({ policy, name: "SimmonsWireHttp" })],
+  projections: [httpWire({ policy, name: "CampusWireHttp" })],
 };

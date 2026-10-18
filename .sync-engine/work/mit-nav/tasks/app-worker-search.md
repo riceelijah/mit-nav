@@ -1,0 +1,2 @@
+Implement the approved search design: Wayfinding `_search`, `_link` (optional), `_blocked`; Campus PlaceSearch + SearchPlaces endpoint, ProblemList labelled via `_link`, BlockedList, ShowOverview answering problems + blocked; frontend picker searches the server and the overview shows reports and blocked passages. Tests for the new queries and endpoints. Also move newly downloaded room lists into data/raw/rooms and regenerate data/campus.json.
+Checks: generate, check, test, local app.

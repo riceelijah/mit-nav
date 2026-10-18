@@ -1,0 +1,130 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "mit-nav",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav"
+  },
+  "role": "designer",
+  "phase": "contracts",
+  "execution": "simulated",
+  "independent": false,
+  "harness": "coordinator",
+  "simulationReason": "coordinator simulates designer; small prose and rename change under deadline",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-08-48Z-designer-contracts.prompt.md",
+    "sha256": "af51301fd1e3a3522b1af80d9956b4fb3231f5bd27cda7808bd37bae9536548c"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-08-48Z-designer-contracts.capabilities.json",
+    "sha256": "6dfbe288df79270f3919ff6844562d73583e4dd5d2447f341bb2c04685426e37"
+  },
+  "grant": {
+    "readableAreas": [],
+    "writableAreas": [
+      {
+        "area": "assigned-design",
+        "path": "compositions/Campus.md"
+      },
+      {
+        "area": "assigned-design",
+        "path": "compositions/Simmons.md"
+      },
+      {
+        "area": "assigned-design",
+        "path": "concepts/Wayfinding.md"
+      },
+      {
+        "area": "assigned-design",
+        "path": "types.md"
+      }
+    ],
+    "toolKinds": [
+      "repository-read",
+      "repository-write"
+    ],
+    "projectShell": "project-validation",
+    "network": false,
+    "generatedOutput": false,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-08-48Z-designer-contracts.response.md",
+    "sha256": "a732198bd7b5f729aad5f413bccd6292980bad4c957bf25d17543fdc77ddbec9",
+    "bytes": 670
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/mit-nav/brief.md",
+      "sha256": "93c79460f8242e1e7f4d890390b6702f7d6354362deb91234cc6d435d3b658cd"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-08-48Z-designer-contracts.baseline.json",
+      "sha256": "4e9e534ce8b0b81f9d93cff4ba6d0224b7a32f56f032e75561b6a1cee9a7a767"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "a638def355fe8d0e56abc8828c7714d6c2e4ad403ba0e6f13d0cac2638ef447a",
+    "beforeFiles": [
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "d2c56c926506c694cb6cd593eaa2f170300b278887393221e7da8328b66184e5"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "3346f152d5ec8429144e9a2b045af70369d4d9b8ee849d21873f58c7fe3d0029"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "de6be3f9904ebc7d49b7ce4fa3fab5a41f7731780a3bb88a43cefe07f10d53d5"
+      },
+      {
+        "path": "types.md",
+        "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+      }
+    ],
+    "after": "865b3497e82cf76acba25f1c2a4d6f1611e4efd989c80d44a487762b4ee34da5",
+    "afterFiles": [
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "549b6984222018422277ccd4bbd9f0cd9ce46104a68e26216338fc17c93df733"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "610d7ae43dd08b8385b01d7b43b26ded71ae253af594c79e4bc002f20d107e6b"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "de6be3f9904ebc7d49b7ce4fa3fab5a41f7731780a3bb88a43cefe07f10d53d5"
+      },
+      {
+        "path": "types.md",
+        "sha256": "bdbcc3d69f9e37697633e18775d88fcc3b989a12947920ba9b1af2f06c1e1bdc"
+      }
+    ]
+  },
+  "relationship": {
+    "kind": "simulation-continuation",
+    "recordPath": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/mit-nav/2026-10-18T22-07-17Z-designer-contracts.record.json"
+  },
+  "status": "completed",
+  "result": "complete",
+  "enforcement": "prompt-guided"
+}

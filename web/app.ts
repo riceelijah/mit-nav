@@ -1,8 +1,8 @@
 import { createApp, ref, computed, watch, onMounted } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
-import type { SimmonsWireHttp } from "../generated/wire.ts";
+import type { CampusWireHttp } from "../generated/wire.ts";
 
-const client = createHttpClient<SimmonsWireHttp>({ baseUrl: "/api" });
+const client = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
 function remembered(key: string) {
   try { return localStorage.getItem(key) ?? ""; } catch { return ""; }
@@ -11,26 +11,31 @@ function remember(key: string, value: string) {
   try { localStorage.setItem(key, value); } catch { /* storage is optional */ }
 }
 
+type Place = { place: string; name: string; kind: string; floor: number };
 const floorLabel = (floor: number) => (floor === 0 ? "Basement" : `Floor ${floor}`);
-// Sorting is stable, so places on the same floor stay in the order the map lists them (entrance outward).
-const byFloor = (a: { floor: number }, b: { floor: number }) => a.floor - b.floor;
+
+/** The place with exactly this name, found through search (the browser never holds the whole map). */
+async function placeNamed(name: string): Promise<Place | null> {
+  const result = await client.map.search({ text: name });
+  return "error" in result ? null : (result.places.places.find((p: Place) => p.name === name) ?? null);
+}
 
 const app = createApp({
   template: `
   <main>
-    <h1>Simmons Hall Navigator</h1>
-    <p class="sub">Step-by-step directions inside Simmons Hall. If a passage is out of service, flag it and everyone's directions will avoid it.</p>
+    <h1>MIT Navigator</h1>
+    <p class="sub">Step-by-step directions across MIT, from building to building and floor to floor. If a passage is out of service, flag it and everyone's directions will avoid it.</p>
 
     <section>
       <div class="row">
-        <place-picker label="From" v-model="from" :places="pickable" />
-        <place-picker label="To" v-model="to" :places="pickable" />
+        <place-picker label="From" v-model="from" />
+        <place-picker label="To" v-model="to" />
         <label>Time of day
           <input type="time" v-model="time" />
         </label>
         <label class="check"><input type="checkbox" v-model="accessibleOnly" /> Step-free route only</label>
       </div>
-      <p v-if="from && from === to" class="msg">You are already there.</p>
+      <p v-if="from && to && from.place === to.place" class="msg">You are already there.</p>
       <p v-else-if="searched && steps.length === 0" class="msg bad">
         No route found{{ accessibleOnly ? ' that avoids stairs, blocked passages and anything closed at this time. Try turning off step-free or changing the time.' : ' that avoids blocked or closed passages at this time.' }}
       </p>
@@ -58,34 +63,17 @@ const app = createApp({
       <p v-if="!reports.length" class="sub">Nothing is reported as blocked.</p>
       <ul class="plain">
         <li v-for="r in reports" :key="r.report">
-          <span><strong>{{ linkLabel(r.link) }}</strong><br /><span class="floor">{{ r.reporter }}: {{ r.reason }}</span></span>
+          <span><strong>{{ r.sourceName }} to {{ r.destinationName }}</strong>: {{ r.forward }}<br /><span class="floor">{{ r.reporter }}: {{ r.reason }}</span></span>
           <button @click="unblock(r.link)">Mark as clear</button>
         </li>
       </ul>
     </section>
-
-    <details class="panel">
-      <summary>All connections ({{ links.length }})</summary>
-      <ul class="plain">
-        <li v-for="l in sortedLinks" :key="l.link">
-          <span>{{ l.sourceName }} to {{ l.destinationName }} <span class="floor">{{ l.forward }}</span></span>
-          <span>
-            <span v-if="!l.accessible" class="tag noacc">stairs/steps</span>
-            <span v-if="l.closedFrom !== l.closedUntil" class="tag noacc">closed {{ hours(l.closedFrom) }} to {{ hours(l.closedUntil) }}</span>
-            <span v-if="l.service" class="tag">{{ l.service }}</span>
-            <span v-if="l.blocked" class="tag blocked">blocked</span>
-          </span>
-        </li>
-      </ul>
-    </details>
   </main>`,
   setup() {
-    const places = ref<{ place: string; name: string; floor: number }[]>([]);
-    const links = ref<any[]>([]);
     const reports = ref<any[]>([]);
     const steps = ref<any[]>([]);
-    const from = ref("");
-    const to = ref("");
+    const from = ref<Place | null>(null);
+    const to = ref<Place | null>(null);
     const accessibleOnly = ref(false);
     const now = new Date();
     const time = ref(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
@@ -93,49 +81,26 @@ const app = createApp({
       const [h, m] = time.value.split(":").map(Number);
       return (h || 0) + (m || 0) / 60;
     });
-    const hours = (h: number) => {
-      const wrapped = h % 24;
-      const label = wrapped === 0 ? 12 : wrapped > 12 ? wrapped - 12 : wrapped;
-      return `${label}${wrapped < 12 ? "am" : "pm"}`;
-    };
     const searched = ref(false);
     const flagging = ref("");
     const reason = ref("");
     const reporter = ref(remembered("reporter"));
     const message = ref("");
     const messageKind = ref("ok");
-
-    const pickable = computed(() => places.value.filter((p: any) => p.kind !== "TRANSIT").sort(byFloor));
-    const floorByName = computed(() => new Map(places.value.map((p: any) => [p.name, p.floor])));
-    const sortedLinks = computed(() =>
-      [...links.value].sort(
-        (a, b) =>
-          (floorByName.value.get(a.sourceName) ?? 0) - (floorByName.value.get(b.sourceName) ?? 0) ||
-          a.sourceName.localeCompare(b.sourceName, undefined, { numeric: true }),
-      ),
-    );
-
-    const linkLabel = (id: string) => {
-      const l = links.value.find((x) => x.link === id);
-      return l ? `${l.sourceName} to ${l.destinationName}: ${l.forward}` : id;
-    };
     const say = (text: string, kind = "ok") => { message.value = text; messageKind.value = kind; };
 
     async function load() {
       const result = await client.map.overview({});
-      if ("error" in result) return say(`Could not load the map: ${result.error}`, "bad");
-      places.value = result.overview.places;
-      links.value = result.overview.links;
+      if ("error" in result) return say(`Could not load the reports: ${result.error}`, "bad");
       reports.value = result.problems.reports;
-      if (!from.value && pickable.value.length) {
-        from.value = places.value.find((p) => p.name === "Main Lobby Entrance")?.place ?? pickable.value[0].place;
-        to.value = places.value.find((p) => p.name === "8C")?.place ?? pickable.value[pickable.value.length - 1].place;
-      }
     }
 
+    let latestRoute = 0;
     async function findRoute() {
-      if (!from.value || !to.value || from.value === to.value) { steps.value = []; searched.value = false; return; }
-      const result = await client.route.find({ source: from.value, destination: to.value, accessibleOnly: accessibleOnly.value, hour: hour.value });
+      const asked = ++latestRoute;
+      if (!from.value || !to.value || from.value.place === to.value.place) { steps.value = []; searched.value = false; return; }
+      const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, hour: hour.value });
+      if (asked !== latestRoute) return; // an answer to an older choice of places
       if ("error" in result) return say(`Could not find a route: ${result.error}`, "bad");
       steps.value = result.route.steps;
       searched.value = true;
@@ -158,52 +123,64 @@ const app = createApp({
     }
 
     watch([from, to, accessibleOnly, time], () => { message.value = ""; findRoute(); });
-    onMounted(async () => { await load(); await findRoute(); });
+    onMounted(async () => {
+      const [start, end] = await Promise.all([placeNamed("Main Lobby Entrance"), placeNamed("32-123 Lecture Hall"), load()]);
+      from.value ??= start;
+      to.value ??= end;
+    });
 
-    return { places, pickable, sortedLinks, links, reports, steps, from, to, accessibleOnly, time, hours, searched, flagging, reason, reporter, message, messageKind, linkLabel, block, unblock, remember };
+    return { reports, steps, from, to, accessibleOnly, time, searched, flagging, reason, reporter, message, messageKind, block, unblock, remember };
   },
 });
 
-// A text box whose list of options narrows as you type, with places in floor order.
+// A text box that asks the server for matching places as you type (buildings first).
 app.component("PlacePicker", {
-  props: { modelValue: { type: String, default: "" }, places: { type: Array, default: () => [] }, label: String },
+  props: { modelValue: { type: Object, default: null }, label: String },
   emits: ["update:modelValue"],
   template: `
     <label class="combo">{{ label }}
-      <input type="text" :value="text" placeholder="Type to search" autocomplete="off"
+      <input type="text" :value="text" placeholder="Building or room, e.g. 32-123" autocomplete="off"
         @focus="onFocus" @input="onInput" @blur="close" @keydown.esc="close" @keydown.enter.prevent="pickFirst" />
       <ul v-if="open" class="options">
-        <li v-for="p in pinned" :key="p.place" :class="{ chosen: p.place === modelValue }" @mousedown.prevent="choose(p)">
+        <li v-for="p in pinned" :key="p.place" :class="{ chosen: p.place === modelValue?.place }" @mousedown.prevent="choose(p)">
           <span class="name">{{ p.name }}</span> <span class="floor">{{ floorLabel(p.floor) }}</span>
         </li>
         <li v-if="pinned.length && others.length" class="divider" role="separator"></li>
-        <li v-for="p in others" :key="p.place" :class="{ chosen: p.place === modelValue }" @mousedown.prevent="choose(p)">
+        <li v-for="p in others" :key="p.place" :class="{ chosen: p.place === modelValue?.place }" @mousedown.prevent="choose(p)">
           <span class="name">{{ p.name }}</span> <span class="floor">{{ floorLabel(p.floor) }}</span>
         </li>
-        <li v-if="!filtered.length" class="none">No matching places</li>
+        <li v-if="!results.length" class="none">No matching places</li>
+        <li v-else-if="results.length >= 40" class="none">Showing the first 40. Type more to narrow the list.</li>
       </ul>
     </label>`,
   setup(props: any, { emit }: any) {
     const text = ref("");
     const open = ref(false);
-    const typed = ref(false);
-    const selected = computed(() => (props.places as any[]).find((p) => p.place === props.modelValue));
-    const filtered = computed(() => {
-      const all = [...(props.places as any[])].sort(byFloor);
-      const q = text.value.trim().toLowerCase();
-      return typed.value && q ? all.filter((p) => p.name.toLowerCase().includes(q)) : all;
-    });
-    // Entrances (the lobby) are pinned above the rest of the list, set apart by a divider.
-    const pinned = computed(() => filtered.value.filter((p) => p.kind === "ENTRANCE"));
-    const others = computed(() => filtered.value.filter((p) => p.kind !== "ENTRANCE"));
-    watch([() => props.modelValue, () => props.places], () => { text.value = selected.value?.name ?? text.value; }, { immediate: true });
+    const results = ref<Place[]>([]);
+    // Entrances (buildings and the Simmons lobby) come first from the server, set apart by a divider.
+    const pinned = computed(() => results.value.filter((p) => p.kind === "ENTRANCE"));
+    const others = computed(() => results.value.filter((p) => p.kind !== "ENTRANCE"));
+    watch(() => props.modelValue, (p) => { text.value = p?.name ?? text.value; }, { immediate: true });
 
-    const onFocus = (event: Event) => { open.value = true; typed.value = false; (event.target as HTMLInputElement).select(); };
-    const onInput = (event: Event) => { text.value = (event.target as HTMLInputElement).value; typed.value = true; open.value = true; };
-    const choose = (p: any) => { emit("update:modelValue", p.place); text.value = p.name; open.value = false; typed.value = false; };
+    let latest = 0;
+    async function search(q: string) {
+      const asked = ++latest;
+      const result = await client.map.search({ text: q });
+      // A slow answer to an older keystroke must not replace a newer one.
+      if (asked === latest && !("error" in result)) results.value = result.places.places;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onFocus = (event: Event) => { open.value = true; (event.target as HTMLInputElement).select(); search(""); };
+    const onInput = (event: Event) => {
+      text.value = (event.target as HTMLInputElement).value;
+      open.value = true;
+      clearTimeout(timer);
+      timer = setTimeout(() => search(text.value), 120);
+    };
+    const choose = (p: Place) => { emit("update:modelValue", p); text.value = p.name; open.value = false; };
     const pickFirst = () => { const first = pinned.value[0] ?? others.value[0]; if (first) choose(first); };
-    const close = () => { open.value = false; typed.value = false; text.value = selected.value?.name ?? ""; };
-    return { text, open, filtered, pinned, others, floorLabel, onFocus, onInput, choose, pickFirst, close };
+    const close = () => { open.value = false; text.value = props.modelValue?.name ?? ""; };
+    return { text, open, results, pinned, others, floorLabel, onFocus, onInput, choose, pickFirst, close };
   },
 });
 

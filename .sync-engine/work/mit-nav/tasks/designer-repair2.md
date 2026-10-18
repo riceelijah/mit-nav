@@ -1,0 +1,1 @@
+Repair verification findings M-4 (stable refusal codes) and R-1 (concept query vs brief) from record 2026-10-18T21-53-56Z-critic-verification. Name the concept refusal codes in each endpoint's prose; the brief now records an active decision allowing `_sameService`. Make the M-5 naming convention explicit.

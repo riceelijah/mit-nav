@@ -1,0 +1,29 @@
+{
+  "readableAreas": [],
+  "writableAreas": [
+    {
+      "area": "assigned-design",
+      "path": "compositions/Campus.md"
+    },
+    {
+      "area": "assigned-design",
+      "path": "compositions/Simmons.md"
+    },
+    {
+      "area": "assigned-design",
+      "path": "concepts/Wayfinding.md"
+    },
+    {
+      "area": "assigned-design",
+      "path": "types.md"
+    }
+  ],
+  "toolKinds": [
+    "repository-read",
+    "repository-write"
+  ],
+  "projectShell": "project-validation",
+  "network": false,
+  "generatedOutput": false,
+  "longRunningProcesses": false
+}
