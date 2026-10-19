@@ -15,6 +15,7 @@ interface PlaceDoc {
   floor: number;
   latitude: number;
   longitude: number;
+  area: number;
   order: number;
 }
 
@@ -138,7 +139,7 @@ export class WayfindingConcept {
     this.links = db.collection<LinkDoc>("wayfinding.links");
   }
 
-  async addPlace({ name, kind, floor, latitude, longitude }: { name: string; kind: Kind; floor: number; latitude: number; longitude: number }) {
+  async addPlace({ name, kind, floor, latitude, longitude, area }: { name: string; kind: Kind; floor: number; latitude: number; longitude: number; area: number }) {
     if (!this.indexed) {
       // The unique index is what stops two places from sharing a name, even in a race.
       await this.places.createIndex({ name: 1 }, { unique: true });
@@ -147,7 +148,7 @@ export class WayfindingConcept {
     const place = crypto.randomUUID();
     try {
       const order = await this.places.countDocuments({});
-      await this.places.insertOne({ _id: place, name, kind, floor, latitude, longitude, order });
+      await this.places.insertOne({ _id: place, name, kind, floor, latitude, longitude, area, order });
     } catch (error) {
       if (error instanceof MongoServerError && error.code === 11000) {
         throw new DuplicatePlace("A place with that name already exists.");
@@ -300,7 +301,7 @@ export class WayfindingConcept {
     return rows
       .filter((p) => p.name.startsWith(prefix) && (p.latitude || p.longitude))
       .sort((a, b) => a.order - b.order)
-      .map((p) => ({ place: p._id, name: p.name, kind: p.kind, latitude: p.latitude, longitude: p.longitude }));
+      .map((p) => ({ place: p._id, name: p.name, kind: p.kind, latitude: p.latitude, longitude: p.longitude, area: p.area ?? 0 }));
   }
 
   async _link({ link }: { link: string }) {

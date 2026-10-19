@@ -94,6 +94,7 @@ export type CampusWire = {
   };
   "/map/add-place": {
     input: {
+      "area": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["area"]>>;
       "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
       "kind": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["kind"]>>;
       "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["latitude"]>>;
@@ -130,6 +131,7 @@ export type CampusWire = {
     output: {
       "plan": {
         "places": {
+          "area": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["area"]>>;
           "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["kind"]>>;
           "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["latitude"]>>;
           "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["longitude"]>>;
@@ -441,6 +443,7 @@ export type CampusWireHttp = {
   };
   "/map/add-place": {
     input: {
+      "area": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["area"]>>;
       "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
       "kind": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["kind"]>>;
       "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["latitude"]>>;
@@ -477,6 +480,7 @@ export type CampusWireHttp = {
     output: {
       "plan": {
         "places": {
+          "area": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["area"]>>;
           "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["kind"]>>;
           "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["latitude"]>>;
           "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["longitude"]>>;

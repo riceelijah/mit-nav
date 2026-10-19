@@ -40,6 +40,8 @@ test("converter: corridors are linked by distance, and rooms and elevators attac
   const office = plan.links.find((l) => l[1] === "9-150 Office")!;
   expect(office[0]).toBe("9-100CB Corridor");
   expect(plan.places.find((p) => p.name === "9-150 Office")!.at).toEqual([30, 0]);
+  // Floor areas come from the inventory's square feet: 3,550 sq ft is about 330 m².
+  expect(plan.places.find((p) => p.name === "9-123 Lecture Hall")!.area).toBe(330);
   // Elevator E2 is reached from the lobby beside it, so it costs less than E1 for a trip that starts there.
   const e1 = plan.links.find((l) => l[7] === "Building 9 elevator E1")!;
   const e2 = plan.links.find((l) => l[7] === "Building 9 elevator E2")!;

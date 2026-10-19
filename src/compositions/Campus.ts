@@ -68,9 +68,9 @@ const ShowOverview = endpoint("/map/overview", () =>
 
 const FloorPlan = former(
   "the places on floor (floor) of building (building)",
-  ({ building, floor }, { place, name, kind, latitude, longitude }) =>
+  ({ building, floor }, { place, name, kind, latitude, longitude, area }) =>
     form({
-      places: each(Wayfinding._onFloor({ building, floor }).is({ place, name, kind, latitude, longitude })).form({ place, name, kind, latitude, longitude }),
+      places: each(Wayfinding._onFloor({ building, floor }).is({ place, name, kind, latitude, longitude, area })).form({ place, name, kind, latitude, longitude, area }),
     }),
 );
 
@@ -88,11 +88,11 @@ const SearchPlaces = endpoint(
 
 const AddPlace = endpoint(
   "/map/add-place",
-  ({ name, kind, floor, latitude, longitude, place }) =>
-    receive({ name, kind, floor, latitude, longitude })
-      .then(Wayfinding.addPlace({ name, kind, floor, latitude, longitude }).responds({ place }))
+  ({ name, kind, floor, latitude, longitude, area, place }) =>
+    receive({ name, kind, floor, latitude, longitude, area })
+      .then(Wayfinding.addPlace({ name, kind, floor, latitude, longitude, area }).responds({ place }))
       .then(respond({ place })),
-  { input: { required: ["name", "kind", "floor", "latitude", "longitude"] } },
+  { input: { required: ["name", "kind", "floor", "latitude", "longitude", "area"] } },
 );
 
 const Connect = endpoint(

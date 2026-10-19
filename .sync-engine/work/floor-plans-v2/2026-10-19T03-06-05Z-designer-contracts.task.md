@@ -1,0 +1,1 @@
+Wayfinding: add place area (state, addPlace, _onFloor). Campus: rewrite the floor plan paragraph per the brief (corridor strokes, room boxes of real area aligned to the building axis, markers when no area, borrowed positions still corridor-only, plans beneath the route, automatic plans at zoom 18+). Check syntax.

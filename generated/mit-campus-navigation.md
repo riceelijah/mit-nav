@@ -195,7 +195,7 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 
 #### Actions
 
-- `addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number) : returns (place: Place)`
+- `addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number, area: Number) : returns (place: Place)`
   - Refuses `DUPLICATE_PLACE`: A place with that name already exists.
 - `connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number) : returns (link: Link)`
   - Refuses `NO_SUCH_PLACE`: Both places must exist before they can be connected.
@@ -214,7 +214,7 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 - `_nearest(latitude: Number, longitude: Number) : optional (place: Place, name: String, latitude: Number, longitude: Number)`
 - `_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)`
 - `_closest(source: Place, text: String, accessibleOnly: Flag, hour: Number) : many (place: Place, name: String, floor: Number, cost: Number)`
-- `_onFloor(building: String, floor: Number) : many (place: Place, name: String, kind: Kind, latitude: Number, longitude: Number)`
+- `_onFloor(building: String, floor: Number) : many (place: Place, name: String, kind: Kind, latitude: Number, longitude: Number, area: Number)`
 - `_link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)`
 - `_blocked() : many (link: Link, sourceName: String, destinationName: String, forward: String, service: String)`
 - `_sameService(link: Link) : many (other: Link)`
@@ -340,10 +340,11 @@ Authored path: `Campus.Browsing.FloorPlan`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 11.
 
 ```former
-Former "the places on floor (floor) of building (building)" — inputs (building, floor); bindings (place, name, kind, latitude, longitude); promises exactly one record — forms:
+Former "the places on floor (floor) of building (building)" — inputs (building, floor); bindings (place, name, kind, latitude, longitude, area); promises exactly one record — forms:
   a record of
-    places: each Wayfinding._onFloor (building, floor) has (kind, latitude, longitude, name, place)
+    places: each Wayfinding._onFloor (building, floor) has (area, kind, latitude, longitude, name, place)
       form a record of
+        area
         kind
         latitude
         longitude
@@ -695,9 +696,9 @@ Authored path: `Campus.Setup.AddPlace`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 53.
 
 ```reaction
-when RequestBoundary.request (floor, kind, latitude, longitude, name, path: "/map/add-place", requestId)
+when RequestBoundary.request (area, floor, kind, latitude, longitude, name, path: "/map/add-place", requestId)
 then
-  Wayfinding.addPlace (floor, kind, latitude, longitude, name)
+  Wayfinding.addPlace (area, floor, kind, latitude, longitude, name)
 ```
 
 ### Campus.Setup.AddPlace#2
@@ -707,9 +708,9 @@ Authored path: `Campus.Setup.AddPlace`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 53.
 
 ```reaction
-when Wayfinding.addPlace (floor, kind, latitude, longitude, name, place), asked by Campus.Setup.AddPlace
+when Wayfinding.addPlace (area, floor, kind, latitude, longitude, name, place), asked by Campus.Setup.AddPlace
 where
-  earlier, RequestBoundary.request (floor, kind, latitude, longitude, name, path: "/map/add-place", requestId)
+  earlier, RequestBoundary.request (area, floor, kind, latitude, longitude, name, path: "/map/add-place", requestId)
 then
   RequestBoundary.respond (place, requestId)
 ```
@@ -1429,7 +1430,7 @@ not listed here have no explicit input contract.
 - `/auth/logout` — requires `session`
 - `/auth/me` — requires `session`
 - `/auth/register` — requires `password`, `username`
-- `/map/add-place` — requires `name`, `kind`, `floor`, `latitude`, `longitude`
+- `/map/add-place` — requires `name`, `kind`, `floor`, `latitude`, `longitude`, `area`
 - `/map/connect` — requires `source`, `destination`, `forward`, `backward`, `accessible`, `closedFrom`, `closedUntil`, `service`, `distance`
 - `/map/floor` — requires `building`, `floor`
 - `/map/search` — requires `text`
