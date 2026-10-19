@@ -97,7 +97,7 @@ export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
   });
 }
 const PLAN_FILL: [RegExp, string][] = [
-  [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#efe1b8"],
+  [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#ffe0b5"],
   [/^ELEVATOR$/, "#cfe0f4"],
   [/^STAIRWAY$/, "#dde2e8"],
   [/SHAFT|UTILITY|MECH|ELECTRIC|TELECOM|CUSTODIAL|STORAGE/, "#eceeec"],
@@ -534,15 +534,15 @@ const app = createApp({
       const doneTo = end(doneCount.value - 1);
       const currentTo = doneCount.value < steps.value.length ? end(doneCount.value) : doneTo;
       const part = (from: number, to: number) => points.slice(from, to + 1);
-      if (doneTo > 0) L.polyline(part(0, doneTo), { color: "#7d8891", weight: 6, opacity: 0.85 }).addTo(routeLayer);
+      if (doneTo > 0) L.polyline(part(0, doneTo), { color: "#8a90a0", weight: 6, opacity: 0.85 }).addTo(routeLayer);
       if (currentTo > doneTo) {
-        L.polyline(part(doneTo, currentTo), { color: "#f2cf5b", weight: 11, opacity: 0.95 }).addTo(routeLayer);
+        L.polyline(part(doneTo, currentTo), { color: "#bdb246", weight: 11, opacity: 0.95 }).addTo(routeLayer);
         L.polyline(part(doneTo, currentTo), { color: "#a31f34", weight: 5 }).addTo(routeLayer);
       }
       if (currentTo < points.length - 1) L.polyline(part(currentTo, points.length - 1), { color: "#a31f34", weight: 4, opacity: 0.75 }).addTo(routeLayer);
-      L.circleMarker(points[0], { radius: 6, color: "#1c2b39", fillColor: "#ffffff", fillOpacity: 1, weight: 3 }).bindTooltip("Start").addTo(routeLayer);
+      L.circleMarker(points[0], { radius: 6, color: "#0a122a", fillColor: "#ffffff", fillOpacity: 1, weight: 3 }).bindTooltip("Start").addTo(routeLayer);
       L.circleMarker(points[points.length - 1], { radius: 8, color: "#ffffff", fillColor: "#a31f34", fillOpacity: 1, weight: 3 }).bindTooltip("Destination").addTo(routeLayer);
-      if (!tracking.value && doneTo > 0) L.circleMarker(points[doneTo], { radius: 6, color: "#ffffff", fillColor: "#1c2b39", fillOpacity: 1, weight: 2 }).bindTooltip("Where your done steps end").addTo(routeLayer);
+      if (!tracking.value && doneTo > 0) L.circleMarker(points[doneTo], { radius: 6, color: "#ffffff", fillColor: "#0a122a", fillOpacity: 1, weight: 2 }).bindTooltip("Where your done steps end").addTo(routeLayer);
       return points;
     }
     watch(doneCount, () => map && drawProgress());
@@ -746,7 +746,7 @@ const app = createApp({
     });
     async function onReading(here: Point) {
       if (map) {
-        meMarker ??= L.circleMarker(here, { radius: 8, color: "#1a5fb4", fillColor: "#1a5fb4", fillOpacity: 0.9 }).bindTooltip("You").addTo(map);
+        meMarker ??= L.circleMarker(here, { radius: 8, color: "#00a6a6", fillColor: "#00a6a6", fillOpacity: 0.9 }).bindTooltip("You").addTo(map);
         meMarker.setLatLng(here);
       }
       // Only a step that arrives at a building can be checked from outside; reaching it finishes every step before it.

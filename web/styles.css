@@ -1,18 +1,20 @@
 /*
  * MIT Navigator. The map is the page; directions sit beside it on a desk and in a bottom sheet on a phone.
- * Palette: concrete and plan ink from MIT's buildings and drawings, MIT cardinal for the route, signage
- * yellow only for the step you're on, and accessibility blue for you and for step-free.
+ * Palette from Coolors around MIT red (coolors.co/a31f34-ffe0b5-bdb246-0a122a-00a6a6): MIT red for the route,
+ * deep navy ink, peach for the step you're on (olive where it marks the map), and teal for you and for step-free.
  */
 :root {
-  --concrete: #e7eae6;
+  --concrete: #f7f1e8;
   --paper: #ffffff;
-  --ink: #1c2b39;
-  --ink-soft: #5b6873;
-  --rule: #cfd5d1;
+  --ink: #0a122a;
+  --ink-soft: #4b5468;
+  --rule: #ded6ca;
   --cardinal: #a31f34;
   --cardinal-dark: #861a2b;
-  --sign: #f2cf5b;
-  --access: #1f5fad;
+  --sign: #ffe0b5;
+  --olive: #bdb246;
+  --access: #007a7a;
+  --teal: #00a6a6;
   --ok: #24733f;
   --bad: #a3261e;
   --panel: 400px;
@@ -53,7 +55,7 @@ h2 { font: 600 1.05rem/1.3 var(--sans); margin: 22px 0 8px; }
 
 /* Search results */
 .combo .options { list-style: none; }
-.combo ul.options { position: absolute; z-index: 30; top: calc(100% + 4px); left: 44px; right: 0; max-height: 320px; overflow-y: auto; margin: 0; padding: 4px 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 10px 30px rgba(28, 43, 57, .18); display: block; }
+.combo ul.options { position: absolute; z-index: 30; top: calc(100% + 4px); left: 44px; right: 0; max-height: 320px; overflow-y: auto; margin: 0; padding: 4px 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 10px 30px rgba(10, 18, 42, .18); display: block; }
 .combo ul.options li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; cursor: pointer; color: var(--ink); font-size: .95rem; }
 .combo ul.options li .floor { color: var(--ink-soft); white-space: nowrap; font-size: .85rem; }
 .combo ul.options li:hover, .combo ul.options li.chosen { background: var(--concrete); }
@@ -64,7 +66,7 @@ h2 { font: 600 1.05rem/1.3 var(--sans); margin: 22px 0 8px; }
 .toggle { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; cursor: pointer; font-size: .92rem; user-select: none; }
 .toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .toggle::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--ink-soft); }
-.toggle.on { border-color: var(--access); color: var(--access); background: #e8f0fa; }
+.toggle.on { border-color: var(--access); color: var(--access); background: #e0f2f2; }
 .toggle.on::before { background: var(--access); border-color: var(--access); }
 .toggle:focus-within { outline: 3px solid var(--access); outline-offset: 2px; }
 .toggle.small { padding: 3px 10px; font-size: .85rem; }
@@ -123,11 +125,11 @@ button { cursor: pointer; }
 .steps .at { color: var(--ink-soft); font-size: .86rem; }
 .steps .acts { display: flex; gap: 6px; margin-top: 6px; }
 .steps li:not(.current) .acts .quiet { padding: 2px 8px; font-size: .8rem; }
-.steps li.current { background: #fdf6dc; border-left-color: var(--sign); }
+.steps li.current { background: #fff3e3; border-left-color: var(--olive); }
 .steps li.current .n { color: var(--ink); }
 .steps li.current p:first-child { font-weight: 600; }
 .steps li.done { color: var(--ink-soft); }
-.steps li.done p:first-child { text-decoration: line-through; text-decoration-color: rgba(28, 43, 57, .3); }
+.steps li.done p:first-child { text-decoration: line-through; text-decoration-color: rgba(10, 18, 42, .3); }
 .steps .flag { display: flex; gap: 6px; margin-top: 8px; }
 .steps .flag input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; }
 
@@ -155,8 +157,8 @@ button { cursor: pointer; }
 .note.bad { background: #f7e5e3; color: var(--bad); }
 
 /* ---- Sign-in dialog ---- */
-.modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgba(28, 43, 57, .45); }
-.sheet-card { position: relative; width: min(420px, 100%); padding: 24px; background: var(--paper); border-radius: 10px; box-shadow: 0 20px 60px rgba(28, 43, 57, .3); }
+.modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgba(10, 18, 42, .45); }
+.sheet-card { position: relative; width: min(420px, 100%); padding: 24px; background: var(--paper); border-radius: 10px; box-shadow: 0 20px 60px rgba(10, 18, 42, .3); }
 .sheet-card h2 { margin: 0 0 14px; font-size: 1.3rem; }
 .sheet-card form { display: grid; gap: 12px; }
 .sheet-card label { display: grid; gap: 4px; font-size: .9rem; color: var(--ink-soft); }
@@ -169,7 +171,7 @@ button { cursor: pointer; }
 .close { position: absolute; top: 14px; right: 14px; }
 
 /* ---- Floor switcher: a strip of floors on the map's right edge ---- */
-.floor-switcher { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 6px 20px rgba(28, 43, 57, .18); max-height: 70vh; overflow-y: auto; }
+.floor-switcher { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 6px 20px rgba(10, 18, 42, .18); max-height: 70vh; overflow-y: auto; }
 .floor-switcher .which { font: 700 .95rem/1.2 var(--numerals); text-align: center; padding: 2px 0 4px; border-bottom: 1px solid var(--rule); margin-bottom: 2px; }
 .floor-switcher button { min-width: 44px; min-height: 36px; border: 0; border-radius: 6px; background: none; font: 600 1rem/1 var(--numerals); position: relative; }
 .floor-switcher button.route::after { content: ""; position: absolute; right: 4px; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--cardinal); }
@@ -191,7 +193,7 @@ button { cursor: pointer; }
   #map { position: absolute; inset: 0; z-index: 0; }
   .panel {
     position: absolute; z-index: 10; left: 0; right: 0; bottom: 0; max-height: 88dvh; height: auto;
-    border-right: 0; border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(28, 43, 57, .2);
+    border-right: 0; border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(10, 18, 42, .2);
     transition: transform .25s ease;
   }
   .app:not(.open) .panel { transform: translateY(calc(100% - 96px)); }
