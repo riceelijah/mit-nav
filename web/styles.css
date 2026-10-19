@@ -185,6 +185,8 @@ button { cursor: pointer; }
 .room-label { font: 600 11px/14px var(--numerals); color: var(--ink); text-align: center; white-space: nowrap; display: none; }
 #map.labels .room-label { display: block; }
 .leaflet-container { font-family: var(--sans); }
+/* A change of floor on the route line: a badge where the stairs or elevator are. */
+.floor-change span { position: absolute; transform: translate(-50%, -50%); padding: 3px 9px 2px; border: 2px solid #fff; border-radius: 999px; background: var(--ink); color: var(--paper); font: 700 13px/1.2 var(--numerals); white-space: nowrap; box-shadow: 0 2px 6px rgba(10, 18, 42, .35); cursor: pointer; }
 
 /* ---- Phones: the map is the screen, directions are a sheet over it ---- */
 @media (max-width: 760px) {

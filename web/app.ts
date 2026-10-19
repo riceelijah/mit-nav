@@ -708,6 +708,31 @@ const app = createApp({
       const last = pathSteps[pathSteps.length - 1];
       L.circleMarker(known(last) ? [last.latitude, last.longitude] : points[points.length - 1], { radius: 8, color: "#ffffff", fillColor: "#a31f34", fillOpacity: 1, weight: 3 }).bindTooltip("Destination").addTo(routeLayer);
       if (!tracking.value && doneTo > 0) L.circleMarker(points[doneTo], { radius: 6, color: "#ffffff", fillColor: "#0a122a", fillOpacity: 1, weight: 2 }).bindTooltip("Where your done steps end").addTo(routeLayer);
+      // Each change of floor inside a building is badged where it happens, once per run of stairs or rides; choosing
+      // the badge zooms in and shows that floor's plan.
+      const changes = (k: number) =>
+        k >= 1 && k < pathSteps.length && pathSteps[k].floor !== pathSteps[k - 1].floor && !!buildingOf(pathSteps[k]) && buildingOf(pathSteps[k]) === buildingOf(pathSteps[k - 1]);
+      for (let i = 1; i < pathSteps.length; i++) {
+        if (!changes(i) || changes(i + 1)) continue; // badged at the end of its run
+        const s = pathSteps[i], ref = buildingOf(s)!;
+        let start = i;
+        while (changes(start - 1)) start--;
+        const where = points[reached[i]];
+        if (!where) continue;
+        const up = s.floor > pathSteps[start - 1].floor;
+        const ride = pathSteps.slice(start, i + 1).map((t) => inUnits(t.instruction)).join(" ");
+        L.marker(where, {
+          zIndexOffset: 1000, keyboard: true, title: ride,
+          icon: L.divIcon({ className: "floor-change", html: `<span>${up ? "▲" : "▼"} ${floorLabel(s.floor)}</span>`, iconSize: [0, 0] }),
+        })
+          .on("click", () => {
+            const code = planFiles.value[ref] && floorsOf(planFiles.value[ref]).find(([, f]) => f.level === s.floor)?.[0];
+            if (code) shownFloor.value = { ...shownFloor.value, [ref]: code };
+            map.setView(where, Math.max(map.getZoom(), 19));
+            drawPlans();
+          })
+          .addTo(routeLayer);
+      }
       return points;
     }
     watch(doneCount, () => map && drawProgress());
