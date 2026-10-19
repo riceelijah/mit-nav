@@ -616,7 +616,8 @@ const app = createApp({
     });
     async function loadPlan(ref: string) {
       if (ref in planFiles.value) return planFiles.value[ref];
-      const response = await fetch(`/plans/${ref}.json`).catch(() => undefined);
+      // Checked with the server every time, so a regenerated map's plans replace any copy the browser kept.
+      const response = await fetch(`/plans/${ref}.json`, { cache: "no-cache" }).catch(() => undefined);
       planFiles.value = { ...planFiles.value, [ref]: response?.ok ? await response.json() : null };
       return planFiles.value[ref];
     }

@@ -23,7 +23,8 @@ const server = Bun.serve({
       const file = request.params.file;
       const plan = Bun.file(new URL(`./plans/${file}`, import.meta.url));
       if (!/^[A-Z0-9]+\.json$/.test(file) || !(await plan.exists())) return new Response("Not found", { status: 404 });
-      return new Response(plan, { headers: { "Cache-Control": "public, max-age=3600" } });
+      // Always checked again: plans change whenever the map is regenerated, and a stale one draws old shapes.
+      return new Response(plan, { headers: { "Cache-Control": "no-cache" } });
     },
     // MIT's own drawings, fitted by scripts/fit-drawings.py, exist only on a machine that made them (see the README).
     "/drawings/:file": async (request) => {
