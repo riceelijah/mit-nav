@@ -122,6 +122,24 @@ export type CampusWire = {
     };
     error: { error: AppWideError | "INVALID_INPUT" | "NO_SUCH_PLACE" };
   };
+  "/map/floor": {
+    input: {
+      "building": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>[0], ["building"]>>;
+      "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>[0], ["floor"]>>;
+    };
+    output: {
+      "plan": {
+        "places": {
+          "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["kind"]>>;
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["latitude"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["longitude"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["name"]>>;
+          "place": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["place"]>>;
+        }[];
+      };
+    };
+    error: { error: AppWideError | "INVALID_INPUT" };
+  };
   "/map/overview": {
     input: Record<string, never>;
     output: {
@@ -429,6 +447,24 @@ export type CampusWireHttp = {
       "link": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>>, ["link"]>>;
     };
     error: { error: HttpAppWideError | "INVALID_REQUEST" | "NOT_FOUND" };
+  };
+  "/map/floor": {
+    input: {
+      "building": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>[0], ["building"]>>;
+      "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>[0], ["floor"]>>;
+    };
+    output: {
+      "plan": {
+        "places": {
+          "kind": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["kind"]>>;
+          "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["latitude"]>>;
+          "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["longitude"]>>;
+          "name": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["name"]>>;
+          "place": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_onFloor"]>>>, ["place"]>>;
+        }[];
+      };
+    };
+    error: { error: HttpAppWideError | "INVALID_REQUEST" };
   };
   "/map/overview": {
     input: Record<string, never>;

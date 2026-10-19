@@ -205,6 +205,15 @@ export class WayfindingConcept {
       .map(({ _id, name, kind, floor, latitude, longitude }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0 }));
   }
 
+  async _onFloor({ building, floor }: { building: string; floor: number }) {
+    const prefix = `${building}-`;
+    const rows = await this.places.find({ floor }).toArray();
+    return rows
+      .filter((p) => p.name.startsWith(prefix) && (p.latitude || p.longitude))
+      .sort((a, b) => a.order - b.order)
+      .map((p) => ({ place: p._id, name: p.name, kind: p.kind, latitude: p.latitude, longitude: p.longitude }));
+  }
+
   async _link({ link }: { link: string }) {
     const l = await this.links.findOne({ _id: link });
     return l ? [await describe(this.places, l)] : [];

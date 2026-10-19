@@ -1,9 +1,9 @@
-// Fills an empty database with the Simmons Hall map and the generated campus map through the public API.
+// Fills an empty database with the generated campus map through the public API.
 // Run it once with the backend up: bun scripts/seed.ts
 import { readFileSync } from "node:fs";
 
 const base = process.env.API_URL ?? "http://127.0.0.1:3000/api";
-const maps = ["simmons.json", "campus.json"].map((file) =>
+const maps = ["campus.json"].map((file) =>
   JSON.parse(readFileSync(new URL(`../data/${file}`, import.meta.url), "utf8")),
 );
 
@@ -16,14 +16,7 @@ async function post(path: string, body: object) {
   return (await response.json()) as any;
 }
 
-// Simmons' hand-made map has no positions, so its places share Simmons Hall's from the campus map.
-const simmonsHall = maps[1].places.find((p: any) => p.name.endsWith("(Building W79)"));
-for (const place of maps[0].places) {
-  place.latitude ??= simmonsHall?.latitude ?? 0;
-  place.longitude ??= simmonsHall?.longitude ?? 0;
-}
-
-// The campus map links to Simmons places by name, so every place is added before any connection.
+// Connections refer to places by name, so every place is added before any connection.
 const ids = new Map<string, string>();
 for (const place of maps.flatMap((m) => m.places)) {
   const result = await post("/map/add-place", place);

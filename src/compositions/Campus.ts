@@ -1,6 +1,6 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
 import { each, form, former, reaction, when, whether } from "@mit-sdg/sync-engine/language";
-import { numbers, signedIn } from "./inputs.ts";
+import { floorInput, numbers, signedIn } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
 const { Wayfinding, Reporting, Registering, Sessioning } = concepts;
@@ -64,6 +64,20 @@ const Route = former(
 
 const ShowOverview = endpoint("/map/overview", () =>
   receive({}).then(respond({ problems: ProblemList({}), blocked: BlockedList({}) })),
+);
+
+const FloorPlan = former(
+  "the places on floor (floor) of building (building)",
+  ({ building, floor }, { place, name, kind, latitude, longitude }) =>
+    form({
+      places: each(Wayfinding._onFloor({ building, floor }).is({ place, name, kind, latitude, longitude })).form({ place, name, kind, latitude, longitude }),
+    }),
+);
+
+const ShowFloor = endpoint(
+  "/map/floor",
+  ({ building, floor }) => receive({ building, floor }).then(respond({ plan: FloorPlan({ building, floor }) })),
+  { validators: { input: floorInput } },
 );
 
 const SearchPlaces = endpoint(
@@ -155,7 +169,7 @@ const ClearingResolvesSharedReports = reaction(({ link, other }) =>
 );
 
 export const composition = {
-  Browsing: { PlaceSearch, ProblemList, BlockedList, ShowOverview, SearchPlaces },
+  Browsing: { PlaceSearch, ProblemList, BlockedList, FloorPlan, ShowOverview, SearchPlaces, ShowFloor },
   Routing: { Route, FindRoute, Nearest, NearestPlace },
   Problems: { BlockLink, UnblockLink, UnblockResolvesReports, ClearingResolvesSharedReports },
   Setup: { AddPlace, Connect },

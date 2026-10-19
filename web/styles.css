@@ -61,3 +61,8 @@ button.arrived { margin-top: 10px; }
 #map { height: 360px; margin-top: 12px; border-radius: 8px; border: 1px solid var(--line); }
 ol.steps li.done { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(0,0,0,.25); }
 ol.steps li.current { background: #fff4f5; border-left: 3px solid var(--accent); padding-left: 8px; margin-left: -11px; font-weight: 600; }
+
+.floors { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: .9rem; color: var(--muted); }
+.floors button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.room-label { font: 600 10px/14px system-ui, sans-serif; color: #333; text-align: center; white-space: nowrap; display: none; }
+#map.labels .room-label { display: block; }

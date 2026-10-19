@@ -10,18 +10,20 @@
 //                         buildings OpenStreetMap has no outline for.
 //   whereis.json          Building names from whereis.mit.edu for buildings OpenStreetMap leaves unnamed.
 //   entrances.json        OpenStreetMap entrance nodes, downloaded on the first run.
+//   paths.json            OpenStreetMap footpaths, sidewalks, crossings and small streets, downloaded on the first run.
 //   relative-room-locations.json
 //                         MapIT's position for every room label on MIT's floor plans (save
 //                         https://mitmapit.org/api/relative-room-locations while signed in). Optional:
 //                         without it every floor is a single corridor.
 //
-// Every building becomes a place joined to its nearby buildings by outdoor walks. Inside a building with a
+// Every building becomes a place at its main entrance, joined to OpenStreetMap's paths at its entrances, so
+// outdoor walks follow real sidewalks and crossings (steps are not step-free). Inside a building with a
 // room list, each floor is a network of its corridors, lobbies and bridges at their real positions, with
 // rooms, elevator stops and stairways attached to the corridor nearest them (a floor without positions is
 // a single corridor). Each elevator is one service, so flagging any ride blocks the whole elevator.
 // Touching buildings are joined indoors on a floor when each has a corridor within 35 m of the other's
-// outline; any corridors within 15 m are joined too (bridges); floors without positions join where outlines touch. Simmons (W79) keeps its hand-made map from
-// data/simmons.json and is joined at its main lobby.
+// outline; any corridors within 15 m are joined too (bridges); floors without positions join where outlines
+// touch. The page's floor plans also need every building's outline, written to web/outlines.json.
 // Usage: bun run campus
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -50,9 +52,11 @@ const CORRIDORS = new Set(["CORRIDOR", "LOBBY", "BRIDGE/TUNNEL"]);
 const STAIRS_PER_FLOOR = 2;
 const elevatorRide = (floors: number) => 3.5 + 0.5 * floors;
 const outdoorWalk = (meters: number) => 1 + meters / 50;
-const NEIGHBOURS = 4;
-// Buildings this close get a direct walk, so a route says "walk 250 m north-east" once instead of hopping past every building in between.
-const DIRECT_METERS = 300;
+const NEIGHBOURS = 3;
+const PATH_REACH = 80; // a building further than this from every path keeps straight walks to its nearest buildings
+const BEND_DEGREES = 30; // a path point that turns more than this stays a point of its own
+// Ways people walk along. Busy roads are left out because their sidewalks and crossings are mapped separately.
+const WALKABLE = /^(footway|path|pedestrian|steps|living_street|residential|service|unclassified|cycleway|track|corridor)$/;
 const TOUCHING_METERS = 2;
 
 // Room uses worth offering as destinations. Closets, shafts, and private support space are left out,
@@ -314,29 +318,6 @@ async function loadBuildings(): Promise<Building[]> {
   return [...byRef.values()].sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
 }
 
-/** Outdoor walks: each building to its nearest few and everything within DIRECT_METERS, then the closest pairs that join separate clusters. */
-export function outdoorPairs(buildings: Building[], gap: (a: number, b: number) => number) {
-  const pairs = new Set<string>();
-  const key = (i: number, j: number) => (i < j ? `${i},${j}` : `${j},${i}`);
-  buildings.forEach((_, i) => {
-    const nearest = buildings.map((_, j) => j).filter((j) => j !== i).sort((x, y) => gap(i, x) - gap(i, y));
-    for (const j of nearest.slice(0, NEIGHBOURS)) pairs.add(key(i, j));
-    for (const j of nearest) if (gap(i, j) <= DIRECT_METERS) pairs.add(key(i, j));
-  });
-  const parent = buildings.map((_, i) => i);
-  const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i])));
-  for (const p of pairs) { const [i, j] = p.split(",").map(Number); parent[root(i)] = root(j); }
-  for (;;) {
-    let best: [number, number] | undefined;
-    for (let i = 0; i < buildings.length; i++)
-      for (let j = i + 1; j < buildings.length; j++)
-        if (root(i) !== root(j) && (!best || gap(i, j) < gap(...best))) best = [i, j];
-    if (!best) break;
-    pairs.add(key(...best));
-    parent[root(best[0])] = root(best[1]);
-  }
-  return [...pairs].map((p) => p.split(",").map(Number) as [number, number]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-}
 
 /**
  * Where two buildings join on one floor, if they do: corridors within 15 m (a bridge); or, for touching
@@ -381,6 +362,77 @@ async function loadEntrances(): Promise<Point[]> {
   return data.elements.map((e: any) => toMeters(e.lon, e.lat));
 }
 
+/** OpenStreetMap's walkable ways with their node ids, so junctions can be found. */
+async function loadPaths() {
+  return cached(new URL("paths.json", raw), async () => {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "user-agent": "mit-nav (6.1040 class project)" },
+      body: new URLSearchParams({
+        data: `[out:json][timeout:120];way["highway"~"${WALKABLE.source}"]["access"!~"^(private|no)$"]["foot"!~"^(no|private)$"](42.353,-71.110,42.366,-71.080);(._;>;);out body;`,
+      }),
+    });
+    if (!response.ok) throw new Error(`Overpass answered ${response.status}`);
+    return response.text();
+  });
+}
+
+export type PathPoint = { id: string; at: Point };
+export type PathEdge = { from: string; to: string; meters: number; stepFree: boolean; name: string };
+
+/**
+ * The walkable network, kept to the points that matter: ends, junctions, and bends sharper than BEND_DEGREES.
+ * Each edge is the walk along one way between two such points; only the largest connected piece is kept.
+ */
+export function pathNetwork(elements: any[]) {
+  const nodes = new Map<number, Point>();
+  for (const e of elements) if (e.type === "node") nodes.set(e.id, toMeters(e.lon, e.lat));
+  const ways = elements.filter((e) => e.type === "way" && WALKABLE.test(e.tags?.highway ?? "") && e.nodes.every((n: number) => nodes.has(n)));
+  const uses = new Map<number, number>();
+  for (const w of ways) for (const n of w.nodes) uses.set(n, (uses.get(n) ?? 0) + 1);
+  const turn = (a: Point, b: Point, c: Point) => {
+    const angle = Math.abs(Math.atan2(c[1] - b[1], c[0] - b[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]));
+    return (Math.min(angle, 2 * Math.PI - angle) * 180) / Math.PI;
+  };
+  const edges: PathEdge[] = [];
+  for (const w of ways) {
+    const t = w.tags;
+    const stepFree = t.highway !== "steps" && t.wheelchair !== "no";
+    const name = t.name ?? (t.footway === "crossing" ? "a crosswalk" : "");
+    let start = 0;
+    let walked = 0;
+    for (let i = 1; i < w.nodes.length; i++) {
+      walked += meters(nodes.get(w.nodes[i])!, nodes.get(w.nodes[i - 1])!);
+      const last = i === w.nodes.length - 1;
+      const keep = last || uses.get(w.nodes[i])! > 1 || turn(nodes.get(w.nodes[i - 1])!, nodes.get(w.nodes[i])!, nodes.get(w.nodes[i + 1])!) > BEND_DEGREES;
+      if (!keep) continue;
+      if (w.nodes[start] !== w.nodes[i]) edges.push({ from: String(w.nodes[start]), to: String(w.nodes[i]), meters: walked, stepFree, name });
+      start = i;
+      walked = 0;
+    }
+  }
+  // Keep the largest connected piece; private yards and stray fragments would only strand a route.
+  const parent = new Map<string, string>();
+  const root = (x: string): string => {
+    const up = parent.get(x) ?? x;
+    if (up === x) return x;
+    const top = root(up);
+    parent.set(x, top);
+    return top;
+  };
+  for (const e of edges) {
+    const a = root(e.from), b = root(e.to);
+    if (a !== b) parent.set(a, b);
+  }
+  const size = new Map<string, number>();
+  for (const e of edges) size.set(root(e.from), (size.get(root(e.from)) ?? 0) + 1);
+  const biggest = [...size].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const kept = edges.filter((e) => root(e.from) === biggest);
+  const points = new Map<string, PathPoint>();
+  for (const e of kept) for (const id of [e.from, e.to]) points.set(id, { id, at: nodes.get(Number(id))! });
+  return { points: [...points.values()], edges: kept };
+}
+
 /** MapIT's room positions by building, when the file has been saved; otherwise none. */
 function loadLocated(): Map<string, Located> {
   const file = new URL("relative-room-locations.json", raw);
@@ -400,9 +452,22 @@ export async function buildCampus() {
   const links: Link[] = [];
   const dir = new URL("rooms/", raw);
   const lists = new Set(existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".csv")).map((f) => f.slice(0, -4)) : []);
-  lists.delete("W79"); // Simmons has its own hand-made map.
 
-  for (const b of buildings) places.push({ name: buildingPlace(b), kind: "ENTRANCE", floor: 1, ...toLatLon(b.center) });
+  // Each building's entrances: mapped entrances within ENTRANCE_REACH of its outline, the main one first.
+  const entranceNodes = (await cached(new URL("entrances.json", raw), async () => {
+    await loadEntrances();
+    return readFileSync(new URL("entrances.json", raw), "utf8");
+  })).elements;
+  const doorsOf = new Map<string, { at: Point; main: boolean }[]>();
+  for (const b of buildings) {
+    const doors = entranceNodes
+      .map((e: any) => ({ at: toMeters(e.lon, e.lat), main: e.tags?.entrance === "main" }))
+      .filter((d: { at: Point }) => footprintDistance([[d.at, d.at]], b.rings) <= ENTRANCE_REACH)
+      .sort((x: any, y: any) => Number(y.main) - Number(x.main) || meters(x.at, b.center) - meters(y.at, b.center));
+    doorsOf.set(b.ref, doors);
+  }
+  const where = (b: Building) => doorsOf.get(b.ref)![0]?.at ?? b.center;
+  for (const b of buildings) places.push({ name: buildingPlace(b), kind: "ENTRANCE", floor: 1, ...toLatLon(where(b)) });
 
   const gaps = new Map<string, number>();
   const gap = (i: number, j: number) => {
@@ -410,18 +475,46 @@ export async function buildCampus() {
     if (!gaps.has(k)) gaps.set(k, footprintDistance(buildings[i].rings, buildings[j].rings));
     return gaps.get(k)!;
   };
-  for (const [i, j] of outdoorPairs(buildings, gap)) {
-    const a = buildings[i], b = buildings[j];
-    const meters = Math.round(Math.hypot(a.center[0] - b.center[0], a.center[1] - b.center[1]));
-    links.push([
-      buildingPlace(a), buildingPlace(b),
-      `Walk outside to ${buildingPlace(b)}, about ${meters} m to the ${direction(a.center, b.center)}.`,
-      `Walk outside to ${buildingPlace(a)}, about ${meters} m to the ${direction(b.center, a.center)}.`,
-      true, 0, 0, "", outdoorWalk(meters),
-    ]);
+
+  // Outside: the path network, and each building joined to it at its entrances (or the path point nearest it).
+  const paths = pathNetwork((await loadPaths()).elements);
+  const pathName = (id: string) => `Path ${id}`;
+  for (const pt of paths.points) places.push({ name: pathName(pt.id), kind: "TRANSIT", floor: 1, ...toLatLon(pt.at) });
+  for (const e of paths.edges) {
+    const text = `Walk about ${Math.max(1, Math.round(e.meters))} m outside${e.name ? ` along ${e.name}` : ""}.`;
+    links.push([pathName(e.from), pathName(e.to), text, text, e.stepFree, 0, 0, "", outdoorWalk(e.meters)]);
+  }
+  const unreached: number[] = [];
+  buildings.forEach((b, i) => {
+    const doors = doorsOf.get(b.ref)!.map((d) => d.at);
+    const joins = new Map<string, number>();
+    for (const at of doors.length ? doors : [where(b)]) {
+      let best: PathPoint | undefined;
+      for (const pt of paths.points) if (!best || meters(pt.at, at) < meters(best.at, at)) best = pt;
+      if (!best) continue;
+      const m = meters(best.at, at) + meters(at, where(b));
+      if (m <= PATH_REACH && !((joins.get(best.id) ?? Infinity) <= m)) joins.set(best.id, m);
+    }
+    if (!joins.size) unreached.push(i);
+    for (const [id, m] of joins) {
+      const r = Math.max(1, Math.round(m));
+      links.push([buildingPlace(b), pathName(id), `Walk about ${r} m outside.`, `Walk about ${r} m to the entrance of ${buildingPlace(b)}.`, true, 0, 0, "", outdoorWalk(m)]);
+    }
+  });
+  // ponytail: a building far from every mapped path gets straight walks to its nearest buildings; mapping its paths in OSM fixes it.
+  for (const i of unreached) {
+    for (const j of buildings.map((_, k) => k).filter((k) => k !== i).sort((x, y) => gap(i, x) - gap(i, y)).slice(0, NEIGHBOURS)) {
+      const a = buildings[i], b = buildings[j];
+      const m = Math.round(meters(where(a), where(b)));
+      links.push([
+        buildingPlace(a), buildingPlace(b),
+        `Walk outside to ${buildingPlace(b)}, about ${m} m to the ${direction(where(a), where(b))}.`,
+        `Walk outside to ${buildingPlace(a)}, about ${m} m to the ${direction(where(b), where(a))}.`,
+        true, 0, 0, "", outdoorWalk(m),
+      ]);
+    }
   }
 
-  const entrances = await loadEntrances();
   const located = loadLocated();
   const inside = new Map<string, ReturnType<typeof interior>>();
   for (const b of buildings) {
@@ -433,10 +526,17 @@ export async function buildCampus() {
     links.push(...plan.links);
     if (!plan.ground) continue;
     // In from the corridor nearest each entrance close to the building, or from the one nearest its centre.
-    const doors = plan.ground.hub ? [] : entrances.filter((e) => footprintDistance([[e, e]], b.rings) <= ENTRANCE_REACH);
-    const ways = new Set((doors.length ? doors : [b.center]).map((at) => plan.attach(plan.ground!.code, at).corridor.name));
-    for (const corridor of ways) {
-      links.push([buildingPlace(b), corridor, `Go inside ${buildingPlace(b)} to floor ${plan.ground.code}.`, `Leave ${buildingPlace(b)}.`, true, 0, 0, "", ENTER]);
+    const doors = plan.ground.hub ? [] : doorsOf.get(b.ref)!.map((d) => d.at);
+    // Entering costs the walk from the building's place (its main entrance) to each entry corridor, so passing
+    // through the building's place is never a shortcut between two of its corridors.
+    const ways = new Map<string, Point | undefined>();
+    for (const at of doors.length ? doors : [b.center]) {
+      const { corridor } = plan.attach(plan.ground!.code, at);
+      ways.set(corridor.name, corridor.at);
+    }
+    for (const [corridor, at] of ways) {
+      const m = at ? meters(at, where(b)) : 0;
+      links.push([buildingPlace(b), corridor, `Go inside ${buildingPlace(b)} to floor ${plan.ground.code}.`, `Leave ${buildingPlace(b)}.`, true, 0, 0, "", ENTER + m / 50]);
     }
   }
   // Indoors between buildings: where corridors meet on a floor, or, without positions, where outlines touch.
@@ -459,19 +559,18 @@ export async function buildCampus() {
       }
     }
   }
-  const simmons = buildings.find((b) => b.ref === "W79");
-  if (simmons) {
-    links.push([
-      buildingPlace(simmons), "Main Lobby Entrance",
-      "Go inside Simmons Hall through the main lobby.", "Head out from Simmons Hall onto Vassar Street.",
-      true, 0, 0, "", ENTER,
-    ]);
-  }
-  return { places, links, buildings: buildings.length, interiors: [...inside.keys()] };
+  // The page draws floor plans inside each building's outline.
+  const outlines = Object.fromEntries(
+    buildings
+      .filter((b) => inside.has(b.ref))
+      .map((b) => [b.ref, b.rings.map((ring) => ring.map((pt) => { const { latitude, longitude } = toLatLon(pt); return [latitude, longitude]; }))]),
+  );
+  return { places, links, outlines, buildings: buildings.length, interiors: [...inside.keys()] };
 }
 
 if (import.meta.main) {
-  const { places, links, buildings, interiors } = await buildCampus();
+  const { places, links, outlines, buildings, interiors } = await buildCampus();
+  writeFileSync(new URL("../web/outlines.json", import.meta.url), JSON.stringify(outlines) + "\n");
   writeFileSync(
     new URL("../data/campus.json", import.meta.url),
     JSON.stringify({ note: "Generated by scripts/campus-to-map.ts. Do not edit by hand.", places, links }) + "\n",

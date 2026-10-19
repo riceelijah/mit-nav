@@ -213,6 +213,7 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 - `_place(place: Place) : optional (name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)`
 - `_nearest(latitude: Number, longitude: Number) : optional (place: Place, name: String, latitude: Number, longitude: Number)`
 - `_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)`
+- `_onFloor(building: String, floor: Number) : many (place: Place, name: String, kind: Kind, latitude: Number, longitude: Number)`
 - `_link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)`
 - `_blocked() : many (link: Link, sourceName: String, destinationName: String, forward: String, service: String)`
 - `_sameService(link: Link) : many (other: Link)`
@@ -247,7 +248,7 @@ Former "the blocked connections" — inputs (); bindings (link, sourceName, dest
 ### the building nearest (latitude, longitude)
 
 Authored path: `Campus.Routing.Nearest`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 26.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 29.
 
 ```former
 Former "the building nearest (latitude, longitude)" — inputs (latitude, longitude); bindings (place, name, placeLatitude, placeLongitude); promises exactly one record — forms:
@@ -316,6 +317,23 @@ Former "the places matching (text)" — inputs (text); bindings (place, name, ki
         place
 ```
 
+### the places on floor (floor) of building (building)
+
+Authored path: `Campus.Browsing.FloorPlan`.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 11.
+
+```former
+Former "the places on floor (floor) of building (building)" — inputs (building, floor); bindings (place, name, kind, latitude, longitude); promises exactly one record — forms:
+  a record of
+    places: each Wayfinding._onFloor (building, floor) has (kind, latitude, longitude, name, place)
+      form a record of
+        kind
+        latitude
+        longitude
+        name
+        place
+```
+
 ### the preferences of (user)
 
 Authored path: `Saved.Mine.MyPreferences`.
@@ -353,7 +371,7 @@ Former "the recent trips of (user)" — inputs (user); bindings (entry, source, 
 ### the route from (source) to (destination)
 
 Authored path: `Campus.Routing.Route`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 16.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 19.
 
 ```former
 Former "the route from (source) to (destination)" — inputs (source, destination, accessibleOnly, hour); bindings (step, link, instruction, placeName, kind, floor, distance, latitude, longitude); promises exactly one record — forms:
@@ -465,7 +483,7 @@ then
 
 Authored path: `Campus.Browsing.SearchPlaces`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 9.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 13.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 15.
 
 ```reaction
 when RequestBoundary.request (path: "/map/search", requestId, text)
@@ -473,11 +491,23 @@ then
   RequestBoundary.respond (places: former "the places matching (text)" with (text), requestId)
 ```
 
+### Campus.Browsing.ShowFloor
+
+Authored path: `Campus.Browsing.ShowFloor`.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 11.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 16.
+
+```reaction
+when RequestBoundary.request (building, floor, path: "/map/floor", requestId)
+then
+  RequestBoundary.respond (plan: former "the places on floor (floor) of building (building)" with (building, floor), requestId)
+```
+
 ### Campus.Browsing.ShowOverview
 
 Authored path: `Campus.Browsing.ShowOverview`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 9.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 12.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 14.
 
 ```reaction
 when RequestBoundary.request (path: "/map/overview", requestId)
@@ -488,8 +518,8 @@ then
 ### Campus.Problems.BlockLink
 
 Authored path: `Campus.Problems.BlockLink`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 32.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 35.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 38.
 
 ```reaction
 when RequestBoundary.request (link, path: "/problems/block", reason, requestId, session)
@@ -500,8 +530,8 @@ then
 ### Campus.Problems.BlockLink#2
 
 Authored path: `Campus.Problems.BlockLink`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 32.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 35.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 38.
 
 ```reaction
 when Sessioning.use (session, subject: user), asked by Campus.Problems.BlockLink
@@ -514,8 +544,8 @@ then
 ### Campus.Problems.BlockLink#3
 
 Authored path: `Campus.Problems.BlockLink`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 32.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 35.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 38.
 
 ```reaction
 when Wayfinding.block (link), asked by Campus.Problems.BlockLink#2
@@ -529,8 +559,8 @@ then
 ### Campus.Problems.BlockLink#4
 
 Authored path: `Campus.Problems.BlockLink`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 32.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 35.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 38.
 
 ```reaction
 when Reporting.report (reason, reporter: user, target: link, report), asked by Campus.Problems.BlockLink#3
@@ -543,7 +573,7 @@ then
 ### Campus.Problems.ClearingResolvesSharedReports
 
 Authored path: `Campus.Problems.ClearingResolvesSharedReports`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 39.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 42.
 
 ```reaction
 when Wayfinding.unblock (link)
@@ -556,8 +586,8 @@ then
 ### Campus.Problems.UnblockLink
 
 Authored path: `Campus.Problems.UnblockLink`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 36.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 39.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 42.
 
 ```reaction
 when RequestBoundary.request (link, path: "/problems/unblock", requestId, session)
@@ -568,8 +598,8 @@ then
 ### Campus.Problems.UnblockLink#2
 
 Authored path: `Campus.Problems.UnblockLink`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 36.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 39.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 42.
 
 ```reaction
 when Sessioning.use (session, subject: user), asked by Campus.Problems.UnblockLink
@@ -582,8 +612,8 @@ then
 ### Campus.Problems.UnblockLink#3
 
 Authored path: `Campus.Problems.UnblockLink`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 36.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 39.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 42.
 
 ```reaction
 when Wayfinding.unblock (link), asked by Campus.Problems.UnblockLink#2
@@ -596,7 +626,7 @@ then
 ### Campus.Problems.UnblockResolvesReports
 
 Authored path: `Campus.Problems.UnblockResolvesReports`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 39.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 42.
 
 ```reaction
 when Wayfinding.unblock (link)
@@ -607,8 +637,8 @@ then
 ### Campus.Routing.FindRoute
 
 Authored path: `Campus.Routing.FindRoute`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 16.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 19.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 22.
 
 ```reaction
 when RequestBoundary.request (accessibleOnly, destination, hour, path: "/route/find", requestId, source)
@@ -619,8 +649,8 @@ then
 ### Campus.Routing.NearestPlace
 
 Authored path: `Campus.Routing.NearestPlace`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 26.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 29.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 32.
 
 ```reaction
 when RequestBoundary.request (latitude, longitude, path: "/route/nearest", requestId)
@@ -631,8 +661,8 @@ then
 ### Campus.Setup.AddPlace
 
 Authored path: `Campus.Setup.AddPlace`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 41.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 44.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 47.
 
 ```reaction
 when RequestBoundary.request (floor, kind, latitude, longitude, name, path: "/map/add-place", requestId)
@@ -643,8 +673,8 @@ then
 ### Campus.Setup.AddPlace#2
 
 Authored path: `Campus.Setup.AddPlace`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 41.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 44.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 47.
 
 ```reaction
 when Wayfinding.addPlace (floor, kind, latitude, longitude, name, place), asked by Campus.Setup.AddPlace
@@ -657,8 +687,8 @@ then
 ### Campus.Setup.Connect
 
 Authored path: `Campus.Setup.Connect`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 41.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 45.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 44.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 48.
 
 ```reaction
 when RequestBoundary.request (accessible, backward, closedFrom, closedUntil, destination, distance, forward, path: "/map/connect", requestId, service, source)
@@ -669,8 +699,8 @@ then
 ### Campus.Setup.Connect#2
 
 Authored path: `Campus.Setup.Connect`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 41.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 45.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 44.
+- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 48.
 
 ```reaction
 when Wayfinding.connect (accessible, backward, closedFrom, closedUntil, destination, distance, forward, service, source, link), asked by Campus.Setup.Connect
@@ -1371,6 +1401,7 @@ not listed here have no explicit input contract.
 - `/auth/register` — requires `password`, `username`
 - `/map/add-place` — requires `name`, `kind`, `floor`, `latitude`, `longitude`
 - `/map/connect` — requires `source`, `destination`, `forward`, `backward`, `accessible`, `closedFrom`, `closedUntil`, `service`, `distance`
+- `/map/floor` — requires `building`, `floor`
 - `/map/search` — requires `text`
 - `/me` — requires `session`
 - `/me/favorites/add` — requires `place`, `session`

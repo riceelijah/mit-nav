@@ -1,0 +1,1 @@
+Update Campus.md prose: outdoor walks follow OSM footpaths/sidewalks/crossings (steps not step-free), buildings join the path network at their entrances, building positions at main entrance, merged outdoor steps, Simmons names prefixed. No concept changes. Check syntax.

@@ -1,6 +1,9 @@
 import { createApp, ref, computed, watch, onMounted } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
+import outlineData from "./outlines.json" with { type: "json" };
+// Building outlines (lat, long rings) written by the campus converter.
+const outlines = outlineData as unknown as Record<string, [number, number][][]>;
 
 const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
@@ -36,21 +39,89 @@ function metersFromLine(p: Point, line: Point[]) {
   return best;
 }
 
-const CORRIDOR = /^Walk about (\d+) m along the corridor\.$/;
-/** Shows several corridor walks in a row as one step, adding up the metres written in them. */
-function mergeCorridors(steps: any[]) {
+const CORRIDOR = /^Walk about (\d+) m along the corridors?\.$/;
+const OUTSIDE = /^Walk about (\d+) m outside(?: along (.+))?\.$/;
+const joinNames = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
+
+/**
+ * Shows several corridor walks, or several outdoor path segments, in a row as one step, adding up the
+ * metres written in them; an outdoor step names the streets it follows.
+ */
+export function mergeSteps(steps: any[]) {
   const shown: any[] = [];
   for (const s of steps) {
     const prev = shown[shown.length - 1];
-    const m = CORRIDOR.exec(s.instruction);
-    const before = prev && /^Walk about (\d+) m along the corridors?\.$/.exec(prev.instruction);
-    if (m && before) {
+    const corridor = CORRIDOR.exec(s.instruction), outside = OUTSIDE.exec(s.instruction);
+    const kind = corridor ? "corridor" : outside ? "outside" : "";
+    if (kind && prev?.merge === kind) {
       // Keep the first connection (that is the one flagged) and arrive where the last one does.
-      Object.assign(prev, { ...s, link: prev.link, step: prev.step, distance: prev.distance + s.distance, instruction: `Walk about ${Number(before[1]) + Number(m[1])} m along the corridors.` });
-    } else shown.push({ ...s });
+      const meters = prev.meters + Number((corridor ?? outside)![1]);
+      const streets = outside?.[2] && !prev.streets.includes(outside[2]) ? [...prev.streets, outside[2]] : prev.streets;
+      const along = streets.filter((n: string) => n !== "a crosswalk");
+      const instruction = kind === "corridor"
+        ? `Walk about ${meters} m along the corridors.`
+        : `Walk about ${meters} m outside${along.length ? `, along ${joinNames(along)}` : ""}${streets.includes("a crosswalk") ? ", crossing at the crosswalk" : ""}.`;
+      Object.assign(prev, { ...s, link: prev.link, distance: prev.distance + s.distance, meters, streets, instruction, merge: kind });
+    } else {
+      shown.push({ ...s, merge: kind, meters: Number((corridor ?? outside)?.[1] ?? 0), streets: outside?.[2] ? [outside[2]] : [] });
+    }
   }
   return shown.map((s, i) => ({ ...s, step: i + 1 }));
 }
+// ---- Floor plans, redrawn from room positions (not MIT's drawings). ----
+type Flat = [number, number];
+/** Cuts a polygon to the side of the line through `a` perpendicular to a→b that is nearer `a` (one Voronoi half-plane). */
+function nearerTo(poly: Flat[], a: Flat, b: Flat): Flat[] {
+  const mid: Flat = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const n: Flat = [b[0] - a[0], b[1] - a[1]];
+  const side = (p: Flat) => (p[0] - mid[0]) * n[0] + (p[1] - mid[1]) * n[1]; // < 0 on a's side
+  const out: Flat[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    const sp = side(p), sq = side(q);
+    if (sp <= 0) out.push(p);
+    if ((sp < 0 && sq > 0) || (sp > 0 && sq < 0)) {
+      const t = sp / (sp - sq);
+      out.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+    }
+  }
+  return out;
+}
+/**
+ * One cell per position inside the building outline: the part of the outline nearer that position than any
+ * other. A position several places share was borrowed (from a corridor or the building), so it is drawn only
+ * as the corridor among them, if there is one.
+ */
+export function floorCells(places: { name: string; kind: string; latitude: number; longitude: number }[], outline: [number, number][][]) {
+  const groups = new Map<string, typeof places>();
+  for (const p of places) {
+    const key = `${p.latitude},${p.longitude}`;
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(p);
+  }
+  const sites = [...groups.values()]
+    .map((g) => (g.length === 1 ? g[0] : g.find((p) => p.kind === "TRANSIT")))
+    .filter((p): p is (typeof places)[number] => !!p);
+  const lat0 = sites[0]?.latitude ?? 0;
+  const k = Math.cos((lat0 * Math.PI) / 180);
+  const flat = (lat: number, lon: number): Flat => [lon * 111_320 * k, lat * 111_320];
+  const back = ([x, y]: Flat): [number, number] => [y / 111_320, x / (111_320 * k)];
+  const points = sites.map((p) => flat(p.latitude, p.longitude));
+  // ponytail: n² half-plane cuts per floor; fine for a few hundred rooms.
+  return sites.map((site, i) => ({
+    ...site,
+    rings: outline
+      .map((ring) => {
+        let poly = ring.map(([lat, lon]) => flat(lat, lon));
+        for (let j = 0; j < points.length && poly.length; j++) if (j !== i) poly = nearerTo(poly, points[i], points[j]);
+        return poly.map(back);
+      })
+      .filter((r) => r.length >= 3),
+  }));
+}
+const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
+
+// Outdoor path points have generated names that mean nothing to a person.
+const arrivalLabel = (s: any) => (/^Path \d+$/.test(s.placeName) ? "" : `${s.placeName}, floor ${s.floor}`);
 
 const distanceLabel = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
 
@@ -132,7 +203,7 @@ const app = createApp({
         <label class="check"><input type="checkbox" v-model="tracking" /> Follow my location (steps outside tick off as you reach each building; mark indoor steps done yourself)</label>
         <ol class="steps">
           <li v-for="(s, i) in steps" :key="s.step" :class="{ done: i < doneCount, current: i === doneCount }">
-            {{ s.instruction }} <span class="floor">(arrive: {{ s.placeName }}, floor {{ s.floor }})</span>
+            {{ s.instruction }} <span v-if="arrivalLabel(s)" class="floor">(arrive: {{ arrivalLabel(s) }})</span>
             <button v-if="i === doneCount" class="flag" @click="doneCount++">Done</button>
             <button class="flag danger" @click="startFlag(s.link)">Flag blocked</button>
             <div v-if="flagging === s.link" class="inline">
@@ -145,6 +216,12 @@ const app = createApp({
       </template>
       <p v-if="message" :class="['msg', messageKind]">{{ message }}</p>
       <div id="map" aria-label="Map of the route"></div>
+      <div v-if="routeFloors.length" class="floors">
+        <span>Floor plans on this route:</span>
+        <button v-for="f in routeFloors" :key="f.building + '/' + f.floor" :class="{ active: activeFloor && activeFloor.building === f.building && activeFloor.floor === f.floor }" @click="showFloor(f)">{{ f.building }} · floor {{ f.floor }}</button>
+        <button v-if="activeFloor" @click="hideFloor">Hide plan</button>
+      </div>
+      <p v-if="activeFloor" class="floor">Floor plan redrawn from room positions on MIT's plans; each room is the area nearest its label, so walls are approximate. Zoom in to read room numbers.</p>
     </section>
 
     <template v-if="me && mine">
@@ -322,7 +399,7 @@ const app = createApp({
       const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, hour: hour.value });
       if (asked !== latestRoute) return; // an answer to an older choice of places
       if ("error" in result) return say(`Could not find a route: ${result.error}`, "bad");
-      steps.value = mergeCorridors(result.route.steps);
+      steps.value = mergeSteps(result.route.steps);
       searched.value = true;
       doneCount.value = 0;
       draw();
@@ -352,6 +429,40 @@ const app = createApp({
       L.circleMarker(line[line.length - 1], { radius: 7, color: "#a31f34", fillOpacity: 1 }).bindTooltip("Destination").addTo(routeLayer);
       map.fitBounds(L.latLngBounds(line).pad(0.25), { maxZoom: 18 });
     }
+
+    // ---- Floor plans for the floors the route passes through. ----
+    let floorLayer: any;
+    const activeFloor = ref<{ building: string; floor: number } | null>(null);
+    const routeFloors = computed(() => {
+      const seen = new Map<string, { building: string; floor: number }>();
+      for (const s of steps.value) {
+        const building = BUILDING_PREFIX.exec(s.placeName)?.[1];
+        if (building && building in outlines) seen.set(`${building}/${s.floor}`, { building, floor: s.floor });
+      }
+      return [...seen.values()];
+    });
+    async function showFloor(f: { building: string; floor: number }) {
+      const result = await client.map.floor({ building: f.building, floor: f.floor });
+      if ("error" in result) return say(`Could not load the floor plan: ${result.error}`, "bad");
+      floorLayer.clearLayers();
+      activeFloor.value = f;
+      const outline = outlines[f.building];
+      L.polygon(outline, { color: "#555", weight: 2, fillColor: "#fbfaf7", fillOpacity: 0.95 }).addTo(floorLayer);
+      for (const cell of floorCells(result.plan.places, outline)) {
+        const destination = to.value?.name === cell.name;
+        const corridor = cell.kind === "TRANSIT";
+        L.polygon(cell.rings, {
+          color: "#8a8a8a", weight: 0.8,
+          fillColor: destination ? "#f4b6be" : corridor ? "#f1e3bf" : "#ffffff", fillOpacity: 1,
+        }).bindTooltip(cell.name).addTo(floorLayer);
+        if (!corridor) {
+          L.marker([cell.latitude, cell.longitude], { interactive: false, icon: L.divIcon({ className: "room-label", html: cell.name.split(" ")[0].replace(BUILDING_PREFIX, ""), iconSize: [60, 14] }) }).addTo(floorLayer);
+        }
+      }
+      map.fitBounds(L.polygon(outline).getBounds().pad(0.05));
+    }
+    function hideFloor() { floorLayer.clearLayers(); activeFloor.value = null; draw(); }
+    watch(steps, () => { if (activeFloor.value) hideFloor(); });
 
     // ---- Following the person's location (only while they have it turned on). ----
     let watchId: number | undefined;
@@ -397,7 +508,7 @@ const app = createApp({
         if ("error" in result || !result.route.steps.length) return say(`You seem to be off the route, and there is no route from ${nearest.name}. Keep to the old route.`, "bad");
         skipNextRoute = true;
         from.value = { ...nearest, kind: "ENTRANCE", floor: 1 };
-        steps.value = mergeCorridors(result.route.steps);
+        steps.value = mergeSteps(result.route.steps);
         doneCount.value = 0;
         draw();
         say(`You went off course, so here is a new route from ${nearest.name}.`);
@@ -477,11 +588,13 @@ const app = createApp({
         referrerPolicy: "strict-origin-when-cross-origin",
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
+      floorLayer = L.layerGroup().addTo(map); // under the route line
       routeLayer = L.layerGroup().addTo(map);
+      map.on("zoomend", () => map.getContainer().classList.toggle("labels", map.getZoom() >= 19));
       if (window.location.pathname === "/auth/commons/callback") await finishCommons();
       else await loadMe();
       if (me.value) { accessibleOnly.value = prefStepFree.value; tracking.value = prefLocation.value; }
-      const [start, end] = await Promise.all([placeNamed("Main Lobby Entrance"), placeNamed("32-123 Lecture Hall"), load()]);
+      const [start, end] = await Promise.all([placeNamed("Simmons Hall (Building W79)"), placeNamed("32-123 Lecture Hall"), load()]);
       from.value ??= start;
       to.value ??= end;
     });
@@ -489,7 +602,7 @@ const app = createApp({
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
       reports, unreported, steps, from, to, accessibleOnly, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      startFlag, block, unblock, tracking, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
+      startFlag, block, unblock, tracking, arrivalLabel, routeFloors, activeFloor, showFloor, hideFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });

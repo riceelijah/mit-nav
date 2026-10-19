@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { floorJoin, interior, type Located, type Point } from "../scripts/campus-to-map.ts";
+import { floorJoin, interior, pathNetwork, type Located, type Point } from "../scripts/campus-to-map.ts";
 
 // Positions are metres on a local grid (x east, y north), as the converter uses after converting lat/long.
 const csv = `"FLOOR","ROOM NUMBER","SQ FT","ROOM USE","DEPARTMENT","MAJOR USE"
@@ -72,4 +72,27 @@ test("converter: buildings join where corridors meet, where both reach the share
   const viaB = attach({ corridor: { name: "Building B, floor 1", at: undefined } });
   expect(floorJoin(floor("1", [["A1", 70]]), hub, true, a, b, viaA, viaB)?.map((x) => (typeof x === "number" ? x : x.name))).toEqual(["A1", "Building B, floor 1", 0]);
   expect(floorJoin(floor("1", [["A1", 70]]), hub, false, a, b, viaA, viaB)).toBeUndefined();
+});
+
+test("path network: keeps ends, junctions and sharp bends; steps are not step-free; drops stray pieces", () => {
+  // Node positions in degrees around MIT; 0.0001 degrees of latitude is about 11 m.
+  const node = (id: number, lat: number, lon: number) => ({ type: "node", id, lat, lon });
+  const way = (id: number, nodes: number[], tags: object) => ({ type: "way", id, nodes, tags });
+  const elements = [
+    node(1, 42.36, -71.09), node(2, 42.3601, -71.09), node(3, 42.3602, -71.09), // straight: 2 is dropped
+    node(4, 42.3602, -71.0898), // a right-angle bend at 3, kept
+    node(5, 42.3603, -71.0898),
+    node(8, 42.37, -71.10), node(9, 42.3701, -71.10), // a stray piece
+    way(10, [1, 2, 3, 4], { highway: "footway", name: "Main Path" }),
+    way(11, [4, 5], { highway: "steps" }),
+    way(12, [8, 9], { highway: "footway" }),
+    way(13, [5, 1], { highway: "primary" }), // busy road: never walked
+  ];
+  const { points, edges } = pathNetwork(elements);
+  expect(points.map((p) => p.id).sort()).toEqual(["1", "3", "4", "5"]);
+  expect(edges.map((e) => [e.from, e.to, Math.round(e.meters), e.stepFree, e.name])).toEqual([
+    ["1", "3", 22, true, "Main Path"],
+    ["3", "4", 16, true, "Main Path"],
+    ["4", "5", 11, false, ""],
+  ]);
 });

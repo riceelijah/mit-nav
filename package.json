@@ -36,7 +36,6 @@
     "seed": "bun scripts/seed.ts",
     "test": "bun test",
     "test:real": "TEST_MONGO=real bun test",
-    "floorplan": "bun scripts/floorplan-to-map.ts",
     "campus": "bun scripts/campus-to-map.ts"
   },
   "overrides": {

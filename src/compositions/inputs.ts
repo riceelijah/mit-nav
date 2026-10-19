@@ -36,3 +36,10 @@ export const numbers =
     const ok = typeof body === "object" && body !== null && fields.every((f) => typeof body[f] === "number" && Number.isFinite(body[f]));
     return ok ? { ok: true } : { ok: false, detail: `expected numbers ${fields.join(", ")}` };
   };
+
+/** A building number (text) and a floor (a finite number), for the floor plan. */
+export const floorInput: EndpointValidator = (value) => {
+  const body = value as Record<string, unknown> | null;
+  const ok = typeof body === "object" && body !== null && typeof body.building === "string" && typeof body.floor === "number" && Number.isFinite(body.floor);
+  return ok ? { ok: true } : { ok: false, detail: "expected a building and a floor number" };
+};
