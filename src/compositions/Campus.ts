@@ -1,6 +1,6 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
 import { each, form, former, reaction, when, whether } from "@mit-sdg/sync-engine/language";
-import { closestInput, floorInput, numbers, signedIn } from "./inputs.ts";
+import { closestInput, numbers, signedIn } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
 const { Wayfinding, Reporting, Registering, Sessioning } = concepts;
@@ -66,20 +66,6 @@ const ShowOverview = endpoint("/map/overview", () =>
   receive({}).then(respond({ problems: ProblemList({}), blocked: BlockedList({}) })),
 );
 
-const FloorPlan = former(
-  "the places on floor (floor) of building (building)",
-  ({ building, floor }, { place, name, kind, latitude, longitude, area }) =>
-    form({
-      places: each(Wayfinding._onFloor({ building, floor }).is({ place, name, kind, latitude, longitude, area })).form({ place, name, kind, latitude, longitude, area }),
-    }),
-);
-
-const ShowFloor = endpoint(
-  "/map/floor",
-  ({ building, floor }) => receive({ building, floor }).then(respond({ plan: FloorPlan({ building, floor }) })),
-  { validators: { input: floorInput } },
-);
-
 const SearchPlaces = endpoint(
   "/map/search",
   ({ text }) => receive({ text }).then(respond({ places: PlaceSearch({ text }) })),
@@ -88,11 +74,11 @@ const SearchPlaces = endpoint(
 
 const AddPlace = endpoint(
   "/map/add-place",
-  ({ name, kind, floor, latitude, longitude, area, place }) =>
-    receive({ name, kind, floor, latitude, longitude, area })
-      .then(Wayfinding.addPlace({ name, kind, floor, latitude, longitude, area }).responds({ place }))
+  ({ name, kind, floor, latitude, longitude, place }) =>
+    receive({ name, kind, floor, latitude, longitude })
+      .then(Wayfinding.addPlace({ name, kind, floor, latitude, longitude }).responds({ place }))
       .then(respond({ place })),
-  { input: { required: ["name", "kind", "floor", "latitude", "longitude", "area"] } },
+  { input: { required: ["name", "kind", "floor", "latitude", "longitude"] } },
 );
 
 const Connect = endpoint(
@@ -184,7 +170,7 @@ const ClearingResolvesSharedReports = reaction(({ link, other }) =>
 );
 
 export const composition = {
-  Browsing: { PlaceSearch, ProblemList, BlockedList, FloorPlan, ShowOverview, SearchPlaces, ShowFloor },
+  Browsing: { PlaceSearch, ProblemList, BlockedList, ShowOverview, SearchPlaces },
   Routing: { Route, FindRoute, Nearest, NearestPlace, Closest, FindClosest },
   Problems: { BlockLink, UnblockLink, UnblockResolvesReports, ClearingResolvesSharedReports },
   Setup: { AddPlace, Connect },

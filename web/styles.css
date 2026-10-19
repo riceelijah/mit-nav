@@ -168,6 +168,13 @@ button { cursor: pointer; }
 .switch { color: var(--ink-soft); font-size: .9rem; margin: 14px 0 0; }
 .close { position: absolute; top: 14px; right: 14px; }
 
+/* ---- Floor switcher: a strip of floors on the map's right edge ---- */
+.floor-switcher { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 6px 20px rgba(28, 43, 57, .18); max-height: 70vh; overflow-y: auto; }
+.floor-switcher .which { font: 700 .95rem/1.2 var(--numerals); text-align: center; padding: 2px 0 4px; border-bottom: 1px solid var(--rule); margin-bottom: 2px; }
+.floor-switcher button { min-width: 44px; min-height: 36px; border: 0; border-radius: 6px; background: none; font: 600 1rem/1 var(--numerals); position: relative; }
+.floor-switcher button.route::after { content: ""; position: absolute; right: 4px; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--cardinal); }
+.floor-switcher button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
 /* ---- Map details ---- */
 .room-label { font: 600 11px/14px var(--numerals); color: var(--ink); text-align: center; white-space: nowrap; display: none; }
 #map.labels .room-label { display: block; }
@@ -175,6 +182,7 @@ button { cursor: pointer; }
 
 /* ---- Phones: the map is the screen, directions are a sheet over it ---- */
 @media (max-width: 760px) {
+  .floor-switcher { top: 76px; transform: none; max-height: 45dvh; }
   .app { display: block; }
   #map { position: absolute; inset: 0; z-index: 0; }
   .panel {

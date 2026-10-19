@@ -18,6 +18,12 @@ const server = Bun.serve({
     // Commons sends the browser back here with a one-time code; the page finishes signing in.
     "/auth/commons/callback": homepage,
     "/api/*": proxy,
+    // One floor-plan file per building, written by the campus converter.
+    "/plans/:file": (request) => {
+      const file = request.params.file;
+      if (!/^[A-Z0-9]+\.json$/.test(file)) return new Response("Not found", { status: 404 });
+      return new Response(Bun.file(new URL(`./plans/${file}`, import.meta.url)), { headers: { "Cache-Control": "public, max-age=3600" } });
+    },
     "/health": proxy,
   },
 });

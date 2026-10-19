@@ -1,9 +1,6 @@
 import { createApp, ref, computed, watch, onMounted, nextTick } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
-import outlineData from "./outlines.json" with { type: "json" };
-// Building outlines (lat, long rings) written by the campus converter.
-const outlines = outlineData as unknown as Record<string, [number, number][][]>;
 
 const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
@@ -67,65 +64,72 @@ export function mergeSteps(steps: any[]) {
   });
   return shown.map((s, i) => ({ ...s, step: i + 1 }));
 }
-// ---- Floor plans: a schematic of where rooms are and how big, from positions and areas (not MIT's drawings). ----
-type PlanPlace = { name: string; kind: string; latitude: number; longitude: number; area: number };
-const CORRIDOR_REACH = 40; // metres; the converter links corridors this close
-/**
- * What to draw for one floor: corridor strokes between each corridor and its nearest corridors within reach,
- * room squares of their area turned to the outline's longest edge, and markers for rooms without an area.
- * A position several places share was borrowed, so it is drawn only as the corridor among them, if any.
- */
-export function planShapes(places: PlanPlace[], outline: [number, number][][]) {
-  const groups = new Map<string, PlanPlace[]>();
-  for (const p of places) {
-    const key = `${p.latitude},${p.longitude}`;
-    (groups.get(key) ?? groups.set(key, []).get(key)!).push(p);
+// ---- Floor plans: every room the inventory places on a floor, drawn as a schematic (not MIT's walls). ----
+type PlanRoom = { n: string; u: string; at: [number, number]; a: number };
+type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[] }> };
+type Flat = [number, number];
+/** Keeps the part of a polygon on the side of the line through `p` where (x - p) · n <= 0. */
+function clip(poly: Flat[], p: Flat, n: Flat): Flat[] {
+  const side = (q: Flat) => (q[0] - p[0]) * n[0] + (q[1] - p[1]) * n[1];
+  const out: Flat[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const sa = side(a), sb = side(b);
+    if (sa <= 0) out.push(a);
+    if ((sa < 0 && sb > 0) || (sa > 0 && sb < 0)) {
+      const t = sa / (sa - sb);
+      out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
+    }
   }
-  const sites = [...groups.values()]
-    .map((g) => (g.length === 1 ? g[0] : g.find((p) => p.kind === "TRANSIT")))
-    .filter((p): p is PlanPlace => !!p);
+  return out;
+}
+/**
+ * Each room's shape: the part of the building outline nearer its label than any other room's on the floor,
+ * cut to a square of 1.5 times its area around the label, turned to the outline's longest edge. With every
+ * room present, these regions approximate the rooms; a room with no area keeps its whole region.
+ */
+export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
   const lat0 = outline[0]?.[0]?.[0] ?? 0;
   const k = Math.cos((lat0 * Math.PI) / 180);
-  const flat = ([lat, lon]: [number, number]) => [lon * 111_320 * k, lat * 111_320];
-  const back = (x: number, y: number): [number, number] => [y / 111_320, x / (111_320 * k)];
-  // The building's main axis: the direction of the outline's longest edge.
+  const flat = ([lat, lon]: [number, number]): Flat => [lon * 111_320 * k, lat * 111_320];
+  const back = ([x, y]: Flat): [number, number] => [y / 111_320, x / (111_320 * k)];
+  const rings = outline.map((ring) => ring.map(flat));
   let axis = 0, longest = 0;
-  for (const ring of outline)
+  for (const ring of rings)
     for (let i = 0; i + 1 < ring.length; i++) {
-      const [ax, ay] = flat(ring[i]), [bx, by] = flat(ring[i + 1]);
-      const length = Math.hypot(bx - ax, by - ay);
-      if (length > longest) [longest, axis] = [length, Math.atan2(by - ay, bx - ax)];
+      const length = Math.hypot(ring[i + 1][0] - ring[i][0], ring[i + 1][1] - ring[i][1]);
+      if (length > longest) [longest, axis] = [length, Math.atan2(ring[i + 1][1] - ring[i][1], ring[i + 1][0] - ring[i][0])];
     }
-  const corridors = sites.filter((p) => p.kind === "TRANSIT");
-  const at = (p: PlanPlace) => flat([p.latitude, p.longitude]);
-  const strokes: [number, number][][] = [];
-  const seen = new Set<string>();
-  for (const c of corridors) {
-    const near = corridors
-      .filter((o) => o !== c)
-      .map((o) => [o, Math.hypot(at(o)[0] - at(c)[0], at(o)[1] - at(c)[1])] as const)
-      .filter(([, m]) => m <= CORRIDOR_REACH)
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, 3);
-    for (const [o] of near) {
-      const key = [c.name, o.name].sort().join("|");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      strokes.push([[c.latitude, c.longitude], [o.latitude, o.longitude]]);
-    }
-  }
-  const cos = Math.cos(axis), sin = Math.sin(axis);
-  const rooms = sites
-    .filter((p) => p.kind !== "TRANSIT")
-    .map((p) => {
-      if (!p.area) return { place: p, box: undefined };
-      const half = Math.sqrt(p.area) / 2;
-      const [x, y] = at(p);
-      const box = [[-half, -half], [half, -half], [half, half], [-half, half]].map(([dx, dy]) => back(x + dx * cos - dy * sin, y + dx * sin + dy * cos));
-      return { place: p, box };
+  const along: Flat = [Math.cos(axis), Math.sin(axis)], across: Flat = [-Math.sin(axis), Math.cos(axis)];
+  const points = rooms.map((r) => flat(r.at));
+  // ponytail: n² half-plane cuts per floor (a few hundred rooms); a Delaunay library if floors get much larger.
+  return rooms.map((room, i) => {
+    const p = points[i];
+    const shapes = rings.map((ring) => {
+      let poly = ring.slice(0, -1);
+      for (let j = 0; j < points.length && poly.length; j++) {
+        const q = points[j];
+        if (j === i || (q[0] === p[0] && q[1] === p[1])) continue;
+        poly = clip(poly, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], [q[0] - p[0], q[1] - p[1]]);
+      }
+      if (room.a > 0 && poly.length) {
+        const half = Math.sqrt(1.5 * room.a) / 2;
+        for (const [d, sign] of [[along, 1], [along, -1], [across, 1], [across, -1]] as const) {
+          poly = clip(poly, [p[0] + sign * half * d[0], p[1] + sign * half * d[1]], [sign * d[0], sign * d[1]]);
+        }
+      }
+      return poly.map(back);
     });
-  return { strokes, rooms, corridors };
+    return { room, shapes: shapes.filter((r) => r.length >= 3) };
+  });
 }
+const PLAN_FILL: [RegExp, string][] = [
+  [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#efe1b8"],
+  [/^ELEVATOR$/, "#cfe0f4"],
+  [/^STAIRWAY$/, "#dde2e8"],
+  [/SHAFT|UTILITY|MECH|ELECTRIC|TELECOM|CUSTODIAL|STORAGE/, "#eceeec"],
+];
+const planFill = (use: string) => PLAN_FILL.find(([re]) => re.test(use))?.[1] ?? "#ffffff";
 const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 
 // Outdoor path points have generated names that mean nothing to a person.
@@ -249,13 +253,12 @@ const app = createApp({
               </li>
             </ol>
             <button v-if="me" class="primary wide" @click="finishTrip" :disabled="finished">{{ finished ? 'Trip recorded' : "I've arrived" }}</button>
-            <div v-if="routeFloors.length" class="floors">
-              <p>Floor plans on this route</p>
+            <div v-if="routeBuildings.length" class="floors">
+              <p>Floor plans</p>
               <div class="chips">
-                <button v-for="f in routeFloors" :key="f.building + '/' + f.floor" :aria-pressed="!!activeFloor && activeFloor.building === f.building && activeFloor.floor === f.floor" @click="showFloor(f)">{{ f.building }}, floor {{ f.floor }}</button>
-                <button v-if="activeFloor" class="quiet" @click="hideFloor">Hide plan</button>
+                <button v-for="b in routeBuildings" :key="b.ref" @click="seeBuilding(b.ref)">See building {{ b.ref }}</button>
               </div>
-              <p v-if="activeFloor" class="fine">A schematic: hallways and rooms at their real positions and sizes, not MIT's walls. Zoom in to read room numbers.</p>
+              <p class="fine">Zoom in on a building on your route to see its plan. Plans are a schematic of every room at its real position and size, not MIT's walls.</p>
             </div>
           </template>
         </section>
@@ -314,6 +317,10 @@ const app = createApp({
     </aside>
 
     <div id="map" aria-label="Map"></div>
+    <div v-if="switcher" class="floor-switcher" role="group" :aria-label="'Floors of building ' + switcher.ref">
+      <span class="which">{{ switcher.ref }}</span>
+      <button v-for="f in switcher.floors" :key="f.code" :aria-pressed="f.code === switcher.shown" :class="{ route: f.route }" @click="chooseFloor(switcher.ref, f.code)" :title="f.route ? 'Your route uses this floor' : ''">{{ f.code }}</button>
+    </div>
 
     <div v-if="(showSignIn && !me) || choosing" class="modal" role="dialog" aria-modal="true" aria-labelledby="signin-title" @click.self="showSignIn = false">
       <section class="sheet-card">
@@ -546,71 +553,108 @@ const app = createApp({
       map.fitBounds(L.latLngBounds(line), { maxZoom: 18, paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + covered] });
     }
 
-    // ---- Floor plans for the floors the route passes through. ----
-    let floorLayer: any;
-    const activeFloor = ref<{ building: string; floor: number } | null>(null);
-    const routeFloors = computed(() => {
-      const seen = new Map<string, { building: string; floor: number }>();
+    // ---- Floor plans: loaded per building, drawn when zoomed in, one floor per building at a time. ----
+    let planLayer: any;
+    const planFiles = ref<Record<string, PlanFile | null>>({});
+    const shownFloor = ref<Record<string, string>>({}); // building -> floor code being drawn
+    const visiblePlans = ref<string[]>([]);
+    const focus = ref("");
+    /** The route's buildings, in order, with the floor numbers its steps use in each. */
+    const routeBuildings = computed(() => {
+      const seen = new Map<string, Set<number>>();
       for (const s of steps.value) {
-        const building = BUILDING_PREFIX.exec(s.placeName)?.[1];
-        if (building && building in outlines) seen.set(`${building}/${s.floor}`, { building, floor: s.floor });
+        const ref = BUILDING_PREFIX.exec(s.placeName)?.[1];
+        if (ref) (seen.get(ref) ?? seen.set(ref, new Set()).get(ref)!).add(s.floor);
       }
-      return [...seen.values()];
+      return [...seen].map(([ref, levels]) => ({ ref, levels }));
     });
-    // Plans are fetched once per floor and drawn in their own map layers, beneath the route line.
-    const planCache = new Map<string, PlanPlace[]>();
-    async function planPlaces(f: { building: string; floor: number }) {
-      const key = `${f.building}/${f.floor}`;
-      if (!planCache.has(key)) {
-        const result = await client.map.floor({ building: f.building, floor: f.floor });
-        planCache.set(key, "error" in result ? [] : result.plan.places);
-      }
-      return planCache.get(key)!;
+    async function loadPlan(ref: string) {
+      if (ref in planFiles.value) return planFiles.value[ref];
+      const response = await fetch(`/plans/${ref}.json`).catch(() => undefined);
+      planFiles.value = { ...planFiles.value, [ref]: response?.ok ? await response.json() : null };
+      return planFiles.value[ref];
     }
-    function drawPlan(layer: any, f: { building: string; floor: number }, places: PlanPlace[]) {
-      const outline = outlines[f.building];
-      if (!outline) return;
-      L.polygon(outline, { pane: "plans", color: "#56626d", weight: 2, fillColor: "#fbfbf8", fillOpacity: 0.92 }).addTo(layer);
-      const { strokes, rooms, corridors } = planShapes(places, outline);
-      for (const s of strokes) L.polyline(s, { pane: "plans", color: "#e9d9a8", weight: 9, opacity: 1, lineCap: "round" }).addTo(layer);
-      for (const c of corridors) L.circleMarker([c.latitude, c.longitude], { pane: "plans", radius: 4, stroke: false, fillColor: "#e9d9a8", fillOpacity: 1 }).bindTooltip(c.name).addTo(layer);
-      for (const { place, box } of rooms) {
-        const destination = to.value?.name === place.name;
-        const style = { pane: "plans", color: destination ? "#a31f34" : "#7d8891", weight: destination ? 2 : 1, fillColor: destination ? "#f4c3ca" : "#ffffff", fillOpacity: 1 };
-        (box ? L.polygon(box, style) : L.circleMarker([place.latitude, place.longitude], { ...style, radius: 4 })).bindTooltip(place.name).addTo(layer);
-        L.marker([place.latitude, place.longitude], { pane: "planLabels", interactive: false, icon: L.divIcon({ className: "room-label", html: place.name.split(" ")[0].replace(BUILDING_PREFIX, ""), iconSize: [60, 14] }) }).addTo(layer);
+    const floorsOf = (plan: PlanFile) => Object.entries(plan.floors).sort((a, b) => b[1].level - a[1].level);
+    /** Where a building's plan opens: the current step's floor if it is in this building, else the route's first floor there. */
+    function openingFloor(ref: string, plan: PlanFile) {
+      const current = steps.value[doneCount.value];
+      const level = current && BUILDING_PREFIX.exec(current.placeName)?.[1] === ref
+        ? current.floor
+        : steps.value.find((s) => BUILDING_PREFIX.exec(s.placeName)?.[1] === ref)?.floor;
+      const floors = floorsOf(plan);
+      return (floors.find(([, f]) => f.level === level) ?? floors.find(([code]) => code === "1") ?? floors[floors.length - 1])?.[0];
+    }
+    const switcher = computed(() => {
+      const plan = focus.value ? planFiles.value[focus.value] : null;
+      if (!plan) return null;
+      const levels = routeBuildings.value.find((b) => b.ref === focus.value)?.levels ?? new Set<number>();
+      return {
+        ref: focus.value,
+        shown: shownFloor.value[focus.value],
+        floors: floorsOf(plan).map(([code, f]) => ({ code, route: levels.has(f.level) })),
+      };
+    });
+    function chooseFloor(ref: string, code: string) {
+      shownFloor.value = { ...shownFloor.value, [ref]: code };
+      drawPlans();
+    }
+    function drawPlans() {
+      if (!planLayer) return;
+      planLayer.clearLayers();
+      const destination = /^([A-Z]*\d+[A-Z]*)-(\S+)/.exec(to.value?.name ?? "");
+      for (const ref of visiblePlans.value) {
+        const plan = planFiles.value[ref];
+        const code = shownFloor.value[ref];
+        if (!plan || !code || !plan.floors[code]) continue;
+        L.polygon(plan.outline, { pane: "plans", color: "#56626d", weight: 2, fillColor: "#f6f6f2", fillOpacity: 0.95 }).addTo(planLayer);
+        for (const { room, shapes } of roomShapes(plan.floors[code].rooms, plan.outline)) {
+          const isDestination = destination?.[1] === ref && destination[2] === room.n;
+          for (const shape of shapes) {
+            L.polygon(shape, {
+              pane: "plans", color: isDestination ? "#a31f34" : "#9aa3ab", weight: isDestination ? 2 : 0.6,
+              fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: 1,
+            }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}`).addTo(planLayer);
+          }
+          L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: "room-label", html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
+        }
       }
     }
-    async function showFloor(f: { building: string; floor: number }) {
-      const places = await planPlaces(f);
-      floorLayer.clearLayers();
-      autoLayer.clearLayers();
-      activeFloor.value = f;
-      drawPlan(floorLayer, f, places);
-      map.fitBounds(L.polygon(outlines[f.building]).getBounds().pad(0.05));
+    /** At zoom 18 and closer, draw the plans of the route's buildings in view; the switcher follows the one nearest the centre. */
+    async function updatePlans() {
+      if (!map) return;
+      if (map.getZoom() < 18) { visiblePlans.value = []; focus.value = ""; drawPlans(); return; }
+      const view = map.getBounds(), centre = map.getCenter();
+      const plans = await Promise.all(routeBuildings.value.map((b) => loadPlan(b.ref)));
+      const inView = routeBuildings.value
+        .map((b, i) => ({ ref: b.ref, plan: plans[i] }))
+        .filter((b): b is { ref: string; plan: PlanFile } => !!b.plan && view.intersects(L.latLngBounds(b.plan.outline.flat())));
+      const next = { ...shownFloor.value };
+      for (const { ref, plan } of inView) next[ref] ??= openingFloor(ref, plan)!;
+      shownFloor.value = next;
+      visiblePlans.value = inView.map((b) => b.ref);
+      focus.value = inView
+        .map((b) => ({ ref: b.ref, d: L.latLngBounds(b.plan.outline.flat()).getCenter().distanceTo(centre) }))
+        .sort((a, b) => a.d - b.d)[0]?.ref ?? "";
+      drawPlans();
+    }
+    async function seeBuilding(ref: string) {
+      const plan = await loadPlan(ref);
+      if (!plan) return say(`There is no floor plan for building ${ref} yet.`, "bad");
       if (window.matchMedia("(max-width: 760px)").matches) sheetOpen.value = false;
+      // One move to the building's centre, close enough (zoom 18+) for plans to show.
+      const bounds = L.latLngBounds(plan.outline.flat());
+      map.setView(bounds.getCenter(), Math.max(18, map.getBoundsZoom(bounds.pad(0.1))));
     }
-    function hideFloor() { floorLayer.clearLayers(); activeFloor.value = null; draw(); }
-    // Zoomed in along a route, show the plan of each route building in view, on the floor the route first uses there.
-    let autoLayer: any;
-    let autoShown = "";
-    async function showPlansInView() {
-      if (!map || activeFloor.value) return;
-      if (map.getZoom() < 18) { autoLayer.clearLayers(); autoShown = ""; return; }
-      const view = map.getBounds();
-      const first = new Map<string, { building: string; floor: number }>();
-      for (const f of routeFloors.value) if (!first.has(f.building)) first.set(f.building, f);
-      const wanted = [...first.values()].filter((f) => view.intersects(L.latLngBounds(outlines[f.building].flat())));
-      const key = wanted.map((f) => `${f.building}/${f.floor}`).join(",");
-      if (key === autoShown) return;
-      autoShown = key;
-      const loaded = await Promise.all(wanted.map(planPlaces));
-      if (autoShown !== key) return; // the view moved on while loading
-      autoLayer.clearLayers();
-      wanted.forEach((f, i) => drawPlan(autoLayer, f, loaded[i]));
-    }
-    watch(steps, () => { if (activeFloor.value) hideFloor(); autoShown = ""; autoLayer?.clearLayers(); showPlansInView(); });
-    watch(sheetOpen, () => setTimeout(() => (activeFloor.value ? undefined : draw()), 280)); // after the sheet slides
+    // A new route starts plans afresh; as the current step moves to another floor of a shown building, the plan follows.
+    watch(steps, () => { shownFloor.value = {}; updatePlans(); });
+    watch(doneCount, () => {
+      const current = steps.value[doneCount.value];
+      const ref = current && BUILDING_PREFIX.exec(current.placeName)?.[1];
+      const plan = ref ? planFiles.value[ref] : null;
+      if (!ref || !plan) return;
+      const code = floorsOf(plan).find(([, f]) => f.level === current.floor)?.[0];
+      if (code && shownFloor.value[ref] !== code) chooseFloor(ref, code);
+    });
 
     // ---- Nearest restroom, food, study space or lounge, by route from the start. ----
     const kinds = [
@@ -790,11 +834,10 @@ const app = createApp({
       // Plans have their own panes below the overlay pane (400), so the route line is always drawn over them.
       map.createPane("plans").style.zIndex = "350";
       map.createPane("planLabels").style.zIndex = "360";
-      floorLayer = L.layerGroup().addTo(map);
-      autoLayer = L.layerGroup().addTo(map);
-      map.on("moveend", showPlansInView);
+      planLayer = L.layerGroup().addTo(map);
+      map.on("moveend", updatePlans);
       routeLayer = L.layerGroup().addTo(map);
-      map.on("zoomend", () => map.getContainer().classList.toggle("labels", map.getZoom() >= 19));
+      map.on("zoomend", () => map.getContainer().classList.toggle("labels", map.getZoom() >= 20));
       if (window.location.pathname === "/auth/commons/callback") await finishCommons();
       else await loadMe();
       if (me.value) { accessibleOnly.value = prefStepFree.value; tracking.value = prefLocation.value; }
@@ -806,7 +849,7 @@ const app = createApp({
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
       reports, unreported, steps, from, to, accessibleOnly, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeFloors, activeFloor, showFloor, hideFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
+      startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });

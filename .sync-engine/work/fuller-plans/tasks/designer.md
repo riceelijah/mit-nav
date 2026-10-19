@@ -1,0 +1,1 @@
+Rewrite Campus floor-plan prose for static per-building plan files (all inventory rooms; nearest-label regions capped at 1.5 × area; under the route; automatic at zoom 18+), remove ShowFloor/FloorPlan and its endpoint, AddPlace area; Wayfinding: remove _onFloor and place area. Check syntax.

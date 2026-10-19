@@ -23,12 +23,13 @@
 // a single corridor). Each elevator is one service, so flagging any ride blocks the whole elevator.
 // Touching buildings are joined indoors on a floor when each has a corridor within 35 m of the other's
 // outline; any corridors within 15 m are joined too (bridges); floors without positions join where outlines
-// touch. The page's floor plans also need every building's outline, written to web/outlines.json.
+// touch. For the page's floor plans it also writes web/plans/<building>.json: the outline and every room the
+// inventory places on each floor, with its use, position and area (drawn on plans, never routed).
 // Usage: bun run campus
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
-export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number; area?: number };
+export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number };
 // source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance
 export type Link = [string, string, string, string, boolean, number, number, string, number];
 export type Point = [number, number];
@@ -87,7 +88,7 @@ export function parseCsv(text: string) {
   return body.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ""])));
 }
 
-export type Spot = { name: string; at: Point | undefined; area?: number };
+export type Spot = { name: string; at: Point | undefined };
 export type Floor = { code: string; level: number; corridors: Spot[]; hub: boolean };
 /** Positions of one building's room labels, by room number without the building ("100LA"), for one floor code. */
 export type Located = Map<string, { floor: string; at: Point }>;
@@ -110,7 +111,9 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   const floors = new Map<string, Floor>();
   const stops = new Map<string, { code: string; level: number; at?: Point }[]>(); // E1 -> its stops
   const flights = new Map<string, { code: string; level: number; at?: Point }[]>(); // tower + SA -> its landings
-  const rooms: { name: string; code: string; level: number; number: string; use: string; at?: Point; area: number }[] = [];
+  const rooms: { name: string; code: string; level: number; number: string; use: string; at?: Point }[] = [];
+  // Every positioned room in the inventory, for the plan drawing (closets and shafts included).
+  const drawn: { code: string; level: number; number: string; use: string; at: Point; area: number }[] = [];
   let code = "";
   for (const row of parseCsv(csv)) {
     if (row.FLOOR) code = row.FLOOR;
@@ -124,8 +127,9 @@ export function interior(ref: string, csv: string, located: Located = new Map())
     const at = spot?.floor === code ? spot.at : undefined; // a label on another floor is a misreading
     const local = sub.replace(/^[A-Z]*/, "");
     const area = Math.round(Number(row["SQ FT"].replace(/,/g, "")) * 0.0929) || 0; // square feet to square metres
+    if (at) drawn.push({ code, level: floor.level, number: sub, use, at, area });
     if (CORRIDORS.has(use)) {
-      if (at) here.corridors.push({ name: `${number} ${title(use)}`, at, area });
+      if (at) here.corridors.push({ name: `${number} ${title(use)}`, at });
     } else if (use === "ELEVATOR") {
       const id = /E\d+$/.exec(number)?.[0];
       if (id) (stops.get(id) ?? stops.set(id, []).get(id)!).push({ code, level: floor.level, at });
@@ -133,7 +137,7 @@ export function interior(ref: string, csv: string, located: Located = new Map())
       const id = floor.tower + local.slice(floor.digits.length + 2);
       (flights.get(id) ?? flights.set(id, []).get(id)!).push({ code, level: floor.level, at });
     } else if (DESTINATIONS.has(use)) {
-      rooms.push({ name: `${number} ${title(use)}`, code, level: floor.level, number, use, at, area });
+      rooms.push({ name: `${number} ${title(use)}`, code, level: floor.level, number, use, at });
     }
   }
   const ordered = [...floors.values()].sort((a, b) => a.level - b.level);
@@ -146,7 +150,7 @@ export function interior(ref: string, csv: string, located: Located = new Map())
       places.push({ name: hubName(ref, f.code), kind: "TRANSIT", floor: f.level, latitude: 0, longitude: 0 });
       continue;
     }
-    for (const c of f.corridors) places.push({ name: c.name, kind: "TRANSIT", floor: f.level, latitude: 0, longitude: 0, at: c.at, area: c.area });
+    for (const c of f.corridors) places.push({ name: c.name, kind: "TRANSIT", floor: f.level, latitude: 0, longitude: 0, at: c.at });
     // Each corridor to its nearest few within reach, then the closest pairs that join separate pieces.
     const n = f.corridors.length;
     const joined = new Set<string>();
@@ -216,7 +220,7 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   }
   for (const r of rooms) {
     const { corridor, meters: m, at } = attach(r.code, r.at);
-    places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0, at, area: r.area });
+    places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0, at });
     links.push([
       corridor.name, r.name,
       `${walkTo(m, `${r.number} (${title(r.use).toLowerCase()})`)}.`, `Leave ${r.number} for the corridor.`,
@@ -225,7 +229,7 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   }
   // The ground floor is floor 1, or the lowest floor above it, or the lowest floor.
   const ground = ordered.find((f) => f.code === "1") ?? ordered.find((f) => f.level >= 1) ?? ordered[0];
-  return { places, links, floors, ground, attach };
+  return { places, links, floors, ground, attach, drawn };
 }
 
 // ---- Geometry: OpenStreetMap footprints in metres around MIT. ----
@@ -561,19 +565,26 @@ export async function buildCampus() {
       }
     }
   }
-  // The page draws floor plans inside each building's outline.
-  const outlines = Object.fromEntries(
-    buildings
-      .filter((b) => inside.has(b.ref))
-      .map((b) => [b.ref, b.rings.map((ring) => ring.map((pt) => { const { latitude, longitude } = toLatLon(pt); return [latitude, longitude]; }))]),
-  );
-  // Every place carries an area; 0 means unknown (buildings, path points, single-corridor floors).
-  return { places: places.map((p) => ({ ...p, area: p.area ?? 0 })), links, outlines, buildings: buildings.length, interiors: [...inside.keys()] };
+  // One plan file per converted building: its outline and every positioned room on each floor.
+  const latLon = (pt: Point) => { const { latitude, longitude } = toLatLon(pt); return [latitude, longitude]; };
+  const planFiles = new Map<string, object>();
+  for (const b of buildings) {
+    const plan = inside.get(b.ref);
+    if (!plan) continue;
+    const floors: Record<string, { level: number; rooms: object[] }> = {};
+    for (const r of plan.drawn) {
+      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area });
+    }
+    planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
+  }
+  return { places, links, planFiles, buildings: buildings.length, interiors: [...inside.keys()] };
 }
 
 if (import.meta.main) {
-  const { places, links, outlines, buildings, interiors } = await buildCampus();
-  writeFileSync(new URL("../web/outlines.json", import.meta.url), JSON.stringify(outlines) + "\n");
+  const { places, links, planFiles, buildings, interiors } = await buildCampus();
+  const plans = new URL("../web/plans/", import.meta.url);
+  mkdirSync(plans, { recursive: true });
+  for (const [ref, plan] of planFiles) writeFileSync(new URL(`${ref}.json`, plans), JSON.stringify(plan) + "\n");
   writeFileSync(
     new URL("../data/campus.json", import.meta.url),
     JSON.stringify({ note: "Generated by scripts/campus-to-map.ts. Do not edit by hand.", places, links }) + "\n",

@@ -24,10 +24,8 @@ a set of Places with
   a floor Number
   a latitude Number
   a longitude Number
-  an area Number
 
   Rule: a place whose latitude and longitude are both 0 has no known position
-  Rule: area is the place's floor area in square metres, and 0 when unknown
 
 a seq of Links with
   a source Place
@@ -48,13 +46,13 @@ a seq of Links with
 ## Actions
 
 ```actions
-addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number, area: Number) : returns (place: Place)
+addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number) : returns (place: Place)
   where some place has name
   then
     refuses DUPLICATE_PLACE "A place with that name already exists."
   where no place has name
   then
-    add a new place with name and kind and floor and latitude and longitude and area
+    add a new place with name and kind and floor and latitude and longitude
     returns place
 
 connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number) : returns (link: Link)
@@ -106,8 +104,6 @@ _search(text: String) : many (place: Place, name: String, kind: Kind, floor: Num
   Answers at most 40 places that are not TRANSIT whose name contains the text, ignoring case, with entrances first and then by name in natural number order (so 2 comes before 10); an empty text answers the first 40 places in that order, and no rows when nothing matches.
 _closest(source: Place, text: String, accessibleOnly: Flag, hour: Number) : many (place: Place, name: String, floor: Number, cost: Number)
   Answers up to 5 places, other than the source and never TRANSIT, whose names contain the text ignoring case and that a route from the source reaches under the same rules as _route (no blocked connection, none closed at the hour, only accessible ones when accessibleOnly is true), ordered by the cost of that route, the place added first on a tie, each with the route's total cost; no rows when the source is unknown or nothing matches.
-_onFloor(building: String, floor: Number) : many (place: Place, name: String, kind: Kind, latitude: Number, longitude: Number, area: Number)
-  Answers every place on the given floor whose name begins with the building followed by a hyphen ("32-" for building 32) and that has a known position, in the order the places were added, and no rows when there are none. Building numbers are matched exactly, so "3-" never matches "32-".
 _link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)
   Answers the names of the connection's two places, its forward directions, and its service when the link is known, and nothing otherwise.
 _blocked() : many (link: Link, sourceName: String, destinationName: String, forward: String, service: String)
