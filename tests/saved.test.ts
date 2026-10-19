@@ -3,7 +3,7 @@ import { AlreadyFavorite, FavoritingConcept, NotFavorite } from "../src/concepts
 import { EmptyTripName, NoSuchTrip, PlanningConcept, TripNameTaken } from "../src/concepts/Planning.ts";
 import { InvalidDistance, JournalingConcept } from "../src/concepts/Journaling.ts";
 import { PreferringConcept } from "../src/concepts/Preferring.ts";
-import { freshDb } from "./helpers.ts";
+import { freshApi, freshDb, signedUp } from "./helpers.ts";
 
 test("Favoriting principle: newest first, one each, unfavorite once", async () => {
   const f = new FavoritingConcept((await freshDb()).db);
@@ -43,6 +43,7 @@ test("Journaling principle: newest first, totals, refuses a negative distance wi
   expect((await j._history({ traveller: "ana" })).map((e) => e.entry)).toEqual([back, there]);
   expect(await j._totals({ traveller: "ana" })).toEqual({ trips: 2, meters: 1800 });
   await expect(j.finish({ traveller: "ana", source: "a", destination: "b", meters: -1 })).rejects.toThrow(InvalidDistance);
+  await expect(j.finish({ traveller: "ana", source: "a", destination: "b", meters: 100_001 })).rejects.toThrow(InvalidDistance);
   expect(await j._totals({ traveller: "ana" })).toEqual({ trips: 2, meters: 1800 });
   expect(await j._history({ traveller: "ben" })).toEqual([]);
 });
@@ -62,4 +63,20 @@ test("Preferring principle: defaults until set, set overwrites, per person", asy
   await p.set({ user: "ana", stepFree: false, useLocation: true, units: "FEET" });
   expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, useLocation: true, units: "FEET" });
   expect(await p._preferences({ user: "ben" })).toEqual({ stepFree: false, useLocation: false, units: "METERS" });
+});
+
+test("saving and finishing trips check their input before anything is kept", async () => {
+  const { close, browser, map } = await freshApi();
+  const post = await signedUp(browser, "ana");
+  const a = (await map.addPlace({ name: "A", kind: "ENTRANCE", floor: 1, latitude: 0, longitude: 0 })).place;
+  const trip = { name: "t", source: a, destination: a, accessibleOnly: true };
+  expect((await post("/me/trips/save", { ...trip, name: { a: 1 } })).error).toBe("INVALID_REQUEST");
+  expect((await post("/me/trips/save", { ...trip, accessibleOnly: "yes" })).error).toBe("INVALID_REQUEST");
+  expect((await post("/me/trips/finish", { source: a, destination: a, meters: "lots" })).error).toBe("INVALID_REQUEST");
+  // Checks run in order: the input, then the places, then the distance.
+  expect((await post("/me/trips/finish", { source: "nope", destination: a, meters: -5 })).error).toBe("NOT_FOUND");
+  expect((await post("/me/trips/finish", { source: a, destination: a, meters: 1e308 })).error).toBe("INVALID_REQUEST");
+  expect((await post("/me")).trips.trips).toEqual([]);
+  expect((await post("/me")).totals.totals).toEqual([{ trips: 0, meters: 0 }]);
+  await close();
 });

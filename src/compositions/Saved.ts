@@ -1,6 +1,6 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
 import { each, form, former, no, where } from "@mit-sdg/sync-engine/language";
-import { preferencesInput, signedIn } from "./inputs.ts";
+import { finishInput, preferencesInput, signedIn, tripInput } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
 const { Sessioning, Wayfinding, Favoriting, Planning, Journaling, Preferring } = concepts;
@@ -94,7 +94,7 @@ const SaveTrip = endpoint(
         where(no(Wayfinding._place({ place: source }))).then(respond({ error: "NO_SUCH_PLACE" })).named("unknown-source"),
         where(no(Wayfinding._place({ place: destination }))).then(respond({ error: "NO_SUCH_PLACE" })).named("unknown-destination"),
       ),
-  { validators: { input: signedIn("name", "source", "destination", "accessibleOnly") } },
+  { validators: { input: tripInput } },
 );
 
 const RemoveTrip = endpoint(
@@ -130,7 +130,7 @@ const FinishTrip = endpoint(
         where(no(Wayfinding._place({ place: source }))).then(respond({ error: "NO_SUCH_PLACE" })).named("unknown-source"),
         where(no(Wayfinding._place({ place: destination }))).then(respond({ error: "NO_SUCH_PLACE" })).named("unknown-destination"),
       ),
-  { validators: { input: signedIn("source", "destination", "meters") } },
+  { validators: { input: finishInput } },
 );
 
 export const composition = {

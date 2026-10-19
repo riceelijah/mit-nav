@@ -19,10 +19,18 @@ const server = Bun.serve({
     "/auth/commons/callback": homepage,
     "/api/*": proxy,
     // One floor-plan file per building, written by the campus converter.
-    "/plans/:file": (request) => {
+    "/plans/:file": async (request) => {
       const file = request.params.file;
-      if (!/^[A-Z0-9]+\.json$/.test(file)) return new Response("Not found", { status: 404 });
-      return new Response(Bun.file(new URL(`./plans/${file}`, import.meta.url)), { headers: { "Cache-Control": "public, max-age=3600" } });
+      const plan = Bun.file(new URL(`./plans/${file}`, import.meta.url));
+      if (!/^[A-Z0-9]+\.json$/.test(file) || !(await plan.exists())) return new Response("Not found", { status: 404 });
+      return new Response(plan, { headers: { "Cache-Control": "public, max-age=3600" } });
+    },
+    // MIT's own drawings, fitted by scripts/fit-drawings.py, exist only on a machine that made them (see the README).
+    "/drawings/:file": async (request) => {
+      const file = request.params.file;
+      const drawing = Bun.file(new URL(`../data/raw/drawings/${file}`, import.meta.url));
+      if (!/^([A-Z0-9]+_[A-Z0-9]+\.png|index\.json)$/.test(file) || !(await drawing.exists())) return new Response("Not found", { status: 404 });
+      return new Response(drawing, { headers: { "Cache-Control": "no-store" } });
     },
     "/health": proxy,
   },

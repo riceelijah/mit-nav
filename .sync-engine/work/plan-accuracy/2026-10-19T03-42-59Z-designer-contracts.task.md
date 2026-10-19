@@ -1,0 +1,1 @@
+Repair the design per the critic's findings in .sync-engine/work/plan-accuracy/2026-10-19T03-40-19Z-critic-contracts.response.md (F1–F6: place removal vs Saved listings, reports on removed connections, seed rules and re-run safety, stable INVALID_REQUEST code, FinishTrip check order); also add the wheelchair-ramp steps rule.

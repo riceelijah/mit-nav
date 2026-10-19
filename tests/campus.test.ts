@@ -55,12 +55,12 @@ test("_sameService answers the other rides of an elevator, and nothing for an un
 });
 
 test("clearing one ride of an elevator resolves the reports on its other rides", async () => {
-  const { close, browser } = await freshApi();
+  const { close, browser, map } = await freshApi();
   const post = await signedUp(browser, "ana");
-  const floor = async (n: number) => (await post("/map/add-place", { name: `Floor ${n}`, kind: "HALLWAY", floor: n, latitude: 0, longitude: 0 })).place;
+  const floor = async (n: number) => (await map.addPlace({ name: `Floor ${n}`, kind: "HALLWAY", floor: n, latitude: 0, longitude: 0 })).place;
   const [one, two, three] = [await floor(1), await floor(2), await floor(3)];
   const ride = async (source: string, destination: string) =>
-    (await post("/map/connect", { source, destination, forward: "up", backward: "down", accessible: true, closedFrom: 0, closedUntil: 0, service: "E1", distance: 1 })).link;
+    (await map.connect({ source, destination, forward: "up", backward: "down", accessible: true, closedFrom: 0, closedUntil: 0, service: "E1", distance: 1 })).link;
   const low = await ride(one, two);
   const high = await ride(two, three);
 
@@ -138,9 +138,9 @@ test("_link and _blocked describe connections; a blocked connection without a re
 });
 
 test("search endpoint answers matches, and an empty list when nothing matches", async () => {
-  const { close, browser } = await freshApi();
+  const { close, browser, map } = await freshApi();
   const post = browser();
-  await post("/map/add-place", { name: "32-123 Lecture Hall", kind: "ROOM", floor: 1, latitude: 0, longitude: 0 });
+  await map.addPlace({ name: "32-123 Lecture Hall", kind: "ROOM", floor: 1, latitude: 0, longitude: 0 });
   expect((await post("/map/search", { text: "32-1" })).places.places.map((p: any) => p.name)).toEqual(["32-123 Lecture Hall"]);
   expect((await post("/map/search", { text: "zzz" })).places.places).toEqual([]);
   expect((await post("/map/search", {})).error).toBeTruthy();
@@ -167,12 +167,12 @@ test("_nearest: closest building by ground distance, earliest on a tie, nothing 
 });
 
 test("route steps carry the kind and position of the place they reach; nearest endpoint refuses non-numbers", async () => {
-  const { close, browser } = await freshApi();
+  const { close, browser, map } = await freshApi();
   const post = browser();
   const at = { latitude: 42.36, longitude: -71.09 };
-  const out = (await post("/map/add-place", { name: "Building A", kind: "ENTRANCE", floor: 1, ...at })).place;
-  const hall = (await post("/map/add-place", { name: "Building A, floor 1", kind: "TRANSIT", floor: 1, ...at })).place;
-  await post("/map/connect", { source: out, destination: hall, forward: "Go in", backward: "Out", accessible: true, closedFrom: 0, closedUntil: 0, service: "", distance: 1 });
+  const out = (await map.addPlace({ name: "Building A", kind: "ENTRANCE", floor: 1, ...at })).place;
+  const hall = (await map.addPlace({ name: "Building A, floor 1", kind: "TRANSIT", floor: 1, ...at })).place;
+  await map.connect({ source: out, destination: hall, forward: "Go in", backward: "Out", accessible: true, closedFrom: 0, closedUntil: 0, service: "", distance: 1 });
   const steps = (await post("/route/find", { source: hall, destination: out, accessibleOnly: false, hour: 12 })).route.steps;
   expect(steps.map((s: any) => [s.kind, s.latitude, s.longitude])).toEqual([["ENTRANCE", 42.36, -71.09]]);
   expect((await post("/map/search", { text: "Building A" })).places.places[0].latitude).toBe(42.36);
@@ -208,13 +208,65 @@ test("_closest: nearest matches by route cost, step-free respected, never the st
 });
 
 test("closest endpoint answers matches and refuses a missing flag", async () => {
-  const { close, browser } = await freshApi();
+  const { close, browser, map } = await freshApi();
   const post = browser();
   const at = { latitude: 0, longitude: 0, floor: 1 };
-  const a = (await post("/map/add-place", { name: "A", kind: "HALLWAY", ...at })).place;
-  const b = (await post("/map/add-place", { name: "1-101 Male Lavatory", kind: "ROOM", ...at })).place;
-  await post("/map/connect", { source: a, destination: b, forward: "go", backward: "back", accessible: true, closedFrom: 0, closedUntil: 0, service: "", distance: 1 });
+  const a = (await map.addPlace({ name: "A", kind: "HALLWAY", ...at })).place;
+  const b = (await map.addPlace({ name: "1-101 Male Lavatory", kind: "ROOM", ...at })).place;
+  await map.connect({ source: a, destination: b, forward: "go", backward: "back", accessible: true, closedFrom: 0, closedUntil: 0, service: "", distance: 1 });
   expect((await post("/route/closest", { source: a, text: "Lavatory", accessibleOnly: false, hour: 12 })).closest.places.map((p: any) => p.name)).toEqual(["1-101 Male Lavatory"]);
   expect((await post("/route/closest", { source: a, text: "Lavatory", hour: 12 })).error).toBe("INVALID_REQUEST");
+  await close();
+});
+
+test("seed: updates the map in place, keeping identities, blocks and what refers to kept places", async () => {
+  const { seed } = await import("../scripts/seed.ts");
+  const { db, close } = await freshDb();
+  const w = new WayfindingConcept(db);
+  const place = (name: string) => ({ name, kind: "HALLWAY", floor: 1, latitude: 0, longitude: 0 });
+  const ride = (a: string, b: string, m: number, service = "E1") => [a, b, `Walk about ${m} m to elevator E1 and take it up.`, "down", true, 0, 0, service, 1] as any;
+  await seed(db, { places: [place("A"), place("B"), place("C"), place("Gone")], links: [ride("A", "B", 30), ride("B", "C", 5), ride("A", "Gone", 3, "")] });
+  const id = async (name: string) => (await w._search({ text: name })).find((p) => p.name === name)!.place;
+  const [a, b, gone] = [await id("A"), await id("B"), await id("Gone")];
+  const [ab, , toGone] = await db.collection("wayfinding.links").find({}).sort({ order: 1 }).toArray();
+  await w.block({ link: ab._id as any });
+  await db.collection("reporting.reports").insertMany([
+    { _id: "r1" as any, target: toGone._id, status: "OPEN" },
+    { _id: "r2" as any, target: ab._id, status: "OPEN" },
+  ]);
+  await db.collection("favoriting.favorites").insertMany([{ user: "u", item: gone }, { user: "u", item: a }]);
+  await db.collection("planning.trips").insertOne({ owner: "u", name: "t", source: a, destination: gone });
+
+  // Regenerated: Gone left the map, A to B is now 32 m, and a new ride of the blocked elevator joins C to D.
+  await seed(db, { places: [place("A"), place("B"), place("C"), place("D")], links: [ride("A", "B", 32), ride("B", "C", 5), ride("C", "D", 4)] });
+  expect([await id("A"), await id("B")]).toEqual([a, b]);
+  const links = await db.collection("wayfinding.links").find({}).sort({ order: 1 }).toArray();
+  expect(links.map((l) => [l.forward.match(/\d+/)![0], l.blocked])).toEqual([["32", true], ["5", true], ["4", true]]);
+  expect(links[0]._id).toBe(ab._id);
+  expect((await w._search({ text: "Gone" })).length).toBe(0);
+  expect(await db.collection("reporting.reports").find({}).sort({ _id: 1 }).toArray()).toEqual([
+    { _id: "r1" as any, target: toGone._id, status: "RESOLVED" },
+    { _id: "r2" as any, target: ab._id, status: "OPEN" },
+  ]);
+  expect((await db.collection("favoriting.favorites").find({}).toArray()).map((f) => f.item)).toEqual([a]);
+  expect(await db.collection("planning.trips").countDocuments({})).toBe(0);
+  // The same map again changes nothing.
+  const before = await db.collection("wayfinding.links").find({}).toArray();
+  await seed(db, { places: [place("A"), place("B"), place("C"), place("D")], links: [ride("A", "B", 32), ride("B", "C", 5), ride("C", "D", 4)] });
+  expect(await db.collection("wayfinding.links").find({}).toArray()).toEqual(before);
+  await close();
+});
+
+test("the map cannot be edited over the API, and route and closest requests are checked", async () => {
+  const { close, browser, map } = await freshApi();
+  const post = browser();
+  expect((await post("/map/add-place", { name: "Evil", kind: "ROOM", floor: 1, latitude: 0, longitude: 0 })).error).toBeTruthy();
+  expect((await post("/map/search", { text: "Evil" })).places.places).toEqual([]);
+  const a = (await map.addPlace({ name: "A", kind: "ENTRANCE", floor: 1, latitude: 0, longitude: 0 })).place;
+  for (const bad of [{ hour: "noon" }, { hour: 99 }, { hour: -1 }, { accessibleOnly: "yes" }, { source: 5 }]) {
+    expect((await post("/route/find", { source: a, destination: a, accessibleOnly: false, hour: 12, ...bad })).error).toBe("INVALID_REQUEST");
+    expect((await post("/route/closest", { source: a, text: "x", accessibleOnly: false, hour: 12, ...bad })).error).toBe("INVALID_REQUEST");
+  }
+  expect((await post("/route/find", { source: a, destination: a, accessibleOnly: false, hour: 24 })).route).toBeTruthy();
   await close();
 });

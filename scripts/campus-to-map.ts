@@ -44,6 +44,7 @@ const ENTER = 0.5;
 // Inside, a connection costs a little for the turn plus the metres over 50, on the same scale as walking outside.
 const indoorWalk = (meters: number) => 0.2 + meters / 50;
 const CORRIDOR_NEIGHBOURS = 3;
+const SECOND_DOOR = 25; // a room also opens onto its next nearest corridor within this many metres
 const CORRIDOR_REACH = 40; // corridors further apart than this are only joined if nothing nearer joins them
 const MEETING_METERS = 15; // corridors of any two buildings this close on one floor are a way through (bridges)
 // Corridors are marked at their middles, so where two touching buildings join, each has a corridor this close to the other's outline.
@@ -78,7 +79,8 @@ const title = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCa
 /** "D4" -> tower D, level 4. Codes without digits (roofs, penthouses) are skipped. */
 export function parseFloor(code: string) {
   const m = /^([A-Z]*)(\d+)(M?)$/.exec(code);
-  return m ? { tower: m[1], digits: m[2], level: Number(m[2]) + (m[3] ? 0.5 : 0) } : undefined;
+  // "00" is the level below "0".
+  return m ? { tower: m[1], digits: m[2], level: (m[2] === "00" ? -1 : Number(m[2])) + (m[3] ? 0.5 : 0) } : undefined;
 }
 
 /** Minimal CSV for the room inventory: quoted fields, commas inside quotes (as in "1,043"). */
@@ -101,6 +103,30 @@ const middle = (spots: Spot[]): Point => [
   spots.reduce((t, s) => t + s.at![1], 0) / spots.length,
 ];
 
+// Characters the machine reading of MapIT's labels confuses, each mapped to one stand-in.
+const LOOKALIKE: Record<string, string> = { L: "1", I: "1", O: "0", D: "0", Q: "0", S: "5", B: "8", Z: "2", G: "6", T: "7" };
+const readAlike = (label: string) => label.replace(/[LIODQSBZGT]/g, (c) => LOOKALIKE[c]);
+
+/**
+ * Adds misread labels to `located`: a label that matches no room on its floor is used for the one room on that floor
+ * without a label that reads the same with lookalike characters swapped, when exactly one room and one label do.
+ */
+export function withMisreadings(rooms: { code: string; sub: string }[], located: Located): Located {
+  const out: Located = new Map(located);
+  const inventory = new Set(rooms.map((r) => r.sub));
+  for (const code of new Set(rooms.map((r) => r.code))) {
+    const unplaced = rooms.filter((r) => r.code === code && located.get(r.sub)?.floor !== code);
+    const labels = [...located].filter(([sub, l]) => l.floor === code && !inventory.has(sub));
+    for (const [label, spot] of labels) {
+      const key = readAlike(label);
+      const rooms = unplaced.filter((r) => readAlike(r.sub) === key);
+      const twins = labels.filter(([other]) => readAlike(other) === key);
+      if (rooms.length === 1 && twins.length === 1 && !out.has(rooms[0].sub)) out.set(rooms[0].sub, spot);
+    }
+  }
+  return out;
+}
+
 /**
  * One building's interior from its room list, placing corridors, rooms, elevators and stairs where
  * `located` says they are. Positions are in metres (see toMeters); places without one are left at undefined.
@@ -115,8 +141,10 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   // Every positioned room in the inventory, for the plan drawing (closets and shafts included).
   const drawn: { code: string; level: number; number: string; use: string; at: Point; area: number }[] = [];
   let code = "";
-  for (const row of parseCsv(csv)) {
-    if (row.FLOOR) code = row.FLOOR;
+  const rows = parseCsv(csv).map((row) => ({ ...row, FLOOR: (code = row.FLOOR || code) }));
+  located = withMisreadings(rows.filter((r) => r["ROOM NUMBER"]).map((r) => ({ code: r.FLOOR, sub: r["ROOM NUMBER"].slice(r["ROOM NUMBER"].indexOf("-") + 1) })), located);
+  for (const row of rows) {
+    code = row.FLOOR;
     const number = row["ROOM NUMBER"];
     const floor = parseFloor(code);
     if (!number || !floor) continue;
@@ -221,11 +249,17 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   for (const r of rooms) {
     const { corridor, meters: m, at } = attach(r.code, r.at);
     places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0, at });
-    links.push([
-      corridor.name, r.name,
+    const door = (from: Spot, m: number | undefined): Link => [
+      from.name, r.name,
       `${walkTo(m, `${r.number} (${title(r.use).toLowerCase()})`)}.`, `Leave ${r.number} for the corridor.`,
       true, 0, 0, "", m === undefined ? WALK : indoorWalk(m),
-    ]);
+    ];
+    links.push(door(corridor, m));
+    // Also from the next nearest corridor when it is close, so a big room can be reached from either side.
+    const f = floors.get(r.code)!;
+    if (!r.at || f.hub) continue;
+    const second = f.corridors.filter((c) => c !== corridor).sort((a, b) => meters(a.at!, r.at!) - meters(b.at!, r.at!))[0];
+    if (second && meters(second.at!, r.at) <= SECOND_DOOR) links.push(door(second, Math.round(meters(second.at!, r.at))));
   }
   // The ground floor is floor 1, or the lowest floor above it, or the lowest floor.
   const ground = ordered.find((f) => f.code === "1") ?? ordered.find((f) => f.level >= 1) ?? ordered[0];
@@ -250,7 +284,7 @@ function segmentDistance([px, py]: Point, [ax, ay]: Point, [bx, by]: Point) {
   return Math.hypot(px - ax - t * dx, py - ay - t * dy);
 }
 // ponytail: vertex-to-edge distance, so a footprint wholly inside another reads as apart; fine for buildings.
-export function footprintDistance(a: Point[][], b: Point[][]) {
+function footprintDistance(a: Point[][], b: Point[][]) {
   let best = Infinity;
   for (const [from, to] of [[a, b], [b, a]])
     for (const ring of from) for (const p of ring) for (const other of to)
@@ -382,6 +416,37 @@ async function loadPaths() {
   });
 }
 
+/** OpenStreetMap's named streets (any named way that is not a footpath), as lines in metres. */
+async function loadStreets(): Promise<Street[]> {
+  const data = await cached(new URL("streets.json", raw), async () => {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "user-agent": "mit-nav (6.1040 class project)" },
+      body: new URLSearchParams({ data: '[out:json][timeout:90];way["highway"]["highway"!~"^(footway|steps|corridor|path)$"]["name"](42.353,-71.110,42.366,-71.080);out geom;' }),
+    });
+    if (!response.ok) throw new Error(`Overpass answered ${response.status}`);
+    return response.text();
+  });
+  return data.elements.map((e: any) => ({ name: e.tags.name, line: e.geometry.map((g: any) => toMeters(g.lon, g.lat)) }));
+}
+type Street = { name: string; line: Point[] };
+const SIDEWALK_REACH = 25; // a sidewalk takes the name of the nearest named street within this many metres
+const toSegment = (p: Point, a: Point, b: Point) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+  return meters(p, [a[0] + t * dx, a[1] + t * dy]);
+};
+/** The name of the named street nearest `p` within SIDEWALK_REACH, or "". */
+function besideStreet(p: Point, streets: Street[]) {
+  let best = "", bestMeters = SIDEWALK_REACH;
+  for (const s of streets)
+    for (let i = 1; i < s.line.length; i++) {
+      const m = toSegment(p, s.line[i - 1], s.line[i]);
+      if (m <= bestMeters) [best, bestMeters] = [s.name, m];
+    }
+  return best;
+}
+
 export type PathPoint = { id: string; at: Point };
 export type PathEdge = { from: string; to: string; meters: number; stepFree: boolean; name: string };
 
@@ -389,7 +454,7 @@ export type PathEdge = { from: string; to: string; meters: number; stepFree: boo
  * The walkable network, kept to the points that matter: ends, junctions, and bends sharper than BEND_DEGREES.
  * Each edge is the walk along one way between two such points; only the largest connected piece is kept.
  */
-export function pathNetwork(elements: any[]) {
+export function pathNetwork(elements: any[], streets: Street[] = []) {
   const nodes = new Map<number, Point>();
   for (const e of elements) if (e.type === "node") nodes.set(e.id, toMeters(e.lon, e.lat));
   const ways = elements.filter((e) => e.type === "way" && WALKABLE.test(e.tags?.highway ?? "") && e.nodes.every((n: number) => nodes.has(n)));
@@ -402,7 +467,9 @@ export function pathNetwork(elements: any[]) {
   const edges: PathEdge[] = [];
   for (const w of ways) {
     const t = w.tags;
-    const stepFree = t.highway !== "steps" && t.wheelchair !== "no";
+    // Steps with a wheelchair ramp alongside, or marked usable by wheelchairs, are step-free.
+    const stepFree = (t.highway !== "steps" || t["ramp:wheelchair"] === "yes" || t.wheelchair === "yes") && t.wheelchair !== "no";
+    const sidewalk = !t.name && t.footway === "sidewalk";
     const name = t.name ?? (t.footway === "crossing" ? "a crosswalk" : "");
     let start = 0;
     let walked = 0;
@@ -411,7 +478,11 @@ export function pathNetwork(elements: any[]) {
       const last = i === w.nodes.length - 1;
       const keep = last || uses.get(w.nodes[i])! > 1 || turn(nodes.get(w.nodes[i - 1])!, nodes.get(w.nodes[i])!, nodes.get(w.nodes[i + 1])!) > BEND_DEGREES;
       if (!keep) continue;
-      if (w.nodes[start] !== w.nodes[i]) edges.push({ from: String(w.nodes[start]), to: String(w.nodes[i]), meters: walked, stepFree, name });
+      if (w.nodes[start] !== w.nodes[i]) {
+        const a = nodes.get(w.nodes[start])!, b = nodes.get(w.nodes[i])!;
+        const beside = sidewalk ? besideStreet([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], streets) : "";
+        edges.push({ from: String(w.nodes[start]), to: String(w.nodes[i]), meters: walked, stepFree, name: beside || name });
+      }
       start = i;
       walked = 0;
     }
@@ -451,7 +522,7 @@ function loadLocated(): Map<string, Located> {
   return byBuilding;
 }
 
-export async function buildCampus() {
+async function buildCampus() {
   const buildings = await loadBuildings();
   const places: Place[] = [];
   const links: Link[] = [];
@@ -482,7 +553,7 @@ export async function buildCampus() {
   };
 
   // Outside: the path network, and each building joined to it at its entrances (or the path point nearest it).
-  const paths = pathNetwork((await loadPaths()).elements);
+  const paths = pathNetwork((await loadPaths()).elements, await loadStreets());
   const pathName = (id: string) => `Path ${id}`;
   for (const pt of paths.points) places.push({ name: pathName(pt.id), kind: "TRANSIT", floor: 1, ...toLatLon(pt.at) });
   for (const e of paths.edges) {

@@ -81,7 +81,7 @@ Defined in [Journaling](../design/concepts/Journaling.md), line 1.
 #### Actions
 
 - `finish(traveller: User, source: Place, destination: Place, meters: Number) : returns (entry: Entry)`
-  - Refuses `INVALID_DISTANCE`: A trip cannot be shorter than nothing.
+  - Refuses `INVALID_DISTANCE`: A trip is between 0 and 100 km.
 
 #### Queries
 
@@ -656,58 +656,6 @@ Authored path: `Campus.Routing.NearestPlace`.
 when RequestBoundary.request (latitude, longitude, path: "/route/nearest", requestId)
 then
   RequestBoundary.respond (nearest: former "the building nearest (latitude, longitude)" with (latitude, longitude), requestId)
-```
-
-### Campus.Setup.AddPlace
-
-Authored path: `Campus.Setup.AddPlace`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 49.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 52.
-
-```reaction
-when RequestBoundary.request (floor, kind, latitude, longitude, name, path: "/map/add-place", requestId)
-then
-  Wayfinding.addPlace (floor, kind, latitude, longitude, name)
-```
-
-### Campus.Setup.AddPlace#2
-
-Authored path: `Campus.Setup.AddPlace`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 49.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 52.
-
-```reaction
-when Wayfinding.addPlace (floor, kind, latitude, longitude, name, place), asked by Campus.Setup.AddPlace
-where
-  earlier, RequestBoundary.request (floor, kind, latitude, longitude, name, path: "/map/add-place", requestId)
-then
-  RequestBoundary.respond (place, requestId)
-```
-
-### Campus.Setup.Connect
-
-Authored path: `Campus.Setup.Connect`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 49.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 53.
-
-```reaction
-when RequestBoundary.request (accessible, backward, closedFrom, closedUntil, destination, distance, forward, path: "/map/connect", requestId, service, source)
-then
-  Wayfinding.connect (accessible, backward, closedFrom, closedUntil, destination, distance, forward, service, source)
-```
-
-### Campus.Setup.Connect#2
-
-Authored path: `Campus.Setup.Connect`.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 49.
-- Covered by [MIT campus navigation](../design/compositions/Campus.md), line 53.
-
-```reaction
-when Wayfinding.connect (accessible, backward, closedFrom, closedUntil, destination, distance, forward, service, source, link), asked by Campus.Setup.Connect
-where
-  earlier, RequestBoundary.request (accessible, backward, closedFrom, closedUntil, destination, distance, forward, path: "/map/connect", requestId, service, source)
-then
-  RequestBoundary.respond (link, requestId)
 ```
 
 ### Commons.finishing.ChooseUsername:expired
@@ -1399,8 +1347,6 @@ not listed here have no explicit input contract.
 - `/auth/logout` — requires `session`
 - `/auth/me` — requires `session`
 - `/auth/register` — requires `password`, `username`
-- `/map/add-place` — requires `name`, `kind`, `floor`, `latitude`, `longitude`
-- `/map/connect` — requires `source`, `destination`, `forward`, `backward`, `accessible`, `closedFrom`, `closedUntil`, `service`, `distance`
 - `/map/search` — requires `text`
 - `/me` — requires `session`
 - `/me/favorites/add` — requires `place`, `session`
@@ -1412,5 +1358,5 @@ not listed here have no explicit input contract.
 - `/problems/block` — requires `link`, `reason`, `session`
 - `/problems/unblock` — requires `link`, `session`
 - `/route/closest` — requires `accessibleOnly`, `hour`, `source`, `text`
-- `/route/find` — requires `source`, `destination`, `accessibleOnly`, `hour`
+- `/route/find` — requires `accessibleOnly`, `destination`, `hour`, `source`
 - `/route/nearest` — requires `latitude`, `longitude`

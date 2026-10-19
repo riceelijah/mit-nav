@@ -1,3 +1,7 @@
 node_modules
 .env
 .git
+data/raw
+.sync-engine
+tests
+demo

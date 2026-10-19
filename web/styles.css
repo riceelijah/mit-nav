@@ -52,7 +52,7 @@ h2 { font: 600 1.05rem/1.3 var(--sans); margin: 22px 0 8px; }
 .time input { border: 1px solid var(--rule); border-radius: 6px; padding: 5px 6px; background: var(--paper); }
 
 /* Search results */
-.options-list, .combo .options { list-style: none; }
+.combo .options { list-style: none; }
 .combo ul.options { position: absolute; z-index: 30; top: calc(100% + 4px); left: 44px; right: 0; max-height: 320px; overflow-y: auto; margin: 0; padding: 4px 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 10px 30px rgba(28, 43, 57, .18); display: block; }
 .combo ul.options li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; cursor: pointer; color: var(--ink); font-size: .95rem; }
 .combo ul.options li .floor { color: var(--ink-soft); white-space: nowrap; font-size: .85rem; }
@@ -174,6 +174,10 @@ button { cursor: pointer; }
 .floor-switcher button { min-width: 44px; min-height: 36px; border: 0; border-radius: 6px; background: none; font: 600 1rem/1 var(--numerals); position: relative; }
 .floor-switcher button.route::after { content: ""; position: absolute; right: 4px; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--cardinal); }
 .floor-switcher button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.floor-switcher .plan-style { display: flex; flex-direction: column; gap: 2px; padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--rule); }
+.floor-switcher .plan-style button { min-height: 28px; font: 600 .7rem/1.1 var(--sans); padding: 2px 4px; }
+.floor-switcher .plan-style button[aria-checked="true"] { background: var(--sign); color: var(--ink); }
+.mit-drawing { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; max-width: none; }
 
 /* ---- Map details ---- */
 .room-label { font: 600 11px/14px var(--numerals); color: var(--ink); text-align: center; white-space: nowrap; display: none; }

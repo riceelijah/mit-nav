@@ -1,0 +1,1 @@
+Repair per .sync-engine/work/plan-accuracy/2026-10-19T03-43-11Z-critic-verification.response.md: F3 (seed runs only while the app is stopped, enforces its own rules), F4 (checks are endpoint input validators on the request alone), R1 (seed removes favorites and trips of removed places), R2 (every run resolves all open reports on connections no longer in the map).

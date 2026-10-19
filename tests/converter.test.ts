@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { floorJoin, interior, pathNetwork, type Located, type Point } from "../scripts/campus-to-map.ts";
+import { floorJoin, interior, parseFloor, pathNetwork, withMisreadings, type Located, type Point } from "../scripts/campus-to-map.ts";
 
 // Positions are metres on a local grid (x east, y north), as the converter uses after converting lat/long.
 const csv = `"FLOOR","ROOM NUMBER","SQ FT","ROOM USE","DEPARTMENT","MAJOR USE"
@@ -98,4 +98,59 @@ test("path network: keeps ends, junctions and sharp bends; steps are not step-fr
     ["3", "4", 16, true, "Main Path"],
     ["4", "5", 11, false, ""],
   ]);
+});
+
+test("misread labels: used only when exactly one unplaced room on the floor reads the same", () => {
+  const rooms = [
+    { code: "1", sub: "100LA" }, { code: "1", sub: "144B" }, { code: "1", sub: "140" },
+    { code: "1", sub: "1O5" }, { code: "1", sub: "105" }, // two rooms that read alike: neither gets "1O5"'s twin
+    { code: "2", sub: "200LA" },
+  ];
+  const at = (x: number): Point => [x, 0];
+  const located: Located = new Map([
+    ["1001A", { floor: "1", at: at(1) }], // 100LA misread
+    ["1448", { floor: "1", at: at(2) }], // 144B misread
+    ["140", { floor: "1", at: at(3) }], // exact
+    ["10D", { floor: "1", at: at(4) }], // reads like both 1O5? no: like neither (10D → 100)
+    ["1O5X", { floor: "1", at: at(5) }],
+    ["2001A", { floor: "1", at: at(6) }], // 200LA's label, but on the wrong floor
+  ]);
+  const out = withMisreadings(rooms, located);
+  expect(out.get("100LA")?.at).toEqual(at(1));
+  expect(out.get("144B")?.at).toEqual(at(2));
+  expect(out.get("140")?.at).toEqual(at(3));
+  expect(out.has("1O5") || out.has("105")).toBe(false);
+  expect(out.has("200LA")).toBe(false);
+});
+
+test("a room also opens onto its next nearest corridor within 25 m; floor 00 is below floor 0", () => {
+  const two = `"FLOOR","ROOM NUMBER","SQ FT","ROOM USE","DEPARTMENT","MAJOR USE"
+"1","9-100CA","500","CORRIDOR","",""
+"","9-100CB","500","CORRIDOR","",""
+"","9-100CC","500","CORRIDOR","",""
+"","9-123","3,550","LECTURE HALL","",""`;
+  const located: Located = new Map([
+    ["100CA", { floor: "1", at: [0, 0] as Point }],
+    ["100CB", { floor: "1", at: [30, 0] as Point }],
+    ["100CC", { floor: "1", at: [80, 0] as Point }],
+    ["123", { floor: "1", at: [12, 0] as Point }],
+  ]);
+  const doors = interior("9", two, located).links.filter((l) => l[1] === "9-123 Lecture Hall").map((l) => l[0]);
+  expect(doors).toEqual(["9-100CA Corridor", "9-100CB Corridor"]);
+  expect([parseFloor("00")!.level, parseFloor("0")!.level, parseFloor("G4")!.level]).toEqual([-1, 0, 4]);
+});
+
+test("paths: ramped steps are step-free, and an unnamed sidewalk takes the name of the street beside it", () => {
+  const node = (id: number, lat: number, lon: number) => ({ type: "node", id, lat, lon });
+  const way = (id: number, nodes: number[], tags: object) => ({ type: "way", id, nodes, tags });
+  const { edges } = pathNetwork(
+    [
+      node(1, 42.36, -71.09), node(2, 42.3601, -71.09), node(3, 42.3602, -71.09),
+      way(10, [1, 2], { highway: "footway", footway: "sidewalk" }),
+      way(11, [2, 3], { highway: "steps", "ramp:wheelchair": "yes" }),
+    ],
+    // In metres around (42.36, -71.09), where the sidewalk starts: a street 10 m east of it, and one 60 m west.
+    [{ name: "Vassar Street", line: [[10, -100], [10, 100]] as Point[] }, { name: "Far Street", line: [[-60, -100], [-60, 100]] as Point[] }],
+  );
+  expect(edges.map((e) => [e.name, e.stepFree])).toEqual([["Vassar Street", true], ["", true]]);
 });

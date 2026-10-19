@@ -1,21 +1,22 @@
 import { expect, test } from "bun:test";
+import type { WayfindingConcept } from "../src/concepts/Wayfinding.ts";
 import { freshApi, signedUp } from "./helpers.ts";
 
 const open = { closedFrom: 0, closedUntil: 0, service: "", distance: 1 };
 
-async function smallMap(post: (path: string, body?: object) => Promise<any>) {
-  const lobby = (await post("/map/add-place", { name: "Lobby", kind: "ENTRANCE", floor: 1, latitude: 0, longitude: 0 })).place;
-  const room = (await post("/map/add-place", { name: "Room 215", kind: "ROOM", floor: 2, latitude: 0, longitude: 0 })).place;
-  const elevator = (await post("/map/connect", { source: lobby, destination: room, forward: "Elevator up", backward: "Elevator down", accessible: true, ...open })).link;
-  await post("/map/connect", { source: lobby, destination: room, forward: "Stairs up", backward: "Stairs down", accessible: false, ...open });
+async function smallMap(map: WayfindingConcept) {
+  const lobby = (await map.addPlace({ name: "Lobby", kind: "ENTRANCE", floor: 1, latitude: 0, longitude: 0 })).place;
+  const room = (await map.addPlace({ name: "Room 215", kind: "ROOM", floor: 2, latitude: 0, longitude: 0 })).place;
+  const elevator = (await map.connect({ source: lobby, destination: room, forward: "Elevator up", backward: "Elevator down", accessible: true, ...open })).link;
+  await map.connect({ source: lobby, destination: room, forward: "Stairs up", backward: "Stairs down", accessible: false, ...open });
   return { lobby, room, elevator };
 }
 
 // Core user journey, end to end through the HTTP API with an empty database.
 test("journey: route without an account, sign up, flag the elevator, reroute, someone else clears it", async () => {
-  const { close, browser } = await freshApi();
+  const { close, browser, map } = await freshApi();
   const visitor = browser();
-  const { lobby, room, elevator } = await smallMap(visitor);
+  const { lobby, room, elevator } = await smallMap(map);
 
   const route = (acc: boolean) => visitor("/route/find", { source: lobby, destination: room, accessibleOnly: acc, hour: 12 });
   const steps = (await route(true)).route.steps;
@@ -46,7 +47,7 @@ test("journey: route without an account, sign up, flag the elevator, reroute, so
 });
 
 test("sign-in: wrong password, sign out ends the session, username taken", async () => {
-  const { close, browser } = await freshApi();
+  const { close, browser, map } = await freshApi();
   const ana = await signedUp(browser, "ana");
   const other = browser();
   expect((await other("/auth/login", { username: "ana", password: "wrong password!" })).error).toBe("UNAUTHORIZED");
@@ -59,8 +60,8 @@ test("sign-in: wrong password, sign out ends the session, username taken", async
 });
 
 test("saved things: favorites, trips, preferences, journal; each person sees and changes only their own", async () => {
-  const { close, browser } = await freshApi();
-  const { lobby, room } = await smallMap(browser());
+  const { close, browser, map } = await freshApi();
+  const { lobby, room } = await smallMap(map);
   const ana = await signedUp(browser, "ana");
   const ben = await signedUp(browser, "ben");
 

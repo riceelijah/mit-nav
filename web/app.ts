@@ -1,11 +1,12 @@
 import { createApp, ref, computed, watch, onMounted, nextTick } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
+import { mergeSteps } from "./steps.ts";
 
 const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
 type Place = { place: string; name: string; kind: string; floor: number };
-const floorLabel = (floor: number) => (floor === 0 ? "Basement" : `Floor ${floor}`);
+const floorLabel = (floor: number) => (floor === 0 ? "Basement" : floor < 0 ? "Sub-basement" : `Floor ${floor}`);
 // Within this many metres of a building's centre counts as reaching it; further than OFF_COURSE from the route, twice in a row, reroutes.
 const REACHED = 40;
 const OFF_COURSE = 75;
@@ -34,36 +35,6 @@ function metersFromLine(p: Point, line: Point[]) {
   return best;
 }
 
-const CORRIDOR = /^Walk about (\d+) m along the corridors?\.$/;
-const OUTSIDE = /^Walk about (\d+) m outside(?: along (.+))?\.$/;
-const joinNames = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
-
-/**
- * Shows several corridor walks, or several outdoor path segments, in a row as one step, adding up the
- * metres written in them; an outdoor step names the streets it follows.
- */
-export function mergeSteps(steps: any[]) {
-  const shown: any[] = [];
-  // `upto` is the index of the last raw step a shown step covers, so the map can split the line at it.
-  steps.forEach((s, upto) => {
-    const prev = shown[shown.length - 1];
-    const corridor = CORRIDOR.exec(s.instruction), outside = OUTSIDE.exec(s.instruction);
-    const kind = corridor ? "corridor" : outside ? "outside" : "";
-    if (kind && prev?.merge === kind) {
-      // Keep the first connection (that is the one flagged) and arrive where the last one does.
-      const meters = prev.meters + Number((corridor ?? outside)![1]);
-      const streets = outside?.[2] && !prev.streets.includes(outside[2]) ? [...prev.streets, outside[2]] : prev.streets;
-      const along = streets.filter((n: string) => n !== "a crosswalk");
-      const instruction = kind === "corridor"
-        ? `Walk about ${meters} m along the corridors.`
-        : `Walk about ${meters} m outside${along.length ? `, along ${joinNames(along)}` : ""}${streets.includes("a crosswalk") ? ", crossing at the crosswalk" : ""}.`;
-      Object.assign(prev, { ...s, link: prev.link, distance: prev.distance + s.distance, meters, streets, instruction, merge: kind, upto });
-    } else {
-      shown.push({ ...s, merge: kind, meters: Number((corridor ?? outside)?.[1] ?? 0), streets: outside?.[2] ? [outside[2]] : [], upto });
-    }
-  });
-  return shown.map((s, i) => ({ ...s, step: i + 1 }));
-}
 // ---- Floor plans: every room the inventory places on a floor, drawn as a schematic (not MIT's walls). ----
 type PlanRoom = { n: string; u: string; at: [number, number]; a: number };
 type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[] }> };
@@ -131,6 +102,32 @@ const PLAN_FILL: [RegExp, string][] = [
 ];
 const planFill = (use: string) => PLAN_FILL.find(([re]) => re.test(use))?.[1] ?? "#ffffff";
 const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
+
+// ---- MIT's own drawings, where scripts/fit-drawings.py fitted one on this machine (never in the deployed app). ----
+type Drawing = { image: string; corners: [number, number][] }; // top left, top right, bottom left
+/** An image pinned to the map by three corners, so it can be turned as well as scaled; hidden while zooming. */
+function drawingLayer(d: Drawing) {
+  const Layer = L.Layer.extend({
+    onAdd(map: any) {
+      this.img = L.DomUtil.create("img", "mit-drawing leaflet-zoom-hide");
+      this.img.src = `/drawings/${d.image}`;
+      this.img.onload = () => this.place();
+      map.getPane("drawings").appendChild(this.img);
+      map.on("zoomend viewreset", this.place, this);
+    },
+    onRemove(map: any) {
+      this.img.remove();
+      map.off("zoomend viewreset", this.place, this);
+    },
+    place() {
+      const [a, b, c] = d.corners.map((ll) => this._map.latLngToLayerPoint(ll));
+      const w = this.img.naturalWidth, h = this.img.naturalHeight;
+      if (!w || !h) return;
+      this.img.style.transform = `matrix(${(b.x - a.x) / w}, ${(b.y - a.y) / w}, ${(c.x - a.x) / h}, ${(c.y - a.y) / h}, ${a.x}, ${a.y})`;
+    },
+  });
+  return new Layer();
+}
 
 // Outdoor path points have generated names that mean nothing to a person.
 const arrivalLabel = (s: any) => (/^Path \d+$/.test(s.placeName) ? "" : `${s.placeName}, floor ${s.floor}`);
@@ -294,7 +291,7 @@ const app = createApp({
           <div class="segmented" role="radiogroup" aria-label="Show distances in">
             <label v-for="u in unitChoices" :key="u.value" :class="{ on: units === u.value }"><input type="radio" name="units" :value="u.value" v-model="units" @change="chooseUnits" /> {{ u.label }}</label>
           </div>
-          <div v-else class="empty">
+          <div v-if="!(me && mine)" class="empty">
             <p>Sign in to keep favorite places, saved trips and how far you've walked.</p>
             <button class="primary" @click="showSignIn = true">Sign in</button>
           </div>
@@ -319,6 +316,10 @@ const app = createApp({
     <div id="map" aria-label="Map"></div>
     <div v-if="switcher" class="floor-switcher" role="group" :aria-label="'Floors of building ' + switcher.ref">
       <span class="which">{{ switcher.ref }}</span>
+      <div v-if="switcher.drawing" class="plan-style" role="radiogroup" aria-label="Plan style">
+        <button role="radio" :aria-checked="planStyle === 'schematic'" @click="choosePlanStyle('schematic')">Schematic</button>
+        <button role="radio" :aria-checked="planStyle === 'drawing'" @click="choosePlanStyle('drawing')" title="MIT's own drawing, on this computer only">MIT drawing</button>
+      </div>
       <button v-for="f in switcher.floors" :key="f.code" :aria-pressed="f.code === switcher.shown" :class="{ route: f.route }" @click="chooseFloor(switcher.ref, f.code)" :title="f.route ? 'Your route uses this floor' : ''">{{ f.code }}</button>
     </div>
 
@@ -377,7 +378,8 @@ const app = createApp({
     const finished = ref(false);
     const tracking = ref(false);
     const tab = ref<"route" | "saved" | "problems">("route");
-    const sheetOpen = ref(true);
+    // On a phone the sheet starts at its peek, so the route on the map is visible first.
+    const sheetOpen = ref(!window.matchMedia("(max-width: 760px)").matches);
     /** The destination as a door plaque: its number large, what it is beneath. */
     const plaque = computed(() => {
       const name = to.value?.name ?? "";
@@ -559,6 +561,13 @@ const app = createApp({
     const shownFloor = ref<Record<string, string>>({}); // building -> floor code being drawn
     const visiblePlans = ref<string[]>([]);
     const focus = ref("");
+    const drawings = ref<Record<string, Record<string, Drawing>>>({});
+    const planStyle = ref(remembered("planStyle") === "drawing" ? "drawing" : "schematic");
+    function choosePlanStyle(style: string) {
+      planStyle.value = style;
+      remember("planStyle", style);
+      drawPlans();
+    }
     /** The route's buildings, in order, with the floor numbers its steps use in each. */
     const routeBuildings = computed(() => {
       const seen = new Map<string, Set<number>>();
@@ -592,6 +601,7 @@ const app = createApp({
         ref: focus.value,
         shown: shownFloor.value[focus.value],
         floors: floorsOf(plan).map(([code, f]) => ({ code, route: levels.has(f.level) })),
+        drawing: !!drawings.value[focus.value]?.[shownFloor.value[focus.value]],
       };
     });
     function chooseFloor(ref: string, code: string) {
@@ -607,6 +617,13 @@ const app = createApp({
         const code = shownFloor.value[ref];
         if (!plan || !code || !plan.floors[code]) continue;
         L.polygon(plan.outline, { pane: "plans", color: "#56626d", weight: 2, fillColor: "#f6f6f2", fillOpacity: 0.95 }).addTo(planLayer);
+        const drawing = planStyle.value === "drawing" ? drawings.value[ref]?.[code] : undefined;
+        if (drawing) {
+          drawingLayer(drawing).addTo(planLayer);
+          const room = destination?.[1] === ref ? plan.floors[code].rooms.find((r) => r.n === destination[2]) : undefined;
+          if (room) L.circleMarker(room.at, { pane: "planLabels", radius: 9, color: "#a31f34", weight: 3, fill: false }).bindTooltip(`${ref}-${room.n}`).addTo(planLayer);
+          continue;
+        }
         for (const { room, shapes } of roomShapes(plan.floors[code].rooms, plan.outline)) {
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
           for (const shape of shapes) {
@@ -833,11 +850,14 @@ const app = createApp({
       }).addTo(map);
       // Plans have their own panes below the overlay pane (400), so the route line is always drawn over them.
       map.createPane("plans").style.zIndex = "350";
+      map.createPane("drawings").style.zIndex = "355"; // MIT's drawings, over the plan's outline fill
       map.createPane("planLabels").style.zIndex = "360";
       planLayer = L.layerGroup().addTo(map);
       map.on("moveend", updatePlans);
       routeLayer = L.layerGroup().addTo(map);
       map.on("zoomend", () => map.getContainer().classList.toggle("labels", map.getZoom() >= 20));
+      // Fitted drawings exist only where scripts/fit-drawings.py ran; elsewhere this is a 404 and no choice is offered.
+      fetch("/drawings/index.json").then((r) => (r.ok ? r.json() : {}), () => ({})).then((index) => { drawings.value = index; drawPlans(); });
       if (window.location.pathname === "/auth/commons/callback") await finishCommons();
       else await loadMe();
       if (me.value) { accessibleOnly.value = prefStepFree.value; tracking.value = prefLocation.value; }
@@ -849,7 +869,7 @@ const app = createApp({
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
       reports, unreported, steps, from, to, accessibleOnly, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
+      planStyle, choosePlanStyle, startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });

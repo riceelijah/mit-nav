@@ -37,12 +37,40 @@ export const numbers =
     return ok ? { ok: true } : { ok: false, detail: `expected numbers ${fields.join(", ")}` };
   };
 
-/** A start, the text naming a kind of place, a step-free flag and an hour, for the nearest-of-a-kind search. */
-export const closestInput: EndpointValidator = (value) => {
-  const b = value as Record<string, unknown> | null;
-  const ok = typeof b === "object" && b !== null && typeof b.source === "string" && typeof b.text === "string" &&
-    typeof b.accessibleOnly === "boolean" && typeof b.hour === "number" && Number.isFinite(b.hour);
-  return ok ? { ok: true } : { ok: false, detail: "expected source, text, accessibleOnly and hour" };
+type Body = Record<string, unknown>;
+const isBody = (v: unknown): v is Body => typeof v === "object" && v !== null && !Array.isArray(v);
+const isHour = (h: unknown) => typeof h === "number" && h >= 0 && h <= 24;
+
+/** Two places (text), a step-free flag (true or false) and an hour from 0 to 24, for a route. */
+export const routeInput: EndpointValidator = (b) =>
+  isBody(b) && typeof b.source === "string" && typeof b.destination === "string" && typeof b.accessibleOnly === "boolean" && isHour(b.hour)
+    ? { ok: true }
+    : { ok: false, detail: "expected source, destination (text), accessibleOnly (true or false) and hour (0 to 24)" };
+
+/** A start, the text naming a kind of place, a step-free flag and an hour from 0 to 24, for the nearest-of-a-kind search. */
+export const closestInput: EndpointValidator = (b) =>
+  isBody(b) && typeof b.source === "string" && typeof b.text === "string" && typeof b.accessibleOnly === "boolean" && isHour(b.hour)
+    ? { ok: true }
+    : { ok: false, detail: "expected source, text, accessibleOnly (true or false) and hour (0 to 24)" };
+
+/** signedIn(...) plus a text name and places and a true-or-false step-free flag, for saving a trip. */
+export const tripInput: EndpointValidator = (value) => {
+  const base = signedIn("name", "source", "destination", "accessibleOnly")(value);
+  if (!base.ok) return base;
+  const b = value as Body;
+  return typeof b.name === "string" && typeof b.source === "string" && typeof b.destination === "string" && typeof b.accessibleOnly === "boolean"
+    ? { ok: true }
+    : { ok: false, detail: "expected name, source, destination (text) and accessibleOnly (true or false)" };
+};
+
+/** signedIn(...) plus text places and metres that are a finite number, for a finished trip. */
+export const finishInput: EndpointValidator = (value) => {
+  const base = signedIn("source", "destination", "meters")(value);
+  if (!base.ok) return base;
+  const b = value as Body;
+  return typeof b.source === "string" && typeof b.destination === "string" && typeof b.meters === "number" && Number.isFinite(b.meters)
+    ? { ok: true }
+    : { ok: false, detail: "expected source, destination (text) and meters (a number)" };
 };
 
 /** signedIn(...) plus units that are one of METERS, FEET, MINUTES. */

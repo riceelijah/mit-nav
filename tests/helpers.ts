@@ -2,6 +2,7 @@ import { MongoClient, type Db } from "mongodb";
 import { createGateway } from "@mit-sdg/sync-engine/boundary";
 import { createHttpHandler } from "@mit-sdg/sync-engine-http/handler";
 import { assembleApplication } from "../src/assembly.ts";
+import { WayfindingConcept } from "../src/concepts/Wayfinding.ts";
 import { policy, publicOrigin } from "../src/http.ts";
 import { testDatabase } from "./support/reusable/mongo.ts";
 
@@ -16,7 +17,10 @@ export async function freshDb(): Promise<{ db: Db; close: () => Promise<void> }>
   return { db, close: async () => { await db.dropDatabase(); await client.close(); } };
 }
 
-/** The HTTP API on a fresh database, and a way to make browsers that each keep their own cookies. */
+/**
+ * The HTTP API on a fresh database, a way to make browsers that each keep their own cookies, and the map
+ * (Wayfinding on the same database), which tests fill directly as the seed script does.
+ */
 export async function freshApi() {
   const { db, close } = await freshDb();
   const application = assembleApplication(db);
@@ -44,7 +48,7 @@ export async function freshApi() {
       return (await response.json()) as any;
     };
   };
-  return { db, close, browser };
+  return { db, close, browser, map: new WayfindingConcept(db) };
 }
 
 /** A browser signed up with a password as `username`. */

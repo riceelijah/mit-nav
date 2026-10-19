@@ -1,6 +1,6 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
 import { each, form, former, reaction, when, whether } from "@mit-sdg/sync-engine/language";
-import { closestInput, numbers, signedIn } from "./inputs.ts";
+import { closestInput, numbers, routeInput, signedIn } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
 const { Wayfinding, Reporting, Registering, Sessioning } = concepts;
@@ -72,26 +72,6 @@ const SearchPlaces = endpoint(
   { input: { required: ["text"] } },
 );
 
-const AddPlace = endpoint(
-  "/map/add-place",
-  ({ name, kind, floor, latitude, longitude, place }) =>
-    receive({ name, kind, floor, latitude, longitude })
-      .then(Wayfinding.addPlace({ name, kind, floor, latitude, longitude }).responds({ place }))
-      .then(respond({ place })),
-  { input: { required: ["name", "kind", "floor", "latitude", "longitude"] } },
-);
-
-const Connect = endpoint(
-  "/map/connect",
-  ({ source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance, link }) =>
-    receive({ source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance })
-      .then(
-        Wayfinding.connect({ source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance }).responds({ link }),
-      )
-      .then(respond({ link })),
-  { input: { required: ["source", "destination", "forward", "backward", "accessible", "closedFrom", "closedUntil", "service", "distance"] } },
-);
-
 const Nearest = former(
   "the building nearest (latitude, longitude)",
   ({ latitude, longitude }, { place, name, placeLatitude, placeLongitude }) =>
@@ -133,7 +113,7 @@ const FindRoute = endpoint(
     receive({ source, destination, accessibleOnly, hour }).then(
       respond({ route: Route({ source, destination, accessibleOnly, hour }) }),
     ),
-  { input: { required: ["source", "destination", "accessibleOnly", "hour"] } },
+  { validators: { input: routeInput } },
 );
 
 const BlockLink = endpoint(
@@ -173,5 +153,4 @@ export const composition = {
   Browsing: { PlaceSearch, ProblemList, BlockedList, ShowOverview, SearchPlaces },
   Routing: { Route, FindRoute, Nearest, NearestPlace, Closest, FindClosest },
   Problems: { BlockLink, UnblockLink, UnblockResolvesReports, ClearingResolvesSharedReports },
-  Setup: { AddPlace, Connect },
 };

@@ -1,0 +1,227 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "plan-accuracy",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/plan-accuracy"
+  },
+  "role": "application-worker",
+  "phase": "implementation",
+  "execution": "simulated",
+  "independent": false,
+  "harness": "coordinator",
+  "simulationReason": "coordinator implements",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/plan-accuracy/2026-10-19T03-46-53Z-application-worker-implementation.prompt.md",
+    "sha256": "44131315ae7fcc24a924027e5eb3f8911d6d040466e11e30b3f39a7a9444de77"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/plan-accuracy/2026-10-19T03-46-53Z-application-worker-implementation.capabilities.json",
+    "sha256": "e20617ec2f486b755e61336aa0116d4b4791c3eac8efd7ceed05162eadb61204"
+  },
+  "grant": {
+    "readableAreas": [
+      {
+        "area": "application",
+        "path": "."
+      }
+    ],
+    "writableAreas": [
+      {
+        "area": "owned-concept",
+        "path": "src/concepts"
+      },
+      {
+        "area": "owned-integration",
+        "path": ".dockerignore"
+      },
+      {
+        "area": "owned-integration",
+        "path": "AGENTS.md"
+      },
+      {
+        "area": "owned-integration",
+        "path": "README.md"
+      },
+      {
+        "area": "owned-integration",
+        "path": "compose.yaml"
+      },
+      {
+        "area": "owned-integration",
+        "path": "data"
+      },
+      {
+        "area": "owned-integration",
+        "path": "generated"
+      },
+      {
+        "area": "owned-integration",
+        "path": "package.json"
+      },
+      {
+        "area": "owned-integration",
+        "path": "scripts"
+      },
+      {
+        "area": "owned-integration",
+        "path": "src/compositions"
+      },
+      {
+        "area": "owned-integration",
+        "path": "src/main.ts"
+      },
+      {
+        "area": "owned-frontend",
+        "path": "web"
+      },
+      {
+        "area": "owned-test",
+        "path": "tests"
+      }
+    ],
+    "toolKinds": [
+      "repository-read",
+      "repository-write"
+    ],
+    "projectShell": "project-local",
+    "network": false,
+    "generatedOutput": false,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/plan-accuracy/2026-10-19T03-46-53Z-application-worker-implementation.response.md",
+    "sha256": "49e3c3cef14867f427ba2ea7925e0796bdeb8f4ac71d3c17fdc4cc499b10e75c",
+    "bytes": 1711
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/plan-accuracy/brief.md",
+      "sha256": "2903918d0dc0adfd0567a51344bd4616718d0f2a4967f71a1cecfc1d6ebafad0"
+    },
+    {
+      "inputId": "types",
+      "displayName": "design/types.md",
+      "sha256": "04b7229c367b7627872672e11b30648e63db03252d58c34da3cb94f76f7c4c7b"
+    },
+    {
+      "inputId": "compositions",
+      "displayName": "design/compositions/Campus.md",
+      "sha256": "cc30d160cf325c94b701df870cefcdb4aca325735ae6e8c45b75fa058aea983d"
+    },
+    {
+      "inputId": "compositions",
+      "displayName": "design/compositions/Saved.md",
+      "sha256": "795b2b615328a729eca4f0126c652e622b4442c1e2ac5d6c9d2209b36e9f34ac"
+    },
+    {
+      "inputId": "concept-specifications",
+      "displayName": "design/concepts/Journaling.md",
+      "sha256": "6bc212a12bc51a6c40fb41fca7fd518c71b7db829894b517371ce0d35b460f94"
+    },
+    {
+      "inputId": "concept-specifications",
+      "displayName": "design/concepts/Wayfinding.md",
+      "sha256": "ed79a225b3d2c996bc715e4018d6c4ef006bb712996b4bfa21b34715b2ab5e74"
+    },
+    {
+      "inputId": "concept-public-surfaces",
+      "displayName": "src/concepts/Journaling.ts",
+      "sha256": "1a73554269b47bd3956d597368da70579969661b22652e90f129576de1e3f5be"
+    },
+    {
+      "inputId": "concept-public-surfaces",
+      "displayName": "src/concepts/Wayfinding.ts",
+      "sha256": "aa085c5effbbe263bffa35faa9dbaf33e14e5691b9dbdb9b809e51c03ac3868b"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/plan-accuracy/2026-10-19T03-46-53Z-application-worker-implementation.baseline.json",
+      "sha256": "0a447677415741a5d21bc97e79a8811070bb7346a99fa7dc4531bc97995abedf"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "8036f84c6a9ba31cf1e0c5f17a4558931213162e5eca0bb7034b067ba27baade",
+    "beforeFiles": [
+      {
+        "path": "compositions/Accounts.md",
+        "sha256": "a32a9c8c00a35ef084d71c636a6e8d35e041cb63782d815e76b262866b6fcd39"
+      },
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "cc30d160cf325c94b701df870cefcdb4aca325735ae6e8c45b75fa058aea983d"
+      },
+      {
+        "path": "compositions/Commons.md",
+        "sha256": "0a97f4ac87dfffd5db28437ca2a2d88183e6c39301bb56cded80ed096e3f7ebb"
+      },
+      {
+        "path": "compositions/Passwords.md",
+        "sha256": "20527c7d49bd1bec22679eae148b887eb45219e6574f3fc595df68252c5c8eea"
+      },
+      {
+        "path": "compositions/Saved.md",
+        "sha256": "795b2b615328a729eca4f0126c652e622b4442c1e2ac5d6c9d2209b36e9f34ac"
+      },
+      {
+        "path": "concepts/Authenticating.md",
+        "sha256": "0c415f85ad32f100f229269d30c76f7d978baff4f711426ca55ffca1d54639e7"
+      },
+      {
+        "path": "concepts/Favoriting.md",
+        "sha256": "e6a5b50cd86c255f638deba57e5cc591478d9728211626785355eb777e0a180d"
+      },
+      {
+        "path": "concepts/Federating.md",
+        "sha256": "fdd29a2154b9d7c68938d278eaada07e80779250ec03c16f3b0f8e2768c3b699"
+      },
+      {
+        "path": "concepts/Journaling.md",
+        "sha256": "6bc212a12bc51a6c40fb41fca7fd518c71b7db829894b517371ce0d35b460f94"
+      },
+      {
+        "path": "concepts/Planning.md",
+        "sha256": "8ed59003ff3b56ebb33572ec329804cb4031ee1d0ec0c5e075164b28b61d2fdf"
+      },
+      {
+        "path": "concepts/Preferring.md",
+        "sha256": "11a6eb7a05f44e23d4bb89921bc8077e7b680a41919d5432bcb5882624ccc529"
+      },
+      {
+        "path": "concepts/Registering.md",
+        "sha256": "72e2f72dba60dc1c7def945510c7337ae1805d7d30fd757f6f5beac83d86e9cb"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Sessioning.md",
+        "sha256": "b47a9125cadab0e938b6298ac2cd782d7592eefdbd76caa879d4c8366e0ef9bc"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "ed79a225b3d2c996bc715e4018d6c4ef006bb712996b4bfa21b34715b2ab5e74"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "89a4da60cbc9ebe2d05edaf53dd0a2918708cc96cbffb72e2d200cac67fe976a"
+      },
+      {
+        "path": "types.md",
+        "sha256": "04b7229c367b7627872672e11b30648e63db03252d58c34da3cb94f76f7c4c7b"
+      }
+    ]
+  },
+  "status": "completed",
+  "result": "complete",
+  "enforcement": "prompt-guided"
+}

@@ -92,36 +92,6 @@ export type CampusWire = {
     };
     error: { error: AppWideError | "INVALID_INPUT" | "INVALID_PASSWORD" | "INVALID_USERNAME" | "PASSWORD_SET" | "USERNAME_TAKEN" };
   };
-  "/map/add-place": {
-    input: {
-      "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
-      "kind": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["kind"]>>;
-      "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["latitude"]>>;
-      "longitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["longitude"]>>;
-      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["name"]>>;
-    };
-    output: {
-      "place": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>>, ["place"]>>;
-    };
-    error: { error: AppWideError | "DUPLICATE_PLACE" | "INVALID_INPUT" };
-  };
-  "/map/connect": {
-    input: {
-      "accessible": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["accessible"]>>;
-      "backward": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["backward"]>>;
-      "closedFrom": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["closedFrom"]>>;
-      "closedUntil": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["closedUntil"]>>;
-      "destination": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["destination"]>>;
-      "distance": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["distance"]>>;
-      "forward": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["forward"]>>;
-      "service": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["service"]>>;
-      "source": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["source"]>>;
-    };
-    output: {
-      "link": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>>, ["link"]>>;
-    };
-    error: { error: AppWideError | "INVALID_INPUT" | "NO_SUCH_PLACE" };
-  };
   "/map/overview": {
     input: Record<string, never>;
     output: {
@@ -420,36 +390,6 @@ export type CampusWireHttp = {
       "user": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["start"]>[0], ["subject"]>>;
     };
     error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" };
-  };
-  "/map/add-place": {
-    input: {
-      "floor": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["floor"]>>;
-      "kind": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["kind"]>>;
-      "latitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["latitude"]>>;
-      "longitude": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["longitude"]>>;
-      "name": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>[0], ["name"]>>;
-    };
-    output: {
-      "place": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["addPlace"]>>, ["place"]>>;
-    };
-    error: { error: HttpAppWideError | "CONFLICT" | "INVALID_REQUEST" };
-  };
-  "/map/connect": {
-    input: {
-      "accessible": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["accessible"]>>;
-      "backward": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["backward"]>>;
-      "closedFrom": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["closedFrom"]>>;
-      "closedUntil": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["closedUntil"]>>;
-      "destination": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["destination"]>>;
-      "distance": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["distance"]>>;
-      "forward": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["forward"]>>;
-      "service": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["service"]>>;
-      "source": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>[0], ["source"]>>;
-    };
-    output: {
-      "link": Jsonify<AtPath<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["connect"]>>, ["link"]>>;
-    };
-    error: { error: HttpAppWideError | "INVALID_REQUEST" | "NOT_FOUND" };
   };
   "/map/overview": {
     input: Record<string, never>;

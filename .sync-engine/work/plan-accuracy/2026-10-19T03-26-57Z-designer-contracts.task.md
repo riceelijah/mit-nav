@@ -1,0 +1,1 @@
+Update Campus prose: OCR-tolerant matching of MapIT labels (unique only); large open walk-through rooms (> 300 m²) join the corridor network; rooms attach to their two nearest corridors within 25 m (at least the nearest); optional MIT-drawing plan layer from traced files present only locally, with the switcher offering Schematic / MIT drawing. No concept changes. Check syntax.

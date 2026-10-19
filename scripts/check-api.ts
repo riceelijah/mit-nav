@@ -1,19 +1,16 @@
-import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
-import type { ReservationsWireHttp } from "../generated/wire.ts";
-
+// Checks that the app answers: its health check reports the database reachable. Usage: bun scripts/check-api.ts [address] [--wait]
 const address = process.argv.slice(2).find((arg) => !arg.startsWith("--")) ?? "http://127.0.0.1:3000";
 // With --wait, keep trying for 60 seconds. That gives the containers time to start.
 const deadline = Date.now() + (process.argv.includes("--wait") ? 60_000 : 0);
-const client = createHttpClient<ReservationsWireHttp>({ baseUrl: `${address}/api` });
 
 while (true) {
-  const result = await client.reservations.list({});
-  if (!("error" in result)) {
-    console.log(`The API at ${address} answered. It has ${result.book.reservations.length} reservation(s).`);
+  const status = await fetch(`${address}/health`).then((r) => r.status, () => 0);
+  if (status === 200) {
+    console.log(`The app at ${address} answered and its database is up.`);
     break;
   }
   if (Date.now() > deadline) {
-    console.error(`Could not reach the API at ${address}. The client says ${result.error}.`);
+    console.error(`Could not reach the app at ${address} (status ${status || "no answer"}).`);
     process.exit(1);
   }
   await Bun.sleep(1000);

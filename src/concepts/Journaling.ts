@@ -22,7 +22,7 @@ export class JournalingConcept {
   }
 
   async finish({ traveller, source, destination, meters }: { traveller: string; source: string; destination: string; meters: number }) {
-    if (!(meters >= 0)) throw new InvalidDistance("A trip cannot be shorter than nothing.");
+    if (!(meters >= 0 && meters <= 100_000)) throw new InvalidDistance("A trip is between 0 and 100 km.");
     const entry = crypto.randomUUID();
     // ponytail: order by a per-traveller count; two finishes in the same instant could tie, which only reorders them.
     const order = await this.entries.countDocuments({ traveller });

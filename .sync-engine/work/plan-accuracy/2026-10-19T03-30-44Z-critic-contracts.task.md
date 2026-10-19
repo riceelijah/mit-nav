@@ -1,0 +1,1 @@
+Review the plan-accuracy design change in design/compositions/Campus.md (tolerant label matching, two-corridor attachment, optional local MIT-drawing layer) against the brief. Report Verdict with numbered findings.
