@@ -198,6 +198,7 @@ const app = createApp({
         </div>
         <div class="options">
           <label class="toggle" :class="{ on: accessibleOnly }"><input type="checkbox" v-model="accessibleOnly" /> Step-free</label>
+          <label class="toggle" :class="{ on: indoorsPreferred }" title="Stay inside where a building route is not much longer"><input type="checkbox" v-model="indoorsPreferred" /> Indoors</label>
           <label class="time">Leaving at <input type="time" v-model="time" /></label>
         </div>
       </section>
@@ -294,6 +295,7 @@ const app = createApp({
             </ul>
             <h2>Preferences</h2>
             <label class="toggle" :class="{ on: prefStepFree }"><input type="checkbox" v-model="prefStepFree" @change="savePreferences" /> Step-free routes by default</label>
+            <label class="toggle" :class="{ on: prefIndoors }"><input type="checkbox" v-model="prefIndoors" @change="savePreferences" /> Indoor routes by default</label>
             <label class="toggle" :class="{ on: prefLocation }"><input type="checkbox" v-model="prefLocation" @change="savePreferences" /> Follow my location when I open the app</label>
           </template>
           <h2>Distances</h2>
@@ -382,6 +384,8 @@ const app = createApp({
     const to = ref<Place | null>(null);
     const accessibleOnly = ref(false);
     const prefStepFree = ref(false);
+    const indoorsPreferred = ref(false);
+    const prefIndoors = ref(false);
     const prefLocation = ref(false);
     const tripName = ref("");
     const finished = ref(false);
@@ -468,6 +472,7 @@ const app = createApp({
       };
       const p = result.preferences.preferences[0];
       prefStepFree.value = p?.stepFree ?? false;
+      prefIndoors.value = p?.indoors ?? false;
       prefLocation.value = p?.useLocation ?? false;
       if (p?.units) { units.value = p.units; remember("units", p.units); }
     }
@@ -481,6 +486,7 @@ const app = createApp({
       authError.value = ""; showSignIn.value = false; choosing.value = false; password.value = "";
       await loadMe();
       accessibleOnly.value = prefStepFree.value;
+      indoorsPreferred.value = prefIndoors.value;
       return null;
     }
     const submitPassword = () =>
@@ -534,7 +540,7 @@ const app = createApp({
       const asked = ++latestRoute;
       finished.value = false;
       if (!from.value || !to.value || from.value.place === to.value.place) { steps.value = []; searched.value = false; return; }
-      const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, hour: hour.value });
+      const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value });
       if (asked !== latestRoute) return; // an answer to an older choice of places
       if ("error" in result) return say(`Could not find a route: ${result.error}`, "bad");
       pathSteps = result.route.steps; // every point, for drawing; the list shows merged steps
@@ -856,12 +862,12 @@ const app = createApp({
       sheetOpen.value = true;
       closest.value = [];
       if (!from.value) return;
-      const result = await client.route.closest({ source: from.value.place, text: kind.text, accessibleOnly: accessibleOnly.value, hour: hour.value });
+      const result = await client.route.closest({ source: from.value.place, text: kind.text, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value });
       if ("error" in result) return;
       closest.value = result.closest.places;
       // How far each is: the metres written in its route, as for any route (the cost is not a length).
       const metres = await Promise.all(closest.value.map(async (c: any) => {
-        const route = await client.route.find({ source: from.value!.place, destination: c.place, accessibleOnly: accessibleOnly.value, hour: hour.value });
+        const route = await client.route.find({ source: from.value!.place, destination: c.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value });
         return "error" in route ? undefined : route.route.steps.reduce((sum: number, st: any) => sum + Number(/about (\d+) m/.exec(st.instruction)?.[1] ?? 0), 0);
       }));
       closest.value = closest.value.map((c: any, i: number) => ({ ...c, meters: metres[i] }));
@@ -929,7 +935,7 @@ const app = createApp({
         const answer = await client.route.nearest({ latitude: here[0], longitude: here[1] });
         const nearest = "error" in answer ? undefined : answer.nearest.places[0];
         if (!nearest || !to.value) return say("You seem to be off the route, and no nearby building was found. Keep to the line on the map.", "bad");
-        const result = await client.route.find({ source: nearest.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, hour: nowHour() });
+        const result = await client.route.find({ source: nearest.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: nowHour() });
         if ("error" in result || !result.route.steps.length) return say(`You seem to be off the route, and there is no route from ${nearest.name}. Keep to the old route.`, "bad");
         skipNextRoute = true;
         from.value = { ...nearest, kind: "ENTRANCE", floor: 1 };
@@ -990,7 +996,7 @@ const app = createApp({
       await loadMine();
     }
     async function savePreferences() {
-      await client.me.preferences.set({ stepFree: prefStepFree.value, useLocation: prefLocation.value, units: units.value });
+      await client.me.preferences.set({ stepFree: prefStepFree.value, indoors: prefIndoors.value, useLocation: prefLocation.value, units: units.value });
     }
     async function finishTrip() {
       if (!from.value || !to.value || finished.value) return;
@@ -1001,7 +1007,7 @@ const app = createApp({
       await loadMine();
     }
 
-    watch([from, to, accessibleOnly, time], () => {
+    watch([from, to, accessibleOnly, indoorsPreferred, time], () => {
       if (skipNextRoute) { skipNextRoute = false; return; } // the reroute already found this route
       message.value = "";
       findRoute();
@@ -1028,7 +1034,7 @@ const app = createApp({
       fetch("/drawings/index.json").then((r) => (r.ok ? r.json() : {}), () => ({})).then((index) => { drawings.value = index; drawPlans(); });
       if (window.location.pathname === "/auth/commons/callback") await finishCommons();
       else await loadMe();
-      if (me.value) { accessibleOnly.value = prefStepFree.value; tracking.value = prefLocation.value; }
+      if (me.value) { accessibleOnly.value = prefStepFree.value; indoorsPreferred.value = prefIndoors.value; tracking.value = prefLocation.value; }
       const [start, end] = await Promise.all([placeNamed("Simmons Hall (Building W79)"), placeNamed("32-123 Lecture Hall"), load()]);
       from.value ??= start;
       to.value ??= end;
@@ -1036,8 +1042,8 @@ const app = createApp({
 
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
-      reports, unreported, steps, from, to, accessibleOnly, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      planStyle, choosePlanStyle, startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, sheetStyle, grab, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
+      reports, unreported, steps, from, to, accessibleOnly, indoorsPreferred, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
+      planStyle, choosePlanStyle, startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, sheetStyle, grab, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefIndoors, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });

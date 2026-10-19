@@ -161,6 +161,7 @@ export type CampusWire = {
       };
       "preferences": {
         "preferences": {
+          "indoors": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["indoors"]>>;
           "stepFree": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["stepFree"]>>;
           "units": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["units"]>>;
           "useLocation": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["useLocation"]>>;
@@ -204,6 +205,7 @@ export type CampusWire = {
   };
   "/me/preferences/set": {
     input: {
+      "indoors": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["indoors"]>>;
       "session": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Sessioning"]["use"]>[0], ["session"]>>;
       "stepFree": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["stepFree"]>>;
       "units": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["units"]>>;
@@ -270,6 +272,7 @@ export type CampusWire = {
     input: {
       "accessibleOnly": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["accessibleOnly"]>>;
       "hour": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["hour"]>>;
+      "indoorsPreferred": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["indoorsPreferred"]>>;
       "source": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["source"]>>;
       "text": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["text"]>>;
     };
@@ -290,6 +293,7 @@ export type CampusWire = {
       "accessibleOnly": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["accessibleOnly"]>>;
       "destination": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["destination"]>>;
       "hour": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["hour"]>>;
+      "indoorsPreferred": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["indoorsPreferred"]>>;
       "source": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["source"]>>;
     };
     output: {
@@ -458,6 +462,7 @@ export type CampusWireHttp = {
       };
       "preferences": {
         "preferences": {
+          "indoors": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["indoors"]>>;
           "stepFree": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["stepFree"]>>;
           "units": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["units"]>>;
           "useLocation": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Preferring"]["_preferences"]>>>, ["useLocation"]>>;
@@ -499,6 +504,7 @@ export type CampusWireHttp = {
   };
   "/me/preferences/set": {
     input: {
+      "indoors": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["indoors"]>>;
       "stepFree": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["stepFree"]>>;
       "units": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["units"]>>;
       "useLocation": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Preferring"]["set"]>[0], ["useLocation"]>>;
@@ -559,6 +565,7 @@ export type CampusWireHttp = {
     input: {
       "accessibleOnly": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["accessibleOnly"]>>;
       "hour": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["hour"]>>;
+      "indoorsPreferred": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["indoorsPreferred"]>>;
       "source": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["source"]>>;
       "text": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_closest"]>[0], ["text"]>>;
     };
@@ -579,6 +586,7 @@ export type CampusWireHttp = {
       "accessibleOnly": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["accessibleOnly"]>>;
       "destination": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["destination"]>>;
       "hour": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["hour"]>>;
+      "indoorsPreferred": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["indoorsPreferred"]>>;
       "source": Jsonify<AtPath<Parameters<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>[0], ["source"]>>;
     };
     output: {

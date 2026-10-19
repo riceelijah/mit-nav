@@ -44,10 +44,10 @@ const BlockedList = former(
 
 const Route = former(
   "the route from (source) to (destination)",
-  ({ source, destination, accessibleOnly, hour }, { step, link, instruction, placeName, kind, floor, distance, latitude, longitude }) =>
+  ({ source, destination, accessibleOnly, indoorsPreferred, hour }, { step, link, instruction, placeName, kind, floor, distance, latitude, longitude }) =>
     form({
       steps: each(
-        Wayfinding._route({ source, destination, accessibleOnly, hour }).is({
+        Wayfinding._route({ source, destination, accessibleOnly, indoorsPreferred, hour }).is({
           step,
           link,
           instruction,
@@ -94,24 +94,24 @@ const NearestPlace = endpoint(
 
 const Closest = former(
   "the places matching (text) nearest (source)",
-  ({ source, text, accessibleOnly, hour }, { place, name, floor, cost }) =>
+  ({ source, text, accessibleOnly, indoorsPreferred, hour }, { place, name, floor, cost }) =>
     form({
-      places: each(Wayfinding._closest({ source, text, accessibleOnly, hour }).is({ place, name, floor, cost })).form({ place, name, floor, cost }),
+      places: each(Wayfinding._closest({ source, text, accessibleOnly, indoorsPreferred, hour }).is({ place, name, floor, cost })).form({ place, name, floor, cost }),
     }),
 );
 
 const FindClosest = endpoint(
   "/route/closest",
-  ({ source, text, accessibleOnly, hour }) =>
-    receive({ source, text, accessibleOnly, hour }).then(respond({ closest: Closest({ source, text, accessibleOnly, hour }) })),
+  ({ source, text, accessibleOnly, indoorsPreferred, hour }) =>
+    receive({ source, text, accessibleOnly, indoorsPreferred, hour }).then(respond({ closest: Closest({ source, text, accessibleOnly, indoorsPreferred, hour }) })),
   { validators: { input: closestInput } },
 );
 
 const FindRoute = endpoint(
   "/route/find",
-  ({ source, destination, accessibleOnly, hour }) =>
-    receive({ source, destination, accessibleOnly, hour }).then(
-      respond({ route: Route({ source, destination, accessibleOnly, hour }) }),
+  ({ source, destination, accessibleOnly, indoorsPreferred, hour }) =>
+    receive({ source, destination, accessibleOnly, indoorsPreferred, hour }).then(
+      respond({ route: Route({ source, destination, accessibleOnly, indoorsPreferred, hour }) }),
     ),
   { validators: { input: routeInput } },
 );

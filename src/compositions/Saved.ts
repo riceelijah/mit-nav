@@ -23,8 +23,8 @@ const MyTrips = former("the saved trips of (user)", ({ user }, { trip, name, sou
   }),
 );
 
-const MyPreferences = former("the preferences of (user)", ({ user }, { stepFree, useLocation, units }) =>
-  form({ preferences: each(Preferring._preferences({ user }).is({ stepFree, useLocation, units })).form({ stepFree, useLocation, units }) }),
+const MyPreferences = former("the preferences of (user)", ({ user }, { stepFree, indoors, useLocation, units }) =>
+  form({ preferences: each(Preferring._preferences({ user }).is({ stepFree, indoors, useLocation, units })).form({ stepFree, indoors, useLocation, units }) }),
 );
 
 const MyHistory = former("the recent trips of (user)", ({ user }, { entry, source, destination, meters, sourceName, destinationName }) =>
@@ -109,10 +109,10 @@ const RemoveTrip = endpoint(
 
 const SetPreferences = endpoint(
   "/me/preferences/set",
-  ({ session, user, stepFree, useLocation, units }) =>
-    receive({ session, stepFree, useLocation, units })
+  ({ session, user, stepFree, indoors, useLocation, units }) =>
+    receive({ session, stepFree, indoors, useLocation, units })
       .then(Sessioning.use({ session }).responds({ subject: user }))
-      .then(Preferring.set({ user, stepFree, useLocation, units }).responds({}))
+      .then(Preferring.set({ user, stepFree, indoors, useLocation, units }).responds({}))
       .then(respond({})),
   { validators: { input: preferencesInput } },
 );

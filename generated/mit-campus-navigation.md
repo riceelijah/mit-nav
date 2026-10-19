@@ -122,11 +122,11 @@ Defined in [Preferring](../design/concepts/Preferring.md), line 1.
 
 #### Actions
 
-- `set(user: User, stepFree: Flag, useLocation: Flag, units: Units) : returns ()`
+- `set(user: User, stepFree: Flag, indoors: Flag, useLocation: Flag, units: Units) : returns ()`
 
 #### Queries
 
-- `_preferences(user: User) : one (stepFree: Flag, useLocation: Flag, units: Units)`
+- `_preferences(user: User) : one (stepFree: Flag, indoors: Flag, useLocation: Flag, units: Units)`
 
 #### Instances
 
@@ -197,7 +197,7 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 
 - `addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number) : returns (place: Place)`
   - Refuses `DUPLICATE_PLACE`: A place with that name already exists.
-- `connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number) : returns (link: Link)`
+- `connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, outdoor: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number) : returns (link: Link)`
   - Refuses `NO_SUCH_PLACE`: Both places must exist before they can be connected.
 - `block(link: Link) : returns (link: Link)`
   - Refuses `NO_SUCH_LINK`: There is no such connection.
@@ -213,11 +213,11 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 - `_place(place: Place) : optional (name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)`
 - `_nearest(latitude: Number, longitude: Number) : optional (place: Place, name: String, latitude: Number, longitude: Number)`
 - `_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)`
-- `_closest(source: Place, text: String, accessibleOnly: Flag, hour: Number) : many (place: Place, name: String, floor: Number, cost: Number)`
+- `_closest(source: Place, text: String, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (place: Place, name: String, floor: Number, cost: Number)`
 - `_link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)`
 - `_blocked() : many (link: Link, sourceName: String, destinationName: String, forward: String, service: String)`
 - `_sameService(link: Link) : many (other: Link)`
-- `_route(source: Place, destination: Place, accessibleOnly: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number)`
+- `_route(source: Place, destination: Place, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number)`
 
 #### Instances
 
@@ -323,9 +323,9 @@ Authored path: `Campus.Routing.Closest`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 24.
 
 ```former
-Former "the places matching (text) nearest (source)" — inputs (source, text, accessibleOnly, hour); bindings (place, name, floor, cost); promises exactly one record — forms:
+Former "the places matching (text) nearest (source)" — inputs (source, text, accessibleOnly, indoorsPreferred, hour); bindings (place, name, floor, cost); promises exactly one record — forms:
   a record of
-    places: each Wayfinding._closest (accessibleOnly, hour, source, text) has (cost, floor, name, place)
+    places: each Wayfinding._closest (accessibleOnly, hour, indoorsPreferred, source, text) has (cost, floor, name, place)
       form a record of
         cost
         floor
@@ -339,10 +339,11 @@ Authored path: `Saved.Mine.MyPreferences`.
 - Covered by [Saved things](../design/compositions/Saved.md), line 5.
 
 ```former
-Former "the preferences of (user)" — inputs (user); bindings (stepFree, useLocation, units); promises exactly one record — forms:
+Former "the preferences of (user)" — inputs (user); bindings (stepFree, indoors, useLocation, units); promises exactly one record — forms:
   a record of
-    preferences: each Preferring._preferences (user) has (stepFree, units, useLocation)
+    preferences: each Preferring._preferences (user) has (indoors, stepFree, units, useLocation)
       form a record of
+        indoors
         stepFree
         units
         useLocation
@@ -374,9 +375,9 @@ Authored path: `Campus.Routing.Route`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 18.
 
 ```former
-Former "the route from (source) to (destination)" — inputs (source, destination, accessibleOnly, hour); bindings (step, link, instruction, placeName, kind, floor, distance, latitude, longitude); promises exactly one record — forms:
+Former "the route from (source) to (destination)" — inputs (source, destination, accessibleOnly, indoorsPreferred, hour); bindings (step, link, instruction, placeName, kind, floor, distance, latitude, longitude); promises exactly one record — forms:
   a record of
-    steps: each Wayfinding._route (accessibleOnly, destination, hour, source) has (distance, floor, instruction, kind, latitude, link, longitude, placeName, step)
+    steps: each Wayfinding._route (accessibleOnly, destination, hour, indoorsPreferred, source) has (distance, floor, instruction, kind, latitude, link, longitude, placeName, step)
       form a record of
         distance
         floor
@@ -629,9 +630,9 @@ Authored path: `Campus.Routing.FindClosest`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 27.
 
 ```reaction
-when RequestBoundary.request (accessibleOnly, hour, path: "/route/closest", requestId, source, text)
+when RequestBoundary.request (accessibleOnly, hour, indoorsPreferred, path: "/route/closest", requestId, source, text)
 then
-  RequestBoundary.respond (closest: former "the places matching (text) nearest (source)" with (accessibleOnly, hour, source, text), requestId)
+  RequestBoundary.respond (closest: former "the places matching (text) nearest (source)" with (accessibleOnly, hour, indoorsPreferred, source, text), requestId)
 ```
 
 ### Campus.Routing.FindRoute
@@ -641,9 +642,9 @@ Authored path: `Campus.Routing.FindRoute`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 21.
 
 ```reaction
-when RequestBoundary.request (accessibleOnly, destination, hour, path: "/route/find", requestId, source)
+when RequestBoundary.request (accessibleOnly, destination, hour, indoorsPreferred, path: "/route/find", requestId, source)
 then
-  RequestBoundary.respond (requestId, route: former "the route from (source) to (destination)" with (accessibleOnly, destination, hour, source))
+  RequestBoundary.respond (requestId, route: former "the route from (source) to (destination)" with (accessibleOnly, destination, hour, indoorsPreferred, source))
 ```
 
 ### Campus.Routing.NearestPlace
@@ -1189,7 +1190,7 @@ Authored path: `Saved.Preferences.SetPreferences`.
 - Covered by [Saved things](../design/compositions/Saved.md), line 28.
 
 ```reaction
-when RequestBoundary.request (path: "/me/preferences/set", requestId, session, stepFree, units, useLocation)
+when RequestBoundary.request (indoors, path: "/me/preferences/set", requestId, session, stepFree, units, useLocation)
 then
   Sessioning.use (session)
 ```
@@ -1203,9 +1204,9 @@ Authored path: `Saved.Preferences.SetPreferences`.
 ```reaction
 when Sessioning.use (session, subject: user), asked by Saved.Preferences.SetPreferences
 where
-  earlier, RequestBoundary.request (path: "/me/preferences/set", requestId, session, stepFree, units, useLocation)
+  earlier, RequestBoundary.request (indoors, path: "/me/preferences/set", requestId, session, stepFree, units, useLocation)
 then
-  Preferring.set (stepFree, units, useLocation, user)
+  Preferring.set (indoors, stepFree, units, useLocation, user)
 ```
 
 ### Saved.Preferences.SetPreferences#3
@@ -1215,9 +1216,9 @@ Authored path: `Saved.Preferences.SetPreferences`.
 - Covered by [Saved things](../design/compositions/Saved.md), line 28.
 
 ```reaction
-when Preferring.set (stepFree, units, useLocation, user), asked by Saved.Preferences.SetPreferences#2
+when Preferring.set (indoors, stepFree, units, useLocation, user), asked by Saved.Preferences.SetPreferences#2
 where
-  earlier, RequestBoundary.request (path: "/me/preferences/set", requestId, session, stepFree, units, useLocation)
+  earlier, RequestBoundary.request (indoors, path: "/me/preferences/set", requestId, session, stepFree, units, useLocation)
 then
   RequestBoundary.respond (requestId)
 ```
@@ -1351,12 +1352,12 @@ not listed here have no explicit input contract.
 - `/me` — requires `session`
 - `/me/favorites/add` — requires `place`, `session`
 - `/me/favorites/remove` — requires `place`, `session`
-- `/me/preferences/set` — requires `session`, `stepFree`, `units`, `useLocation`
+- `/me/preferences/set` — requires `indoors`, `session`, `stepFree`, `units`, `useLocation`
 - `/me/trips/finish` — requires `destination`, `meters`, `session`, `source`
 - `/me/trips/remove` — requires `session`, `trip`
 - `/me/trips/save` — requires `accessibleOnly`, `destination`, `name`, `session`, `source`
 - `/problems/block` — requires `link`, `reason`, `session`
 - `/problems/unblock` — requires `link`, `session`
-- `/route/closest` — requires `accessibleOnly`, `hour`, `source`, `text`
-- `/route/find` — requires `accessibleOnly`, `destination`, `hour`, `source`
+- `/route/closest` — requires `accessibleOnly`, `hour`, `indoorsPreferred`, `source`, `text`
+- `/route/find` — requires `accessibleOnly`, `destination`, `hour`, `indoorsPreferred`, `source`
 - `/route/nearest` — requires `latitude`, `longitude`

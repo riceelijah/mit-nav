@@ -41,17 +41,17 @@ type Body = Record<string, unknown>;
 const isBody = (v: unknown): v is Body => typeof v === "object" && v !== null && !Array.isArray(v);
 const isHour = (h: unknown) => typeof h === "number" && h >= 0 && h <= 24;
 
-/** Two places (text), a step-free flag (true or false) and an hour from 0 to 24, for a route. */
+/** Two places (text), step-free and indoors flags (true or false) and an hour from 0 to 24, for a route. */
 export const routeInput: EndpointValidator = (b) =>
-  isBody(b) && typeof b.source === "string" && typeof b.destination === "string" && typeof b.accessibleOnly === "boolean" && isHour(b.hour)
+  isBody(b) && typeof b.source === "string" && typeof b.destination === "string" && typeof b.accessibleOnly === "boolean" && typeof b.indoorsPreferred === "boolean" && isHour(b.hour)
     ? { ok: true }
-    : { ok: false, detail: "expected source, destination (text), accessibleOnly (true or false) and hour (0 to 24)" };
+    : { ok: false, detail: "expected source, destination (text), accessibleOnly and indoorsPreferred (true or false) and hour (0 to 24)" };
 
-/** A start, the text naming a kind of place, a step-free flag and an hour from 0 to 24, for the nearest-of-a-kind search. */
+/** A start, the text naming a kind of place, step-free and indoors flags and an hour from 0 to 24, for the nearest-of-a-kind search. */
 export const closestInput: EndpointValidator = (b) =>
-  isBody(b) && typeof b.source === "string" && typeof b.text === "string" && typeof b.accessibleOnly === "boolean" && isHour(b.hour)
+  isBody(b) && typeof b.source === "string" && typeof b.text === "string" && typeof b.accessibleOnly === "boolean" && typeof b.indoorsPreferred === "boolean" && isHour(b.hour)
     ? { ok: true }
-    : { ok: false, detail: "expected source, text, accessibleOnly (true or false) and hour (0 to 24)" };
+    : { ok: false, detail: "expected source, text, accessibleOnly and indoorsPreferred (true or false) and hour (0 to 24)" };
 
 /** signedIn(...) plus a text name and places and a true-or-false step-free flag, for saving a trip. */
 export const tripInput: EndpointValidator = (value) => {
@@ -75,7 +75,7 @@ export const finishInput: EndpointValidator = (value) => {
 
 /** signedIn(...) plus units that are one of METERS, FEET, MINUTES. */
 export const preferencesInput: EndpointValidator = (value) => {
-  const base = signedIn("stepFree", "useLocation", "units")(value);
+  const base = signedIn("stepFree", "indoors", "useLocation", "units")(value);
   if (!base.ok) return base;
   const units = (value as Record<string, unknown>).units;
   return units === "METERS" || units === "FEET" || units === "MINUTES" ? { ok: true } : { ok: false, detail: "units must be METERS, FEET or MINUTES" };

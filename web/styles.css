@@ -49,8 +49,8 @@ h2 { font: 600 1.05rem/1.3 var(--sans); margin: 22px 0 8px; }
 .combo input { width: 100%; padding: 11px 12px; border: 1px solid var(--rule); border-radius: 6px; background: var(--concrete); font-size: 1rem; color: var(--ink); }
 .combo input:focus { background: var(--paper); border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px rgba(31, 95, 173, .25); }
 .swap { position: absolute; right: 26px; top: 34px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--rule); background: var(--paper); cursor: pointer; z-index: 1; }
-.options { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding-left: 44px; flex-wrap: wrap; }
-.time { font-size: .9rem; color: var(--ink-soft); display: flex; gap: 6px; align-items: center; }
+.options { display: flex; gap: 8px; align-items: center; padding-left: 44px; flex-wrap: wrap; }
+.time { margin-left: auto; font-size: .9rem; color: var(--ink-soft); display: flex; gap: 6px; align-items: center; }
 .time input { border: 1px solid var(--rule); border-radius: 6px; padding: 5px 6px; background: var(--paper); }
 
 /* Search results */

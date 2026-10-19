@@ -57,12 +57,14 @@ test("Journaling keeps only the 20 most recent in history, but totals count all"
 
 test("Preferring principle: defaults until set, set overwrites, per person", async () => {
   const p = new PreferringConcept((await freshDb()).db);
-  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, useLocation: false, units: "METERS" });
-  await p.set({ user: "ana", stepFree: true, useLocation: true, units: "MINUTES" });
-  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: true, useLocation: true, units: "MINUTES" });
-  await p.set({ user: "ana", stepFree: false, useLocation: true, units: "FEET" });
-  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, useLocation: true, units: "FEET" });
-  expect(await p._preferences({ user: "ben" })).toEqual({ stepFree: false, useLocation: false, units: "METERS" });
+  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, indoors: false, useLocation: false, units: "METERS" });
+  await p.set({ user: "ana", stepFree: true, indoors: false, useLocation: true, units: "MINUTES" });
+  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: true, indoors: false, useLocation: true, units: "MINUTES" });
+  await p.set({ user: "ana", stepFree: false, indoors: false, useLocation: true, units: "FEET" });
+  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, indoors: false, useLocation: true, units: "FEET" });
+  expect(await p._preferences({ user: "ben" })).toEqual({ stepFree: false, indoors: false, useLocation: false, units: "METERS" });
+  await p.set({ user: "ben", stepFree: false, indoors: true, useLocation: false, units: "METERS" });
+  expect((await p._preferences({ user: "ben" })).indoors).toBe(true);
 });
 
 test("saving and finishing trips check their input before anything is kept", async () => {

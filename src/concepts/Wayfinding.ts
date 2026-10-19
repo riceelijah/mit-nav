@@ -26,6 +26,7 @@ interface LinkDoc {
   forward: string;
   backward: string;
   accessible: boolean;
+  outdoor?: boolean; // links made before outdoor existed are indoors
   blocked: boolean;
   closedFrom: number;
   closedUntil: number;
@@ -35,6 +36,8 @@ interface LinkDoc {
 
 const SEARCH_LIMIT = 40;
 const CLOSEST = 5;
+// Preferring indoors makes each outdoor connection cost this many times its distance.
+const OUTDOOR_FACTOR = 3;
 // Building and room numbers sort the way people read them: 2 before 10, 32-123 before 32-G904.
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
@@ -62,7 +65,7 @@ async function describe(places: Collection<PlaceDoc>, l: LinkDoc) {
  * Dijkstra from `source` until `stop` says to: the cheapest cost to each place reached, how it was reached,
  * and the places in the order they were settled (cheapest first, earliest discovered on a tie).
  */
-function cheapest(links: LinkDoc[], source: string, accessibleOnly: boolean, hour: number, stop: (place: string) => boolean) {
+function cheapest(links: LinkDoc[], source: string, accessibleOnly: boolean, indoorsPreferred: boolean, hour: number, stop: (place: string) => boolean) {
   const settled: string[] = [];
   // Dijkstra finds the cheapest route. Each connection costs the distance it was given when it was made.
   // Blocked connections and ones closed at this hour are never used, and neither are inaccessible ones when asked to avoid them.
@@ -116,7 +119,7 @@ function cheapest(links: LinkDoc[], source: string, accessibleOnly: boolean, hou
     done.add(here);
     for (const edge of next.get(here) ?? []) {
       if (done.has(edge.to)) continue;
-      const candidate = d + (edge.link.distance ?? 1);
+      const candidate = d + (edge.link.distance ?? 1) * (indoorsPreferred && edge.link.outdoor ? OUTDOOR_FACTOR : 1);
       if (!order.has(edge.to)) order.set(edge.to, order.size);
       if (!dist.has(edge.to) || candidate < dist.get(edge.to)!) {
         dist.set(edge.to, candidate);
@@ -163,6 +166,7 @@ export class WayfindingConcept {
     forward,
     backward,
     accessible,
+    outdoor,
     closedFrom,
     closedUntil,
     service,
@@ -173,6 +177,7 @@ export class WayfindingConcept {
     forward: string;
     backward: string;
     accessible: boolean;
+    outdoor: boolean;
     closedFrom: number;
     closedUntil: number;
     service: string;
@@ -193,6 +198,7 @@ export class WayfindingConcept {
       forward,
       backward,
       accessible,
+      outdoor,
       blocked: false,
       closedFrom,
       closedUntil,
@@ -276,7 +282,7 @@ export class WayfindingConcept {
       .map(({ _id, name, kind, floor, latitude, longitude }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0 }));
   }
 
-  async _closest({ source, text, accessibleOnly, hour }: { source: string; text: string; accessibleOnly: boolean; hour: number }) {
+  async _closest({ source, text, accessibleOnly, indoorsPreferred, hour }: { source: string; text: string; accessibleOnly: boolean; indoorsPreferred: boolean; hour: number }) {
     const places = new Map((await this.places.find({}).toArray()).map((p) => [p._id, p]));
     if (!places.has(source)) return [];
     const q = text.trim().toLowerCase();
@@ -287,7 +293,7 @@ export class WayfindingConcept {
     const links = (await this.links.find({}).toArray()).sort((a, b) => a.order - b.order);
     let found = 0;
     // Settled order is cheapest first, so the search can stop at the fifth match.
-    const { dist, settled } = cheapest(links, source, accessibleOnly, hour, (id) => matches(id) && ++found >= CLOSEST);
+    const { dist, settled } = cheapest(links, source, accessibleOnly, indoorsPreferred, hour, (id) => matches(id) && ++found >= CLOSEST);
     return settled
       .filter(matches)
       .slice(0, CLOSEST)
@@ -318,18 +324,20 @@ export class WayfindingConcept {
     source,
     destination,
     accessibleOnly,
+    indoorsPreferred,
     hour,
   }: {
     source: string;
     destination: string;
     accessibleOnly: boolean;
+    indoorsPreferred: boolean;
     hour: number;
   }) {
     const places = new Map((await this.places.find({}).toArray()).map((p) => [p._id, p]));
     if (!places.has(source) || !places.has(destination) || source === destination) return [];
     const links = (await this.links.find({}).toArray()).sort((a, b) => a.order - b.order);
 
-    const { came } = cheapest(links, source, accessibleOnly, hour, (place) => place === destination);
+    const { came } = cheapest(links, source, accessibleOnly, indoorsPreferred, hour, (place) => place === destination);
     if (!came.has(destination)) return [];
 
     const path: { link: LinkDoc; instruction: string; place: PlaceDoc }[] = [];

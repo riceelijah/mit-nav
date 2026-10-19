@@ -22,7 +22,7 @@ Saved.Trips.SaveTrip at /me/trips/save
 Saved.Trips.RemoveTrip at /me/trips/remove
 ```
 
-[Setting preferences](reaction:Saved.Preferences.SetPreferences) carries the session, both flags (step-free routes by default, use my location) and the units for distances (METERS, FEET or MINUTES) and answers with nothing; a request missing any of the three, or with units other than those, is refused with INVALID_REQUEST and changes nothing. The page applies them when it loads, reporting every distance it shows in those units (minutes at 80 metres a minute); someone who is not signed in can still choose units, which the page keeps on that device only. Journal entries are stored in metres whatever the units.
+[Setting preferences](reaction:Saved.Preferences.SetPreferences) carries the session, three flags (step-free routes by default, indoor routes by default, use my location) and the units for distances (METERS, FEET or MINUTES) and answers with nothing; a request missing any of the four, or with units other than those, is refused with INVALID_REQUEST and changes nothing. The page applies them when it loads, reporting every distance it shows in those units (minutes at 80 metres a minute); someone who is not signed in can still choose units, which the page keeps on that device only. Journal entries are stored in metres whatever the units.
 
 ```endpoints
 Saved.Preferences.SetPreferences at /me/preferences/set

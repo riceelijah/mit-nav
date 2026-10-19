@@ -5,6 +5,7 @@ export type Units = "METERS" | "FEET" | "MINUTES";
 interface PreferenceDoc {
   _id: string; // the user
   stepFree: boolean;
+  indoors?: boolean; // saved before indoors existed: false
   useLocation: boolean;
   units: Units;
 }
@@ -17,13 +18,13 @@ export class PreferringConcept {
     this.preferences = database.collection(`${name.toLowerCase()}.preferences`);
   }
 
-  async set({ user, stepFree, useLocation, units }: { user: string; stepFree: boolean; useLocation: boolean; units: Units }) {
-    await this.preferences.updateOne({ _id: user }, { $set: { stepFree, useLocation, units } }, { upsert: true });
+  async set({ user, stepFree, indoors, useLocation, units }: { user: string; stepFree: boolean; indoors: boolean; useLocation: boolean; units: Units }) {
+    await this.preferences.updateOne({ _id: user }, { $set: { stepFree, indoors, useLocation, units } }, { upsert: true });
     return {};
   }
 
   async _preferences({ user }: { user: string }) {
     const found = await this.preferences.findOne({ _id: user });
-    return { stepFree: found?.stepFree ?? false, useLocation: found?.useLocation ?? false, units: found?.units ?? ("METERS" as Units) };
+    return { stepFree: found?.stepFree ?? false, indoors: found?.indoors ?? false, useLocation: found?.useLocation ?? false, units: found?.units ?? ("METERS" as Units) };
   }
 }

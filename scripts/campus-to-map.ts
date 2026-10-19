@@ -31,8 +31,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 
 type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
 export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number };
-// source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance
-export type Link = [string, string, string, string, boolean, number, number, string, number];
+// source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance, and outdoor (only outdoor walks carry it)
+export type Link = [string, string, string, string, boolean, number, number, string, number, true?];
 export type Point = [number, number];
 type Building = { ref: string; name: string; rings: Point[][]; center: Point };
 
@@ -581,7 +581,7 @@ async function buildCampus() {
   for (const e of paths.edges) {
     const text = `Walk about ${Math.max(1, Math.round(e.meters))} m outside${e.name ? ` along ${e.name}` : ""}.`;
     // Along a path only the metres count, so a path is not penalised for its bends.
-    links.push([pathName(e.from), pathName(e.to), text, text, e.stepFree, 0, 0, "", e.meters / 50]);
+    links.push([pathName(e.from), pathName(e.to), text, text, e.stepFree, 0, 0, "", e.meters / 50, true]);
   }
   const unreached: number[] = [];
   buildings.forEach((b, i) => {
@@ -597,7 +597,7 @@ async function buildCampus() {
     if (!joins.size) unreached.push(i);
     for (const [id, m] of joins) {
       const r = Math.max(1, Math.round(m));
-      links.push([buildingPlace(b), pathName(id), `Walk about ${r} m outside.`, `Walk about ${r} m to the entrance of ${buildingPlace(b)}.`, true, 0, 0, "", outdoorWalk(m)]);
+      links.push([buildingPlace(b), pathName(id), `Walk about ${r} m outside.`, `Walk about ${r} m to the entrance of ${buildingPlace(b)}.`, true, 0, 0, "", outdoorWalk(m), true]);
     }
   });
   // ponytail: a building far from every mapped path gets straight walks to its nearest buildings; mapping its paths in OSM fixes it.
@@ -609,7 +609,7 @@ async function buildCampus() {
         buildingPlace(a), buildingPlace(b),
         `Walk outside to ${buildingPlace(b)}, about ${m} m to the ${direction(where(a), where(b))}.`,
         `Walk outside to ${buildingPlace(a)}, about ${m} m to the ${direction(where(b), where(a))}.`,
-        true, 0, 0, "", outdoorWalk(m),
+        true, 0, 0, "", outdoorWalk(m), true,
       ]);
     }
   }
