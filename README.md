@@ -7,7 +7,7 @@ Step-by-step directions across MIT, from building to building and floor to floor
 ```sh
 bun install
 bun run dev        # starts MongoDB (podman), backend :3000, frontend :8080
-bun run seed       # in a second terminal, with the backend stopped, to load or update the map
+bun run seed       # in a second terminal, with the backend stopped, to load or update the map (`bun run start` seeds itself first)
 ```
 
 ## Updating the campus map
