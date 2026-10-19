@@ -1,0 +1,210 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "footprint-tracing",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/footprint-tracing"
+  },
+  "role": "designer",
+  "phase": "contracts",
+  "execution": "simulated",
+  "independent": false,
+  "harness": "coordinator",
+  "simulationReason": "coordinator simulates designer",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/footprint-tracing/2026-10-19T12-53-55Z-designer-contracts.prompt.md",
+    "sha256": "54df973a650657986d73ceae656f86a5eb95d88c18b45b7bda1b42afe5b92b02"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/footprint-tracing/2026-10-19T12-53-55Z-designer-contracts.capabilities.json",
+    "sha256": "7578c525d6b652c42d807d3f5870eaac98330420d09e14bc5e52442e60cf48c0"
+  },
+  "grant": {
+    "readableAreas": [],
+    "writableAreas": [
+      {
+        "area": "assigned-design",
+        "path": "compositions/Campus.md"
+      }
+    ],
+    "toolKinds": [
+      "repository-read",
+      "repository-write"
+    ],
+    "projectShell": "project-validation",
+    "network": false,
+    "generatedOutput": false,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/footprint-tracing/2026-10-19T12-53-55Z-designer-contracts.response.md",
+    "sha256": "620efd5f48328f9c000f56509f68bb0f22153aa8c015479da879bd83401bf41b",
+    "bytes": 262
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/footprint-tracing/brief.md",
+      "sha256": "94ab1662fe5da10bec311a7728f2cac4b41544c8609e2aacd7d8d3708daa73b5"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/footprint-tracing/2026-10-19T12-53-55Z-designer-contracts.baseline.json",
+      "sha256": "5b0f04e3349a170f0b4fe1e75d1104ea3687237cffc69d46d4be1a75055c5fb0"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "2cd25a3404e5d13527128c035ef91a83120feb3012c68024bb3a26a3f68fb1b0",
+    "beforeFiles": [
+      {
+        "path": "compositions/Accounts.md",
+        "sha256": "a32a9c8c00a35ef084d71c636a6e8d35e041cb63782d815e76b262866b6fcd39"
+      },
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "516c5bd0cbd64d838d1ae593d0c12aba3294afbe5b92124ac0d124ccdb17b4e5"
+      },
+      {
+        "path": "compositions/Commons.md",
+        "sha256": "0a97f4ac87dfffd5db28437ca2a2d88183e6c39301bb56cded80ed096e3f7ebb"
+      },
+      {
+        "path": "compositions/Passwords.md",
+        "sha256": "20527c7d49bd1bec22679eae148b887eb45219e6574f3fc595df68252c5c8eea"
+      },
+      {
+        "path": "compositions/Saved.md",
+        "sha256": "795b2b615328a729eca4f0126c652e622b4442c1e2ac5d6c9d2209b36e9f34ac"
+      },
+      {
+        "path": "concepts/Authenticating.md",
+        "sha256": "0c415f85ad32f100f229269d30c76f7d978baff4f711426ca55ffca1d54639e7"
+      },
+      {
+        "path": "concepts/Favoriting.md",
+        "sha256": "e6a5b50cd86c255f638deba57e5cc591478d9728211626785355eb777e0a180d"
+      },
+      {
+        "path": "concepts/Federating.md",
+        "sha256": "fdd29a2154b9d7c68938d278eaada07e80779250ec03c16f3b0f8e2768c3b699"
+      },
+      {
+        "path": "concepts/Journaling.md",
+        "sha256": "6bc212a12bc51a6c40fb41fca7fd518c71b7db829894b517371ce0d35b460f94"
+      },
+      {
+        "path": "concepts/Planning.md",
+        "sha256": "8ed59003ff3b56ebb33572ec329804cb4031ee1d0ec0c5e075164b28b61d2fdf"
+      },
+      {
+        "path": "concepts/Preferring.md",
+        "sha256": "11a6eb7a05f44e23d4bb89921bc8077e7b680a41919d5432bcb5882624ccc529"
+      },
+      {
+        "path": "concepts/Registering.md",
+        "sha256": "72e2f72dba60dc1c7def945510c7337ae1805d7d30fd757f6f5beac83d86e9cb"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Sessioning.md",
+        "sha256": "b47a9125cadab0e938b6298ac2cd782d7592eefdbd76caa879d4c8366e0ef9bc"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "ed79a225b3d2c996bc715e4018d6c4ef006bb712996b4bfa21b34715b2ab5e74"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "89a4da60cbc9ebe2d05edaf53dd0a2918708cc96cbffb72e2d200cac67fe976a"
+      },
+      {
+        "path": "types.md",
+        "sha256": "04b7229c367b7627872672e11b30648e63db03252d58c34da3cb94f76f7c4c7b"
+      }
+    ],
+    "after": "2cd25a3404e5d13527128c035ef91a83120feb3012c68024bb3a26a3f68fb1b0",
+    "afterFiles": [
+      {
+        "path": "compositions/Accounts.md",
+        "sha256": "a32a9c8c00a35ef084d71c636a6e8d35e041cb63782d815e76b262866b6fcd39"
+      },
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "516c5bd0cbd64d838d1ae593d0c12aba3294afbe5b92124ac0d124ccdb17b4e5"
+      },
+      {
+        "path": "compositions/Commons.md",
+        "sha256": "0a97f4ac87dfffd5db28437ca2a2d88183e6c39301bb56cded80ed096e3f7ebb"
+      },
+      {
+        "path": "compositions/Passwords.md",
+        "sha256": "20527c7d49bd1bec22679eae148b887eb45219e6574f3fc595df68252c5c8eea"
+      },
+      {
+        "path": "compositions/Saved.md",
+        "sha256": "795b2b615328a729eca4f0126c652e622b4442c1e2ac5d6c9d2209b36e9f34ac"
+      },
+      {
+        "path": "concepts/Authenticating.md",
+        "sha256": "0c415f85ad32f100f229269d30c76f7d978baff4f711426ca55ffca1d54639e7"
+      },
+      {
+        "path": "concepts/Favoriting.md",
+        "sha256": "e6a5b50cd86c255f638deba57e5cc591478d9728211626785355eb777e0a180d"
+      },
+      {
+        "path": "concepts/Federating.md",
+        "sha256": "fdd29a2154b9d7c68938d278eaada07e80779250ec03c16f3b0f8e2768c3b699"
+      },
+      {
+        "path": "concepts/Journaling.md",
+        "sha256": "6bc212a12bc51a6c40fb41fca7fd518c71b7db829894b517371ce0d35b460f94"
+      },
+      {
+        "path": "concepts/Planning.md",
+        "sha256": "8ed59003ff3b56ebb33572ec329804cb4031ee1d0ec0c5e075164b28b61d2fdf"
+      },
+      {
+        "path": "concepts/Preferring.md",
+        "sha256": "11a6eb7a05f44e23d4bb89921bc8077e7b680a41919d5432bcb5882624ccc529"
+      },
+      {
+        "path": "concepts/Registering.md",
+        "sha256": "72e2f72dba60dc1c7def945510c7337ae1805d7d30fd757f6f5beac83d86e9cb"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Sessioning.md",
+        "sha256": "b47a9125cadab0e938b6298ac2cd782d7592eefdbd76caa879d4c8366e0ef9bc"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "ed79a225b3d2c996bc715e4018d6c4ef006bb712996b4bfa21b34715b2ab5e74"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "89a4da60cbc9ebe2d05edaf53dd0a2918708cc96cbffb72e2d200cac67fe976a"
+      },
+      {
+        "path": "types.md",
+        "sha256": "04b7229c367b7627872672e11b30648e63db03252d58c34da3cb94f76f7c4c7b"
+      }
+    ]
+  },
+  "status": "completed",
+  "result": "complete",
+  "enforcement": "prompt-guided"
+}

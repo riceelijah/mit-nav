@@ -1,7 +1,7 @@
 # Fits MIT's floor-plan drawings to the map, for the page's optional "MIT drawing" layer. Local only: the drawings
 # need MIT Facilities' written permission to copy or display, so they and their fits stay in data/raw (never committed).
 #
-#   python3 scripts/fit-drawings.py [--again]
+#   python3 scripts/fit-drawings.py [--again] [building ...]   (only those buildings when named)
 #
 # For each data/raw/pdfs/<building>_<floor>.pdf (from floorplans.mit.edu/pdfs/<building>_<floor>.pdf) it reads the room
 # labels on the drawing (tesseract), matches them to the rooms the floor plan file web/plans/<building>.json places on
@@ -86,9 +86,10 @@ NEAR_LABEL = (1.0, 0.7)  # metres: half-size of the ring around a label that dec
 MIN_POCKET = 1.0  # m²: pockets smaller than this (inside letters) are never a room
 UNCHECKED = 3.0  # m²: inventory areas smaller than this (or missing) are not trusted for the size check
 NEVER_TRACED = {"ELEVATOR", "STAIRWAY"}
+FOOTPRINT_MARGIN = 1.0  # metres beyond the building outline still counted as inside
 
 
-def trace(page, to_map, rooms):
+def trace(page, to_map, rooms, footprint):
     """Outlines of the rooms the drawing encloses: {room number: [[lat, lon], ...]}, only those that pass the size check."""
     import cv2  # only needed for tracing
     origin, ex, ey = to_map(0, 0), to_map(1, 0) - to_map(0, 0), to_map(0, 1) - to_map(0, 0)
@@ -105,6 +106,13 @@ def trace(page, to_map, rooms):
     grow = max(1, round(DOORWAY / mpp))
     square = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * grow + 1, 2 * grow + 1))
     closed = cv2.dilate(wall[blob].astype(np.uint8), square) | ink
+    # Beyond the building's footprint (plus a margin for where its outline and the drawing disagree) is never open
+    # floor, so open entrance doors do not join lobbies and corridors to the outdoors.
+    inside = np.zeros((h, w), np.uint8)
+    for ring in footprint:
+        cv2.fillPoly(inside, [np.array([to_pdf(to_m(*p)) * TRACE_SCALE for p in ring]).round().astype(np.int32)], 1)
+    margin = round(FOOTPRINT_MARGIN / mpp)
+    closed |= 1 - cv2.dilate(inside, cv2.getStructuringElement(cv2.MORPH_RECT, (2 * margin + 1, 2 * margin + 1)))
     _, space, stats, _ = cv2.connectedComponentsWithStats(1 - closed, connectivity=4)
     outside = set(np.unique(np.concatenate([space[0], space[-1], space[:, 0], space[:, -1]])))
     area = lambda k: stats[k, cv2.CC_STAT_AREA] * mpp * mpp
@@ -155,10 +163,12 @@ def main():
     index = json.loads(index_file.read_text()) if index_file.exists() else {}
     for pdf in sorted(PDFS.glob("*_*.pdf")):
         ref, floor = pdf.stem.split("_", 1)
-        if not ("--again" in sys.argv or floor not in index.get(ref, {})):
+        named = [a for a in sys.argv[1:] if not a.startswith("--")]
+        if (named and ref not in named) or not ("--again" in sys.argv or floor not in index.get(ref, {})):
             continue
         plan_file = PLANS / f"{ref}.json"
-        rooms = json.loads(plan_file.read_text())["floors"].get(floor, {}).get("rooms", []) if plan_file.exists() else []
+        plan = json.loads(plan_file.read_text()) if plan_file.exists() else {"outline": [], "floors": {}}
+        rooms = plan["floors"].get(floor, {}).get("rooms", [])
         at = {r["n"]: to_m(*r["at"]) for r in rooms}
         page = pypdfium2.PdfDocument(str(pdf))[0]
         labels = read_labels(page)
@@ -185,7 +195,7 @@ def main():
         outline_file = OUT / "outlines" / f"{ref}.json"
         outline_file.parent.mkdir(exist_ok=True)
         outlines = json.loads(outline_file.read_text()) if outline_file.exists() else {}
-        outlines[floor] = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms)
+        outlines[floor] = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms, plan["outline"])
         outline_file.write_text(json.dumps(outlines) + "\n")
         print(f"  traced {len(outlines[floor])} of {len(rooms)} rooms")
 
