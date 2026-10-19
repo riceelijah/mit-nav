@@ -306,6 +306,7 @@ export type CampusWire = {
           "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["latitude"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["link"]>>;
           "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["longitude"]>>;
+          "path": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["path"]>>;
           "placeName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["placeName"]>>;
           "step": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["step"]>>;
         }[];
@@ -599,6 +600,7 @@ export type CampusWireHttp = {
           "latitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["latitude"]>>;
           "link": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["link"]>>;
           "longitude": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["longitude"]>>;
+          "path": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["path"]>>;
           "placeName": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["placeName"]>>;
           "step": Jsonify<AtPath<QueryRow<Awaited<ReturnType<(typeof ApplicationConceptSet.concepts)["Wayfinding"]["_route"]>>>, ["step"]>>;
         }[];

@@ -44,7 +44,7 @@ test("_sameService answers the other rides of an elevator, and nothing for an un
   const { db, close } = await freshDb();
   const w = new WayfindingConcept(db);
   const [a, b, c] = await Promise.all(["A", "B", "C"].map(async (name, floor) => (await w.addPlace({ name, kind: "HALLWAY", floor, latitude: 0, longitude: 0 })).place));
-  const base = { forward: "up", backward: "down", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, distance: 1 };
+  const base = { forward: "up", backward: "down", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, distance: 1, path: "" };
   const ab = (await w.connect({ source: a, destination: b, ...base, service: "lift" })).link;
   const bc = (await w.connect({ source: b, destination: c, ...base, service: "lift" })).link;
   const walk = (await w.connect({ source: a, destination: c, ...base, service: "" })).link;
@@ -60,7 +60,7 @@ test("clearing one ride of an elevator resolves the reports on its other rides",
   const floor = async (n: number) => (await map.addPlace({ name: `Floor ${n}`, kind: "HALLWAY", floor: n, latitude: 0, longitude: 0 })).place;
   const [one, two, three] = [await floor(1), await floor(2), await floor(3)];
   const ride = async (source: string, destination: string) =>
-    (await map.connect({ source, destination, forward: "up", backward: "down", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "E1", distance: 1 })).link;
+    (await map.connect({ source, destination, forward: "up", backward: "down", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "E1", distance: 1, path: "" })).link;
   const low = await ride(one, two);
   const high = await ride(two, three);
 
@@ -83,7 +83,7 @@ test("campus map: Simmons Hall to a Stata 9th-floor lab walks along outdoor path
   const ids = new Map<string, string>();
   for (const p of maps.flatMap((m) => m.places)) ids.set(p.name, (await w.addPlace({ latitude: 0, longitude: 0, ...p })).place);
   for (const [s, d, forward, backward, accessible, closedFrom, closedUntil, service, distance] of maps.flatMap((m) => m.links)) {
-    await w.connect({ source: ids.get(s)!, destination: ids.get(d)!, forward, backward, accessible, outdoor: false, closedFrom, closedUntil, service, distance });
+    await w.connect({ source: ids.get(s)!, destination: ids.get(d)!, forward, backward, accessible, outdoor: false, closedFrom, closedUntil, service, distance, path: "" });
   }
 
   const route = () => w._route({ source: ids.get("Simmons Hall (Building W79)")!, destination: ids.get("32-G904 Research Lab")!, accessibleOnly: true, indoorsPreferred: false, hour: 12 });
@@ -123,7 +123,7 @@ test("_link and _blocked describe connections; a blocked connection without a re
   const w = new WayfindingConcept(db);
   const a = (await w.addPlace({ name: "A", kind: "HALLWAY", floor: 1, latitude: 0, longitude: 0 })).place;
   const b = (await w.addPlace({ name: "B", kind: "HALLWAY", floor: 2, latitude: 0, longitude: 0 })).place;
-  const base = { accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, distance: 1 };
+  const base = { accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, distance: 1, path: "" };
   const one = (await w.connect({ source: a, destination: b, forward: "Ride up", backward: "Ride down", ...base, service: "E1" })).link;
   const two = (await w.connect({ source: a, destination: b, forward: "Ride up again", backward: "down", ...base, service: "E1" })).link;
   expect(await w._link({ link: one })).toEqual([{ sourceName: "A", destinationName: "B", forward: "Ride up", service: "E1" }]);
@@ -172,7 +172,7 @@ test("route steps carry the kind and position of the place they reach; nearest e
   const at = { latitude: 42.36, longitude: -71.09 };
   const out = (await map.addPlace({ name: "Building A", kind: "ENTRANCE", floor: 1, ...at })).place;
   const hall = (await map.addPlace({ name: "Building A, floor 1", kind: "TRANSIT", floor: 1, ...at })).place;
-  await map.connect({ source: out, destination: hall, forward: "Go in", backward: "Out", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1 });
+  await map.connect({ source: out, destination: hall, forward: "Go in", backward: "Out", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1, path: "" });
   const steps = (await post("/route/find", { source: hall, destination: out, accessibleOnly: false, indoorsPreferred: false, hour: 12 })).route.steps;
   expect(steps.map((s: any) => [s.kind, s.latitude, s.longitude])).toEqual([["ENTRANCE", 42.36, -71.09]]);
   expect((await post("/map/search", { text: "Building A" })).places.places[0].latitude).toBe(42.36);
@@ -194,7 +194,7 @@ test("_closest: nearest matches by route cost, step-free respected, never the st
   const corridor = await add("1-100CA Lavatory corridor", "TRANSIT");
   const up = await add("Up", "HALLWAY");
   const link = (a: string, b: string, distance: number, accessible = true) =>
-    w.connect({ source: a, destination: b, forward: "go", backward: "back", accessible, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance });
+    w.connect({ source: a, destination: b, forward: "go", backward: "back", accessible, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance, path: "" });
   await link(hall, near, 1);
   await link(hall, corridor, 0.5);
   await link(hall, up, 1, false); // stairs
@@ -213,7 +213,7 @@ test("closest endpoint answers matches and refuses a missing flag", async () => 
   const at = { latitude: 0, longitude: 0, floor: 1 };
   const a = (await map.addPlace({ name: "A", kind: "HALLWAY", ...at })).place;
   const b = (await map.addPlace({ name: "1-101 Male Lavatory", kind: "ROOM", ...at })).place;
-  await map.connect({ source: a, destination: b, forward: "go", backward: "back", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1 });
+  await map.connect({ source: a, destination: b, forward: "go", backward: "back", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1, path: "" });
   expect((await post("/route/closest", { source: a, text: "Lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12 })).closest.places.map((p: any) => p.name)).toEqual(["1-101 Male Lavatory"]);
   expect((await post("/route/closest", { source: a, text: "Lavatory", hour: 12 })).error).toBe("INVALID_REQUEST");
   await close();

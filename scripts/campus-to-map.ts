@@ -28,11 +28,13 @@
 // outline when one was traced from MIT's drawing (see tracedOutlines).
 // Usage: bun run campus
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { nearestOpen, walkToward } from "../web/indoor.ts";
 
 type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
 export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number };
-// source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance, and outdoor (only outdoor walks carry it)
-export type Link = [string, string, string, string, boolean, number, number, string, number, true?];
+// source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance, outdoor (only outdoor walks carry
+// it), and the path walked, "lat,lon lat,lon ..." (only links traced over a floor's outlines carry it; see withPaths)
+export type Link = [string, string, string, string, boolean, number, number, string, number, boolean?, string?];
 export type Point = [number, number];
 type Building = { ref: string; name: string; rings: Point[][]; center: Point };
 
@@ -51,6 +53,7 @@ const MEETING_METERS = 15; // corridors of any two buildings this close on one f
 // Corridors are marked at their middles, so where two touching buildings join, each has a corridor this close to the other's outline.
 const REACHES_NEIGHBOUR = 35;
 const ENTRANCE_REACH = 15;
+const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 const CORRIDORS = new Set(["CORRIDOR", "LOBBY", "BRIDGE/TUNNEL"]);
 const STAIRS_PER_FLOOR = 2;
 const elevatorRide = (floors: number) => 3.5 + 0.5 * floors;
@@ -578,6 +581,87 @@ function loadLocated(): Map<string, Located> {
   return byBuilding;
 }
 
+const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL)$/;
+const SNAP = 6; // metres: a corridor marked beside its traced floor is moved onto it
+const HALL_REACH = 15; // metres: a room without an outline is met at the open floor this near it
+const DOOR_REACH = 4; // metres: a traced room is joined through its door at the open floor this near it
+const CROSSING = 20; // metres: the longest straight crossing between two buildings' open floors at a join
+type LatLon = [number, number];
+const encode = (path: LatLon[]) => path.map(([lat, lon]) => `${lat.toFixed(7)},${lon.toFixed(7)}`).join(" ");
+const latLonMeters = (a: LatLon, b: LatLon) => Math.hypot((b[1] - a[1]) * 111_320 * Math.cos((a[0] * Math.PI) / 180), (b[0] - a[0]) * 111_320);
+const pathMeters = (path: LatLon[]) => path.reduce((t, p, i) => (i ? t + latLonMeters(path[i - 1], p) : 0), 0);
+
+/**
+ * The route line, settled once here instead of in the page: every indoor connection on a traced floor gets the path a
+ * person walks along it through the floor's traced spaces (corridors, lobbies, bridges, lounges, unlabelled open floor
+ * and the connection's own two rooms at normal cost, other traced rooms twenty times dearer, as web/indoor.ts does), and
+ * its distance and metres become that path's length. A corridor marked beside its floor is first moved onto it (within
+ * SNAP). A room without an outline (a seated hall) is met at the open floor nearest it, within HALL_REACH, and the path
+ * then runs straight to its position. A connection between two buildings on one floor is walked in each building to
+ * where the other's open floor comes within CROSSING metres. A connection the traced floor does not join keeps its
+ * straight line; the count of those says how much tracing is still missing.
+ */
+export function withPaths(places: Place[], links: Link[], planFiles: Map<string, any>) {
+  const byName = new Map(places.map((p) => [p.name, p]));
+  const building = (name: string) => BUILDING_PREFIX.exec(name)?.[1];
+  const roomOf = (name: string, ref: string) => name.split(" ")[0].slice(ref.length + 1);
+  const floorOf = (ref: string, level: number) => {
+    const plan = planFiles.get(ref);
+    return plan && Object.values<any>(plan.floors).find((f) => f.level === level && (f.open?.length || f.rooms.some((r: any) => r.s)));
+  };
+  const at = (p: Place): LatLon => [p.latitude, p.longitude];
+  const spaces = (ref: string, level: number, own: string[]) => {
+    const f = floorOf(ref, level);
+    if (!f) return undefined;
+    const preferred: LatLon[][] = [...(f.open ?? [])], other: LatLon[][] = [];
+    for (const r of f.rooms) {
+      if (!r.s) continue;
+      if (CIRCULATION.test(r.u) || r.u === "LOUNGE" || own.includes(r.n)) preferred.push(r.s);
+      else if (!r.f) other.push(r.s);
+    }
+    return { preferred, other, traced: (n: string) => f.rooms.some((r: any) => r.n === n && r.s) };
+  };
+  // Corridors onto their floor.
+  for (const p of places) {
+    const ref = building(p.name);
+    if (p.kind !== "TRANSIT" || !ref) continue;
+    const s = spaces(ref, p.floor, []);
+    const moved = s && nearestOpen(s.preferred, at(p), SNAP);
+    if (moved) [p.latitude, p.longitude] = moved;
+  }
+  let traced = 0, straight = 0;
+  const metres = (text: string, m: number) => text.replace(/about \d+ m/, `about ${Math.max(1, Math.round(m))} m`);
+  for (const l of links) {
+    const a = byName.get(l[0])!, b = byName.get(l[1])!;
+    const ra = building(a.name), rb = building(b.name);
+    if (l[9] || !ra || !rb || a.floor !== b.floor) continue;
+    const own = [a, b].map((p) => roomOf(p.name, building(p.name)!));
+    const sa = spaces(ra, a.floor, own), sb = ra === rb ? sa : spaces(rb, b.floor, own);
+    if (!sa && !sb) continue;
+    const reach = (s: NonNullable<typeof sa>, p: Place) => (s.traced(roomOf(p.name, building(p.name)!)) || p.kind === "TRANSIT" ? DOOR_REACH : HALL_REACH);
+    let path: LatLon[] | undefined;
+    if (ra === rb) {
+      // Out of a hall the walk is found backwards, so it starts at the open floor the hall is met from.
+      const w = walkToward(sa!.preferred, at(b), at(a), sa!.other, reach(sa!, a));
+      path = w && [at(a), ...w.path.reverse(), at(b)];
+    } else {
+      const partA = sa ? walkToward(sa.preferred, at(a), at(b), sa.other, Infinity) : undefined;
+      const endA = partA ? partA.path[partA.path.length - 1] : at(a);
+      const entry = sb && nearestOpen(sb.preferred, endA, CROSSING);
+      const partB = sb && entry ? walkToward(sb.preferred, entry, at(b), sb.other, reach(sb, b)) : undefined;
+      if ((!sa || partA) && (!sb || partB) && (sb || latLonMeters(endA, at(b)) <= CROSSING)) path = [at(a), ...(partA?.path ?? []), ...(entry ? [entry] : []), ...(partB?.path ?? []), at(b)];
+    }
+    if (!path) { straight++; continue; }
+    traced++;
+    const m = pathMeters(path);
+    l[2] = metres(l[2], m);
+    l[3] = metres(l[3], m);
+    l[8] = indoorWalk(m);
+    l[10] = encode(path.filter((p, i) => !i || p[0] !== path[i - 1][0] || p[1] !== path[i - 1][1]));
+  }
+  return { traced, straight };
+}
+
 async function buildCampus() {
   const buildings = await loadBuildings();
   const places: Place[] = [];
@@ -721,11 +805,12 @@ async function buildCampus() {
     }
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }
-  return { places, links, planFiles, buildings: buildings.length, interiors: [...inside.keys()] };
+  const lines = withPaths(places, links, planFiles);
+  return { places, links, planFiles, buildings: buildings.length, interiors: [...inside.keys()], paths: lines };
 }
 
 if (import.meta.main) {
-  const { places, links, planFiles, buildings, interiors } = await buildCampus();
+  const { places, links, planFiles, buildings, interiors, paths } = await buildCampus();
   const plans = new URL("../web/plans/", import.meta.url);
   mkdirSync(plans, { recursive: true });
   for (const [ref, plan] of planFiles) writeFileSync(new URL(`${ref}.json`, plans), JSON.stringify(plan) + "\n");
@@ -734,4 +819,5 @@ if (import.meta.main) {
     JSON.stringify({ note: "Generated by scripts/campus-to-map.ts. Do not edit by hand.", places, links }) + "\n",
   );
   console.log(`Wrote ${places.length} places and ${links.length} connections for ${buildings} buildings (${interiors.length} with interiors: ${interiors.join(" ")}).`);
+  console.log(`Traced the path of ${paths.traced} indoor connections; ${paths.straight} on traced floors stay straight (the floor does not join them).`);
 }

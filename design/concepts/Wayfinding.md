@@ -39,7 +39,9 @@ a seq of Links with
   a closedUntil Number
   a service String
   a distance Number
+  a path String
 
+  Rule: a connection's path is the line a visitor walks along it, as the positions of its corners from source to destination written "lat,lon lat,lon ..."; an empty path means a straight line between the two places
   Rule: connections that share the same non-empty service are blocked and unblocked together, because they depend on one thing that can go out of service, such as an elevator
   Rule: a connection is closed from closedFrom up to closedUntil, in hours from 0 up to 24, wrapping past midnight when closedFrom is greater than closedUntil; when the two are equal the connection is never closed
 ```
@@ -56,13 +58,13 @@ addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: N
     add a new place with name and kind and floor and latitude and longitude
     returns place
 
-connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, outdoor: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number) : returns (link: Link)
+connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, outdoor: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number, path: String) : returns (link: Link)
   where source not in places or destination not in places
   then
     refuses NO_SUCH_PLACE "Both places must exist before they can be connected."
   where source in places and destination in places
   then
-    add a new link with source and destination and forward and backward and accessible and outdoor and closedFrom and closedUntil and service and distance, not blocked
+    add a new link with source and destination and forward and backward and accessible and outdoor and closedFrom and closedUntil and service and distance and path, not blocked
     returns link
 
 block(link: Link) : returns (link: Link)
@@ -111,6 +113,6 @@ _blocked() : many (link: Link, sourceName: String, destinationName: String, forw
   Answers every blocked connection with the names of its two places, its forward directions, and its service, in the order the connections were made, and no rows when nothing is blocked.
 _sameService(link: Link) : many (other: Link)
   Answers every other connection that shares the link's service, in the order the connections were made, and no rows when the link is unknown or its service is empty.
-_route(source: Place, destination: Place, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number)
-  Answers the shortest route from source to destination, where each connection costs the distance it was given when it was made (so a builder can make a short flight of stairs cheaper than waiting for an elevator), as numbered steps starting at 1, each with the distance its connection was given and the kind and position of the place it arrives at, never using a blocked connection or one that is closed at the given hour of the day (0 up to 24, so 6.5 is half past six in the morning), and when accessibleOnly is true never using a connection that is not accessible; when indoorsPreferred is true each outdoor connection costs three times its distance, so the route stays inside unless going out saves a lot. Each step still reports the distance its connection was given. Answers no rows when either place is unknown or no route exists, and one row per step in order otherwise. Ties are broken in favor of connections made earlier.
+_route(source: Place, destination: Place, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number, path: String)
+  Answers the shortest route from source to destination, where each connection costs the distance it was given when it was made (so a builder can make a short flight of stairs cheaper than waiting for an elevator), as numbered steps starting at 1, each with the distance its connection was given, the kind and position of the place it arrives at, and the connection's path in the direction walked (the path as given when the step goes from the connection's source to its destination, and its corners in reverse order otherwise), never using a blocked connection or one that is closed at the given hour of the day (0 up to 24, so 6.5 is half past six in the morning), and when accessibleOnly is true never using a connection that is not accessible; when indoorsPreferred is true each outdoor connection costs three times its distance, so the route stays inside unless going out saves a lot. Each step still reports the distance its connection was given. Answers no rows when either place is unknown or no route exists, and one row per step in order otherwise. Ties are broken in favor of connections made earlier.
 ```

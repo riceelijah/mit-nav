@@ -32,6 +32,7 @@ interface LinkDoc {
   closedUntil: number;
   service: string;
   distance: number;
+  path?: string; // "lat,lon lat,lon ..." from source to destination; empty or missing draws a straight line
 }
 
 const SEARCH_LIMIT = 40;
@@ -171,6 +172,7 @@ export class WayfindingConcept {
     closedUntil,
     service,
     distance,
+    path,
   }: {
     source: string;
     destination: string;
@@ -182,6 +184,7 @@ export class WayfindingConcept {
     closedUntil: number;
     service: string;
     distance: number;
+    path: string;
   }) {
     const found = await this.places.countDocuments({ _id: { $in: [source, destination] } });
     const needed = source === destination ? 1 : 2;
@@ -204,6 +207,7 @@ export class WayfindingConcept {
       closedUntil,
       service,
       distance,
+      path,
     });
     return { link };
   }
@@ -346,6 +350,8 @@ export class WayfindingConcept {
       path.unshift({ link: step.link, instruction: step.instruction, place: places.get(at)! });
       at = step.from;
     }
+    // A connection walked from its destination to its source has its path's corners in reverse order.
+    const walked = (link: LinkDoc, place: PlaceDoc) => (link.destination === place._id ? link.path ?? "" : (link.path ?? "").split(" ").reverse().join(" "));
     return path.map(({ link, instruction, place }, index) => ({
       step: index + 1,
       link: link._id,
@@ -356,6 +362,7 @@ export class WayfindingConcept {
       distance: link.distance ?? 1,
       latitude: place.latitude ?? 0,
       longitude: place.longitude ?? 0,
+      path: walked(link, place),
     }));
   }
 }

@@ -197,7 +197,7 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 
 - `addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number) : returns (place: Place)`
   - Refuses `DUPLICATE_PLACE`: A place with that name already exists.
-- `connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, outdoor: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number) : returns (link: Link)`
+- `connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, outdoor: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number, path: String) : returns (link: Link)`
   - Refuses `NO_SUCH_PLACE`: Both places must exist before they can be connected.
 - `block(link: Link) : returns (link: Link)`
   - Refuses `NO_SUCH_LINK`: There is no such connection.
@@ -217,7 +217,7 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 - `_link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)`
 - `_blocked() : many (link: Link, sourceName: String, destinationName: String, forward: String, service: String)`
 - `_sameService(link: Link) : many (other: Link)`
-- `_route(source: Place, destination: Place, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number)`
+- `_route(source: Place, destination: Place, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number, path: String)`
 
 #### Instances
 
@@ -375,9 +375,9 @@ Authored path: `Campus.Routing.Route`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 18.
 
 ```former
-Former "the route from (source) to (destination)" — inputs (source, destination, accessibleOnly, indoorsPreferred, hour); bindings (step, link, instruction, placeName, kind, floor, distance, latitude, longitude); promises exactly one record — forms:
+Former "the route from (source) to (destination)" — inputs (source, destination, accessibleOnly, indoorsPreferred, hour); bindings (step, link, instruction, placeName, kind, floor, distance, latitude, longitude, path); promises exactly one record — forms:
   a record of
-    steps: each Wayfinding._route (accessibleOnly, destination, hour, indoorsPreferred, source) has (distance, floor, instruction, kind, latitude, link, longitude, placeName, step)
+    steps: each Wayfinding._route (accessibleOnly, destination, hour, indoorsPreferred, source) has (distance, floor, instruction, kind, latitude, link, longitude, path, placeName, step)
       form a record of
         distance
         floor
@@ -386,6 +386,7 @@ Former "the route from (source) to (destination)" — inputs (source, destinatio
         latitude
         link
         longitude
+        path
         placeName
         step
 ```

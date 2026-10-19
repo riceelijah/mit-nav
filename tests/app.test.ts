@@ -7,8 +7,8 @@ const open = { outdoor: false, closedFrom: 0, closedUntil: 0, service: "", dista
 async function smallMap(map: WayfindingConcept) {
   const lobby = (await map.addPlace({ name: "Lobby", kind: "ENTRANCE", floor: 1, latitude: 0, longitude: 0 })).place;
   const room = (await map.addPlace({ name: "Room 215", kind: "ROOM", floor: 2, latitude: 0, longitude: 0 })).place;
-  const elevator = (await map.connect({ source: lobby, destination: room, forward: "Elevator up", backward: "Elevator down", accessible: true, outdoor: false, ...open })).link;
-  await map.connect({ source: lobby, destination: room, forward: "Stairs up", backward: "Stairs down", accessible: false, outdoor: false, ...open });
+  const elevator = (await map.connect({ source: lobby, destination: room, forward: "Elevator up", backward: "Elevator down", accessible: true, outdoor: false, ...open, path: "" })).link;
+  await map.connect({ source: lobby, destination: room, forward: "Stairs up", backward: "Stairs down", accessible: false, outdoor: false, ...open, path: "" });
   return { lobby, room, elevator };
 }
 

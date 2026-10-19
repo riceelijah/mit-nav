@@ -44,7 +44,7 @@ const BlockedList = former(
 
 const Route = former(
   "the route from (source) to (destination)",
-  ({ source, destination, accessibleOnly, indoorsPreferred, hour }, { step, link, instruction, placeName, kind, floor, distance, latitude, longitude }) =>
+  ({ source, destination, accessibleOnly, indoorsPreferred, hour }, { step, link, instruction, placeName, kind, floor, distance, latitude, longitude, path }) =>
     form({
       steps: each(
         Wayfinding._route({ source, destination, accessibleOnly, indoorsPreferred, hour }).is({
@@ -57,8 +57,9 @@ const Route = former(
           distance,
           latitude,
           longitude,
+          path,
         }),
-      ).form({ step, link, instruction, placeName, kind, floor, distance, latitude, longitude }),
+      ).form({ step, link, instruction, placeName, kind, floor, distance, latitude, longitude, path }),
     }),
 );
 

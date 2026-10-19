@@ -5,7 +5,7 @@ node_modules/
 .env.*
 .DS_Store
 !.env.example
-data/raw/
+data/raw
 
 # Demo videos live on YouTube or Drive, not in git (the deploy platform limits commits to 50 MB).
 demo/
