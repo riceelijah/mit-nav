@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { corridorPath } from "../web/indoor.ts";
+import { corridorPath, walkToward } from "../web/indoor.ts";
 
 test("indoor line follows an L-shaped corridor round its corner instead of cutting across", () => {
   // An L of two 3 m wide corridors, in metres around (42.36, -71.09): along x from 0 to 30, then up y from 0 to 30.
@@ -17,7 +17,7 @@ test("indoor line follows an L-shaped corridor round its corner instead of cutti
   expect(corridorPath([along], ll([1, 1.5]), ll([15, 20]))).toBeUndefined();
 });
 
-test("indoor line keeps to corridors over a room unless the corridor way is more than four times longer", () => {
+test("indoor line keeps to corridors over a room unless the corridor way is far longer (twenty times)", () => {
   const k = Math.cos((42.36 * Math.PI) / 180);
   const ll = ([x, y]: [number, number]): [number, number] => [42.36 + y / 111_320, -71.09 + x / (111_320 * k)];
   const box = (x0: number, y0: number, x1: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map((p) => ll(p as [number, number]));
@@ -32,4 +32,23 @@ test("indoor line keeps to corridors over a room unless the corridor way is more
   expect(through.every(([, y]) => y <= 3.3)).toBe(true);
   // A room left out (a recovered outline) is never passed through.
   expect(corridorPath([left, right], ll([1.5, 1.5]), ll([14.5, 1.5]))).toBeUndefined();
+});
+
+test("a walk to an unreachable place ends at the reachable open floor nearest it, within the given distance", () => {
+  const k = Math.cos((42.36 * Math.PI) / 180);
+  const ll = ([x, y]: [number, number]): [number, number] => [42.36 + y / 111_320, -71.09 + x / (111_320 * k)];
+  const box = (x0: number, y0: number, x1: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map((p) => ll(p as [number, number]));
+  // A corridor along y 0-3, and a separate pocket (a hall's stage) at 20-24, 8-12 that the corridor cannot reach.
+  const corridor = box(0, 0, 30, 3), pocket = box(20, 8, 24, 12);
+  const hall = ll([22, 10]); // the hall's position, inside the pocket
+  const w = walkToward([corridor, pocket], ll([1, 1.5]), hall, [], 15)!;
+  const [lat, lon] = w.path[w.path.length - 1];
+  const [x, y] = [(lon + 71.09) * 111_320 * k, (lat - 42.36) * 111_320];
+  // It ends in the corridor, beside the hall (not in the unreachable pocket), about 7 m from the hall's position.
+  expect(y).toBeLessThan(3.1);
+  expect(Math.abs(x - 22)).toBeLessThan(1);
+  expect(w.gap).toBeGreaterThan(6);
+  // Without allowance it finds nothing; and the open floor must be within the distance given.
+  expect(walkToward([corridor, pocket], ll([1, 1.5]), hall, [], 0)).toBeUndefined();
+  expect(walkToward([corridor, pocket], ll([1, 1.5]), hall, [], 5)).toBeUndefined();
 });

@@ -1,0 +1,13 @@
+## Verdict
+Revise
+
+## Findings
+- **Implementation blocker: resolved in intent.** The revision makes the two design changes the worker asked for:
+  - A walk into an untraced place now ends at the open floor nearest it that the walk can reach. That excludes the unreachable pocket inside 32-123.
+  - A walk between two buildings is now drawn in three parts, with a straight line across the connection. That handles the gap between Fairchild and Stata that no traced floor covers.
+
+  Both match the brief's revision note. Three problems in the new wording remain.
+- **V3-1 (regression of LE-2): an untraced place at the route's start is no longer covered.** The new rule defines where a walk out of an untraced place starts only through the walk into it: "the next walk out of it starts from there". The route's first walk has no walk into its start. If the start is an untraced room, the contract no longer says where that line begins. Read literally, it begins at the room's centre and crosses its wall. The previous candidate covered this case ("for the walks both into and out of it"), and the brief still includes "for walks into and out of it".
+- **V3-2 (contradiction): the general fallback still applies to two-building walks.** The paragraph still says the walk is drawn straight "when either place is further from it, or no such path joins them". Under the three-part rule, no single path ever joins the two places of a walk between buildings. Read literally, every such walk is therefore drawn straight, which is the same kind of self-contradiction as LE-1. It is also unclear whether "either place is further from it" makes the whole walk straight, or only that place's part. The fallback should either cover only the same-building case or say how it applies to each part.
+- **V3-3 (material): the straight crossing has no limit.** The crossing joins the reachable open floor in the first building that comes nearest the second place. The contract describes the crossing as "a door, bridge or short passage", but nothing limits its length or keeps it within the connection. When the reachable open floor lies well back from the shared wall, the straight crossing runs through either building's rooms and walls. That works against the brief's goal of a line that does not cross walls.
+- **Direct regressions beyond V3-1: none.** The route, distances and rerouting are still stated as unchanged.

@@ -1,0 +1,1 @@
+Revise per the implementation blocker in .sync-engine/work/line-ends/2026-10-19T14-01-10Z-application-worker-implementation.response.md: reachable nearest open floor for untraced places; two-building walks in three parts with a straight crossing.

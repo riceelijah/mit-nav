@@ -1,7 +1,7 @@
 import { createApp, ref, computed, watch, onMounted, nextTick } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
-import { corridorPath } from "./indoor.ts";
+import { nearestOpen, walkToward } from "./indoor.ts";
 import { mergeSteps } from "./steps.ts";
 
 const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
@@ -509,51 +509,137 @@ const app = createApp({
     // ---- The map: the route as a line through the places it reaches, and where the person is. ----
     let map: any, routeLayer: any, meMarker: any;
     /**
-     * The route as map points, and for each raw step the index of the last point it reaches. With `indoor`, a walk
-     * between two places on one floor of a building with traced outlines follows them instead of a straight line.
+     * The route as map points, and for each raw step the index of the last point it reaches. With `indoor`, walks
+     * indoors follow the floors' traced spaces (see indoorWalk) instead of straight lines.
      */
     const routeGeometry = (indoor = false) => {
       const points: Point[] = [];
       const reached: number[] = [];
-      let previous: any = from.value;
-      const add = (p: any) => {
-        const path = indoor ? indoorPath(previous, p) : undefined;
-        previous = p;
-        for (const q of path ?? []) points.push(q);
-        if (known(p)) {
-          const pt: Point = [p.latitude, p.longitude];
-          const last = points[points.length - 1];
-          if (!last || last[0] !== pt[0] || last[1] !== pt[1]) points.push(pt);
-        }
-        return points.length - 1;
+      const push = (q: Point) => {
+        const last = points[points.length - 1];
+        if (!last || last[0] !== q[0] || last[1] !== q[1]) points.push(q);
       };
-      add(from.value);
-      for (const s of pathSteps) reached.push(add(s));
+      const at = (p: any): Point | undefined => (known(p) ? [p.latitude, p.longitude] : undefined);
+      // Where the line stands at the previous place: its position, or for an untraced room, the open floor it was met at.
+      let previous: any = from.value;
+      let drawn = indoor && untraced(from.value) ? undefined : at(from.value);
+      let joined: Point | undefined; // the open floor where the last walk joined its place
+      if (drawn) push(drawn);
+      for (let i = 0; i < pathSteps.length; i++) {
+        const s = pathSteps[i];
+        // Corridors and lobbies the route only passes through are not visited at their labels: one walk goes through them.
+        let j = i;
+        while (indoor && j < pathSteps.length - 1 && passesThrough(previous, pathSteps[j], pathSteps[j + 1])) j++;
+        const through = j > i ? indoorWalk(previous, drawn, pathSteps[j], joined) : undefined;
+        if (through) {
+          const first = points.length;
+          for (const q of through.path) push(q);
+          for (let k = i; k < j; k++) {
+            // A passed-through place counts as reached at the corner nearest it.
+            const here = at(pathSteps[k])!;
+            let best = Math.max(first - 1, reached[reached.length - 1] ?? 0);
+            for (let n = best; n < points.length; n++) if (groundMeters(points[n], here) < groundMeters(points[best], here)) best = n;
+            reached.push(best);
+          }
+          joined = through.path[through.path.length - 1];
+          drawn = through.reachesPlace ? at(pathSteps[j]) : through.end;
+          if (drawn) push(drawn);
+          previous = pathSteps[j];
+          reached.push(points.length - 1);
+          i = j;
+          continue;
+        }
+        const walk = indoor ? indoorWalk(previous, drawn, s, joined) : undefined;
+        joined = walk?.path[walk.path.length - 1];
+        for (const q of walk?.path ?? []) push(q);
+        if (!walk && !drawn && at(previous)) push(at(previous)!);
+        drawn = walk && !walk.reachesPlace ? walk.end : at(s);
+        if (drawn) push(drawn);
+        previous = s;
+        reached.push(points.length - 1);
+      }
       return { points, reached };
     };
     // The off-course check measures against straight lines between places; only the drawn line follows corridors.
     const routeLine = (): Point[] => routeGeometry().points;
     const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL)$/;
-    const indoorPaths = new Map<string, Point[] | undefined>();
-    /** The corners of a walk from place `a` to place `b` along traced outlines, or undefined to draw it straight. */
-    function indoorPath(a: any, b: any): Point[] | undefined {
-      const ref = BUILDING_PREFIX.exec(a?.placeName ?? "")?.[1];
-      if (!ref || ref !== BUILDING_PREFIX.exec(b?.placeName ?? "")?.[1] || a.floor !== b.floor || !known(a) || !known(b)) return undefined;
-      const plan = planFiles.value[ref];
-      const floor = plan && Object.values(plan.floors).find((f) => f.level === b.floor);
+    const UNTRACED_REACH = 15; // metres: an untraced room is met at reachable open floor this near it
+    const JOIN = 4; // metres: a walk joins a traced place at the reachable open floor this near it (through its door)
+    const CROSSING = 20; // metres: a longer straight crossing between two buildings means their open floors do not meet
+    /** The traced floor of building `ref` with floor number `level`, once its plan file has loaded. */
+    const tracedFloor = (ref: string | undefined, level: number) => {
+      const plan = ref ? planFiles.value[ref] : undefined;
+      return plan ? Object.values(plan.floors).find((f) => f.level === level && (f.open?.length || f.rooms.some((r) => r.s))) : undefined;
+    };
+    const buildingOf = (p: any) => BUILDING_PREFIX.exec(p?.placeName ?? "")?.[1];
+    const roomNumber = (p: any, ref: string) => p.placeName.split(" ")[0].slice(ref.length + 1);
+    /** A traced corridor, lobby or bridge between two places on its floor, which the line can pass through without visiting its label. */
+    function passesThrough(before: any, p: any, after: any) {
+      const ref = buildingOf(p), floor = ref && tracedFloor(ref, p.floor);
+      return !!floor && known(p) && !!buildingOf(before) && !!buildingOf(after) && before.floor === p.floor && after.floor === p.floor &&
+        floor.rooms.some((r) => r.n === roomNumber(p, ref!) && r.s && CIRCULATION.test(r.u));
+    }
+    /** An indoor place on a traced floor that has no traced outline of its own (such as a seated hall). */
+    function untraced(p: any) {
+      const ref = buildingOf(p), floor = ref && tracedFloor(ref, p.floor);
+      return !!floor && !floor.rooms.some((r) => r.n === roomNumber(p, ref!) && r.s);
+    }
+    /** One building's walkable spaces on a floor: corridors, open floor and the walk's own places at normal cost; other rooms dearer. */
+    function spaces(ref: string, level: number, ends: any[]) {
+      const floor = tracedFloor(ref, level);
       if (!floor) return undefined;
-      const key = `${a.placeName}|${b.placeName}`;
-      if (!indoorPaths.has(key)) {
-        const ends = [a, b].map((p) => p.placeName.split(" ")[0].slice(ref.length + 1));
-        const preferred = (r: PlanRoom) => CIRCULATION.test(r.u) || ends.includes(r.n);
-        const traced = floor.rooms.filter((r) => r.s);
-        indoorPaths.set(key, corridorPath(
-          [...traced.filter(preferred).map((r) => r.s!), ...(floor.open ?? [])],
-          [a.latitude, a.longitude], [b.latitude, b.longitude],
-          traced.filter((r) => !preferred(r) && !r.f).map((r) => r.s!),
-        ));
+      const own = ends.filter((p) => buildingOf(p) === ref).map((p) => roomNumber(p, ref));
+      const preferred: Point[][] = [...(floor.open ?? [])], other: Point[][] = [];
+      for (const r of floor.rooms) {
+        if (!r.s) continue;
+        if (CIRCULATION.test(r.u) || own.includes(r.n)) preferred.push(r.s);
+        else if (!r.f) other.push(r.s); // a recovered outline is never passed through
       }
-      return indoorPaths.get(key);
+      return { preferred, other };
+    }
+    const walks = new Map<string, ReturnType<typeof computeWalk>>();
+    /**
+     * A walk from place `a` (where the line stands at `aDrawn`, or undefined when `a` is an untraced route start) to
+     * place `b` along traced spaces: the corners to draw, where it ends, and whether that is `b`'s own position (not,
+     * for an untraced room met at the open floor beside it). Undefined draws it straight.
+     */
+    function indoorWalk(a: any, aDrawn: Point | undefined, b: any, joined?: Point) {
+      const key = JSON.stringify([a?.placeName, aDrawn, b?.placeName, joined]);
+      if (!walks.has(key)) {
+        // A place closed off in its own outline (a vestibule between doors) is left from the open floor the walk into it joined.
+        const walk = computeWalk(a, aDrawn, b) ?? (joined && aDrawn ? computeWalk(a, joined, b) : undefined);
+        walks.set(key, walk && joined && aDrawn && walk.path[0] === joined ? { ...walk, path: [aDrawn, ...walk.path] } : walk);
+      }
+      return walks.get(key);
+    }
+    function computeWalk(a: any, aDrawn: Point | undefined, b: any): { path: Point[]; end: Point; reachesPlace: boolean } | undefined {
+      const ra = buildingOf(a), rb = buildingOf(b);
+      if (!ra || !rb || a.floor !== b.floor || !known(a) || !known(b)) return undefined;
+      const aAt: Point = [a.latitude, a.longitude], bAt: Point = [b.latitude, b.longitude];
+      const bOpen = untraced(b);
+      const sa = spaces(ra, a.floor, [a, b]), sb = ra === rb ? sa : spaces(rb, b.floor, [a, b]);
+      if (!sa && !sb) return undefined;
+      // An untraced route start: the open floor nearest it from which `b` can be reached (walking back from `b`).
+      let start = aDrawn;
+      if (!start) {
+        const back = sa && walkToward(sa.preferred, bAt, aAt, sa.other, UNTRACED_REACH);
+        if (!back) return undefined;
+        start = back.path[back.path.length - 1];
+      }
+      if (ra === rb) {
+        const w = walkToward(sa!.preferred, start, bAt, sa!.other, bOpen ? UNTRACED_REACH : JOIN);
+        if (!w) return undefined;
+        return { path: [start, ...w.path], end: bOpen ? w.path[w.path.length - 1] : bAt, reachesPlace: !bOpen };
+      }
+      // Two buildings: a part in each, joined by a straight crossing of at most CROSSING metres.
+      const partA = sa ? walkToward(sa.preferred, start, bAt, sa.other, Infinity) : undefined;
+      const endA = partA ? partA.path[partA.path.length - 1] : start;
+      if (!sb) return groundMeters(endA, bAt) <= CROSSING ? { path: [start, ...(partA?.path ?? [])], end: bAt, reachesPlace: true } : undefined;
+      const entry = nearestOpen(sb.preferred, endA, CROSSING);
+      if (!entry) return undefined;
+      const partB = walkToward(sb.preferred, entry, bAt, sb.other, bOpen ? UNTRACED_REACH : JOIN);
+      if (!partB) return undefined;
+      return { path: [start, ...(partA?.path ?? []), entry, ...partB.path], end: bOpen ? partB.path[partB.path.length - 1] : bAt, reachesPlace: !bOpen };
     }
     /**
      * The route line, split by progress: walked (grey), the step you're on (cardinal on signage yellow),
@@ -574,7 +660,9 @@ const app = createApp({
       }
       if (currentTo < points.length - 1) L.polyline(part(currentTo, points.length - 1), { color: "#a31f34", weight: 4, opacity: 0.75 }).addTo(routeLayer);
       L.circleMarker(points[0], { radius: 6, color: "#0a122a", fillColor: "#ffffff", fillOpacity: 1, weight: 3 }).bindTooltip("Start").addTo(routeLayer);
-      L.circleMarker(points[points.length - 1], { radius: 8, color: "#ffffff", fillColor: "#a31f34", fillOpacity: 1, weight: 3 }).bindTooltip("Destination").addTo(routeLayer);
+      // The destination is marked at its own position, even when the line ends at the open floor beside it.
+      const last = pathSteps[pathSteps.length - 1];
+      L.circleMarker(known(last) ? [last.latitude, last.longitude] : points[points.length - 1], { radius: 8, color: "#ffffff", fillColor: "#a31f34", fillOpacity: 1, weight: 3 }).bindTooltip("Destination").addTo(routeLayer);
       if (!tracking.value && doneTo > 0) L.circleMarker(points[doneTo], { radius: 6, color: "#ffffff", fillColor: "#0a122a", fillOpacity: 1, weight: 2 }).bindTooltip("Where your done steps end").addTo(routeLayer);
       return points;
     }
@@ -622,7 +710,7 @@ const app = createApp({
       return planFiles.value[ref];
     }
     // However a plan arrives (with a route, or by zooming in), the route line can now follow its corridors.
-    watch(planFiles, () => map && drawProgress());
+    watch(planFiles, () => { walks.clear(); if (map) drawProgress(); });
     const floorsOf = (plan: PlanFile) => Object.entries(plan.floors).sort((a, b) => b[1].level - a[1].level);
     /** Where a building's plan opens: the current step's floor if it is in this building, else the route's first floor there. */
     function openingFloor(ref: string, plan: PlanFile) {

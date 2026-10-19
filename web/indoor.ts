@@ -5,7 +5,7 @@ type LatLon = [number, number];
 const CELL = 0.5; // metres per grid cell
 const REACH = 4; // metres an end may be from the walkable area and still join it
 const MARGIN = 40; // metres around the two ends searched for a path
-const ROOM_COST = 4; // a step through a room that is not on the way costs this many steps along a corridor
+const ROOM_COST = 20; // a step through a room that is not on the way costs this many steps along a corridor
 
 /** Whether `p` is inside the polygon `ring` (even-odd rule). */
 function inside(p: [number, number], ring: [number, number][]) {
@@ -23,6 +23,14 @@ function inside(p: [number, number], ring: [number, number][]) {
  * metres from them or no path joins them. Outlines are [lat, lon] rings.
  */
 export function corridorPath(preferred: LatLon[][], a: LatLon, b: LatLon, other: LatLon[][] = []): LatLon[] | undefined {
+  return walkToward(preferred, a, b, other, 0)?.path;
+}
+
+/**
+ * Like corridorPath, but when `b` cannot be reached the path ends instead at the reached open floor nearest `b`, if that
+ * is within `toward` metres of it; `gap` is how far that end is from `b` (0 when `b` itself is reached).
+ */
+export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: LatLon[][], toward: number): { path: LatLon[]; gap: number } | undefined {
   if (!preferred.length) return undefined;
   const k = Math.cos((a[0] * Math.PI) / 180);
   const flat = ([lat, lon]: LatLon): [number, number] => [(lon - a[1]) * 111_320 * k, (lat - a[0]) * 111_320];
@@ -48,12 +56,12 @@ export function corridorPath(preferred: LatLon[][], a: LatLon, b: LatLon, other:
     for (let j = Math.max(0, cj - r); j <= Math.min(h - 1, cj + r); j++)
       for (let i = Math.max(0, ci - r); i <= Math.min(w - 1, ci + r); i++) {
         const d = (i - ci) ** 2 + (j - cj) ** 2;
-        if (open[j * w + i] === 1 && d < bestD && d <= r * r) [best, bestD] = [j * w + i, d];
+        if (open[j * w + i] && d < bestD && d <= r * r) [best, bestD] = [j * w + i, d];
       }
     return best;
   };
   const start = snap([0, 0]), goal = snap(fb);
-  if (start < 0 || goal < 0) return undefined;
+  if (start < 0 || (goal < 0 && !toward)) return undefined;
   // Dijkstra over the 8 neighbours (10 straight, 14 diagonal, times the cell's cost), with a binary heap.
   const from = new Int32Array(w * h).fill(-1);
   const cost = new Float64Array(w * h).fill(Infinity);
@@ -102,9 +110,21 @@ export function corridorPath(preferred: LatLon[][], a: LatLon, b: LatLon, other:
       }
     }
   }
-  if (from[goal] < 0) return undefined;
+  let end = goal >= 0 && from[goal] >= 0 ? goal : -1, gap = 0;
+  if (end < 0) {
+    // Not reachable: the reached open floor nearest b, within `toward`.
+    if (!toward) return undefined;
+    let bestD = toward * toward;
+    for (let c = 0; c < from.length; c++) {
+      if (from[c] < 0) continue;
+      const [x, y] = centre(c % w, Math.floor(c / w)), d = (x - fb[0]) ** 2 + (y - fb[1]) ** 2;
+      if (d <= bestD) [end, bestD] = [c, d];
+    }
+    if (end < 0) return undefined;
+    gap = Math.sqrt(bestD);
+  }
   const cells: number[] = [];
-  for (let c = goal; c !== start; c = from[c]) cells.push(c);
+  for (let c = end; c !== start; c = from[c]) cells.push(c);
   cells.push(start);
   cells.reverse();
   // Keep only the corners a straight line between them would not cut off: a cell is skipped while the walkable
@@ -122,5 +142,19 @@ export function corridorPath(preferred: LatLon[][], a: LatLon, b: LatLon, other:
   };
   const kept = [cells[0]];
   for (let i = 1; i < cells.length - 1; i++) if (!clear(kept[kept.length - 1], cells[i + 1])) kept.push(cells[i]);
-  return [...kept.slice(1), goal].map((c) => back(centre(c % w, Math.floor(c / w))));
+  return { path: [...kept.slice(1), end].map((c) => back(centre(c % w, Math.floor(c / w)))), gap };
+}
+
+/** The point of `rings` nearest `p` within `reach` metres (on the half-metre grid), or undefined when none is that close. */
+export function nearestOpen(rings: LatLon[][], p: LatLon, reach: number): LatLon | undefined {
+  const k = Math.cos((p[0] * Math.PI) / 180);
+  const flat = ([lat, lon]: LatLon): [number, number] => [(lon - p[1]) * 111_320 * k, (lat - p[0]) * 111_320];
+  const near = rings.map((r) => r.map(flat)).filter((r) => r.some(([x, y]) => Math.abs(x) <= reach + 60 && Math.abs(y) <= reach + 60));
+  let best: [number, number] | undefined, bestD = Infinity;
+  for (let y = -reach; y <= reach; y += CELL)
+    for (let x = -reach; x <= reach; x += CELL) {
+      const d = x * x + y * y;
+      if (d < bestD && d <= reach * reach && near.some((r) => inside([x, y], r))) [best, bestD] = [[x, y], d];
+    }
+  return best && [p[0] + best[1] / 111_320, p[1] + best[0] / (111_320 * k)];
 }
