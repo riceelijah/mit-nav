@@ -1,4 +1,4 @@
-import { createApp, ref, computed, watch, onMounted } from "vue/dist/vue.esm-bundler.js";
+import { createApp, ref, computed, watch, onMounted, nextTick } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
 import outlineData from "./outlines.json" with { type: "json" };
@@ -9,8 +9,6 @@ const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
 type Place = { place: string; name: string; kind: string; floor: number };
 const floorLabel = (floor: number) => (floor === 0 ? "Basement" : `Floor ${floor}`);
-// Route distances are in cost units; an outdoor walk costs 1 + metres/50, so each unit is about 50 m.
-const METERS_PER_UNIT = 50;
 // Within this many metres of a building's centre counts as reaching it; further than OFF_COURSE from the route, twice in a row, reroutes.
 const REACHED = 40;
 const OFF_COURSE = 75;
@@ -49,7 +47,8 @@ const joinNames = (names: string[]) => (names.length < 2 ? names.join("") : `${n
  */
 export function mergeSteps(steps: any[]) {
   const shown: any[] = [];
-  for (const s of steps) {
+  // `upto` is the index of the last raw step a shown step covers, so the map can split the line at it.
+  steps.forEach((s, upto) => {
     const prev = shown[shown.length - 1];
     const corridor = CORRIDOR.exec(s.instruction), outside = OUTSIDE.exec(s.instruction);
     const kind = corridor ? "corridor" : outside ? "outside" : "";
@@ -61,11 +60,11 @@ export function mergeSteps(steps: any[]) {
       const instruction = kind === "corridor"
         ? `Walk about ${meters} m along the corridors.`
         : `Walk about ${meters} m outside${along.length ? `, along ${joinNames(along)}` : ""}${streets.includes("a crosswalk") ? ", crossing at the crosswalk" : ""}.`;
-      Object.assign(prev, { ...s, link: prev.link, distance: prev.distance + s.distance, meters, streets, instruction, merge: kind });
+      Object.assign(prev, { ...s, link: prev.link, distance: prev.distance + s.distance, meters, streets, instruction, merge: kind, upto });
     } else {
-      shown.push({ ...s, merge: kind, meters: Number((corridor ?? outside)?.[1] ?? 0), streets: outside?.[2] ? [outside[2]] : [] });
+      shown.push({ ...s, merge: kind, meters: Number((corridor ?? outside)?.[1] ?? 0), streets: outside?.[2] ? [outside[2]] : [], upto });
     }
-  }
+  });
   return shown.map((s, i) => ({ ...s, step: i + 1 }));
 }
 // ---- Floor plans, redrawn from room positions (not MIT's drawings). ----
@@ -123,7 +122,29 @@ const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 // Outdoor path points have generated names that mean nothing to a person.
 const arrivalLabel = (s: any) => (/^Path \d+$/.test(s.placeName) ? "" : `${s.placeName}, floor ${s.floor}`);
 
-const distanceLabel = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
+type Units = "METERS" | "FEET" | "MINUTES";
+const units = ref<Units>("METERS");
+/** A distance in the person's units: metres (km from 1000 m), feet (miles from 1000 ft), or walking minutes at 80 m a minute. */
+function distanceLabel(m: number) {
+  if (units.value === "FEET") {
+    const feet = m / 0.3048;
+    return feet >= 1000 ? `${(feet / 5280).toFixed(1)} mi` : `${Math.round(feet / 10) * 10 || Math.round(feet)} ft`;
+  }
+  if (units.value === "MINUTES") {
+    const minutes = m / 80;
+    return minutes < 1 ? "under a minute" : `${Math.round(minutes)} min`;
+  }
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+/** Directions carry "about N m"; show them in the person's units. */
+const inUnits = (text: string) => text.replace(/about (\d+) m\b/g, (_, m) => `about ${distanceLabel(Number(m))}`);
+function remembered(key: string) {
+  try { return localStorage.getItem(key) ?? ""; } catch { return ""; }
+}
+function remember(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* storage is optional */ }
+}
+units.value = (["METERS", "FEET", "MINUTES"].includes(remembered("units")) ? remembered("units") : "METERS") as Units;
 
 /** The place with exactly this name, found through search (the browser never holds the whole map). */
 async function placeNamed(name: string): Promise<Place | null> {
@@ -133,151 +154,192 @@ async function placeNamed(name: string): Promise<Place | null> {
 
 const app = createApp({
   template: `
-  <main>
-    <header class="top">
-      <div>
-        <h1>MIT Navigator</h1>
-        <p class="sub">Step-by-step directions across MIT, from building to building and floor to floor. If a passage is out of service, flag it and everyone's directions will avoid it.</p>
-      </div>
-      <div class="who">
-        <template v-if="me">
-          <span>Signed in as <strong>{{ me }}</strong></span>
-          <button @click="signOut">Sign out</button>
-        </template>
-        <button v-else class="primary" @click="showSignIn = !showSignIn">Sign in</button>
-      </div>
-    </header>
+  <div class="app" :class="{ open: sheetOpen }">
+    <aside class="panel" aria-label="Directions">
+      <button class="handle" @click="sheetOpen = !sheetOpen" :aria-expanded="sheetOpen" aria-label="Show or hide directions"><span></span></button>
+      <button v-if="to" class="peek" @click="sheetOpen = true" aria-label="Show directions">
+        <span class="number">{{ plaque.number }}</span>
+        <span class="next">{{ steps[doneCount] ? inUnits(steps[doneCount].instruction) : 'Tap for directions' }}</span>
+      </button>
 
-    <section v-if="choosing" class="signin">
-      <h2>Choose a username</h2>
-      <p class="sub">Your Commons username is already used here or can't be used. Pick another.</p>
-      <form class="row" @submit.prevent="chooseUsername">
-        <label>Username <input type="text" v-model="username" autocomplete="username" required /></label>
-        <button class="primary" type="submit">Continue</button>
-      </form>
-      <p v-if="authError" class="msg bad" role="alert">{{ authError }}</p>
-    </section>
+      <header class="brand">
+        <span class="mark" aria-hidden="true">MIT</span>
+        <span class="title">Navigator</span>
+        <button v-if="me" class="quiet" @click="signOut" :title="'Signed in as ' + me">{{ me }} <span class="dim">Sign out</span></button>
+        <button v-else class="quiet" @click="showSignIn = true">Sign in</button>
+      </header>
 
-    <section v-else-if="showSignIn && !me" class="signin">
-      <h2>{{ creating ? 'Create an account' : 'Sign in' }}</h2>
-      <button class="commons" @click="startCommons">Sign in with your MIT class account (Commons)</button>
-      <p class="or">or with a username and password</p>
-      <form class="row" @submit.prevent="submitPassword">
-        <label>Username
-          <input type="text" v-model="username" autocomplete="username" autocapitalize="off" spellcheck="false" required />
-          <span v-if="creating" class="hint">3 to 32 letters, digits, _ or -</span>
-        </label>
-        <label>Password
-          <input type="password" v-model="password" :autocomplete="creating ? 'new-password' : 'current-password'" required />
-          <span v-if="creating" class="hint">8 to 128 characters</span>
-        </label>
-        <button class="primary" type="submit">{{ creating ? 'Create account' : 'Sign in' }}</button>
-      </form>
-      <p class="switch">{{ creating ? 'Have an account?' : 'New here?' }}
-        <button class="link" @click="creating = !creating; authError = ''">{{ creating ? 'Sign in' : 'Create an account' }}</button></p>
-      <p v-if="authError" class="msg bad" role="alert">{{ authError }}</p>
-    </section>
-
-    <section>
-      <div class="row">
+      <section class="planner">
         <place-picker label="From" v-model="from" />
+        <button class="swap" @click="swap" aria-label="Swap start and destination" title="Swap">⇅</button>
         <place-picker label="To" v-model="to" />
-        <label>Time of day
-          <input type="time" v-model="time" />
-        </label>
-        <label class="check"><input type="checkbox" v-model="accessibleOnly" /> Step-free route only</label>
-      </div>
-      <div v-if="me && to" class="inline">
-        <button @click="toggleFavorite(to)">{{ isFavorite(to) ? '★ Unfavorite' : '☆ Favorite' }} {{ to.name }}</button>
-        <template v-if="from">
-          <input type="text" v-model="tripName" placeholder="Name this trip, e.g. To class" />
-          <button @click="saveTrip">Save trip</button>
-        </template>
-      </div>
-      <p v-if="from && to && from.place === to.place" class="msg">You are already there.</p>
-      <p v-else-if="searched && steps.length === 0" class="msg bad">
-        No route found{{ accessibleOnly ? ' that avoids stairs, blocked passages and anything closed at this time. Try turning off step-free or changing the time.' : ' that avoids blocked or closed passages at this time.' }}
-      </p>
-      <template v-if="steps.length">
-        <p class="floor">{{ steps.length }} steps, about {{ distanceLabel(routeMeters) }} (estimated)</p>
-        <label class="check"><input type="checkbox" v-model="tracking" /> Follow my location (steps outside tick off as you reach each building; mark indoor steps done yourself)</label>
-        <ol class="steps">
-          <li v-for="(s, i) in steps" :key="s.step" :class="{ done: i < doneCount, current: i === doneCount }">
-            {{ s.instruction }} <span v-if="arrivalLabel(s)" class="floor">(arrive: {{ arrivalLabel(s) }})</span>
-            <button v-if="i === doneCount" class="flag" @click="doneCount++">Done</button>
-            <button class="flag danger" @click="startFlag(s.link)">Flag blocked</button>
-            <div v-if="flagging === s.link" class="inline">
-              <input type="text" v-model="reason" placeholder="What is wrong? (e.g. elevator out of service)" />
-              <button class="primary" @click="block(s.link)">Report</button>
-            </div>
-          </li>
-        </ol>
-        <button v-if="me" class="primary arrived" @click="finishTrip" :disabled="finished">{{ finished ? 'Trip recorded' : "I've arrived" }}</button>
-      </template>
-      <p v-if="message" :class="['msg', messageKind]">{{ message }}</p>
-      <div id="map" aria-label="Map of the route"></div>
-      <div v-if="routeFloors.length" class="floors">
-        <span>Floor plans on this route:</span>
-        <button v-for="f in routeFloors" :key="f.building + '/' + f.floor" :class="{ active: activeFloor && activeFloor.building === f.building && activeFloor.floor === f.floor }" @click="showFloor(f)">{{ f.building }} · floor {{ f.floor }}</button>
-        <button v-if="activeFloor" @click="hideFloor">Hide plan</button>
-      </div>
-      <p v-if="activeFloor" class="floor">Floor plan redrawn from room positions on MIT's plans; each room is the area nearest its label, so walls are approximate. Zoom in to read room numbers.</p>
-    </section>
-
-    <template v-if="me && mine">
-      <h2>Your things</h2>
-      <section class="mine">
-        <div>
-          <h3>Favorites</h3>
-          <p v-if="!mine.favorites.length" class="floor">Star a destination to keep it here.</p>
-          <ul class="plain">
-            <li v-for="f in mine.favorites" :key="f.place">
-              <button class="link" @click="to = f">{{ f.name }}</button>
-              <button @click="toggleFavorite(f)" aria-label="Unfavorite">★</button>
-            </li>
-          </ul>
+        <div class="nearby" role="group" aria-label="Find the nearest">
+          <span>Nearest</span>
+          <button v-for="k in kinds" :key="k.label" :aria-pressed="nearestKind === k.label" @click="findNearest(k)">{{ k.label }}</button>
         </div>
-        <div>
-          <h3>Saved trips</h3>
-          <p v-if="!mine.trips.length" class="floor">Pick a start and destination, then save the trip.</p>
-          <ul class="plain">
-            <li v-for="t in mine.trips" :key="t.trip">
-              <button class="link" @click="useTrip(t)">{{ t.name }}</button>
-              <span class="floor">{{ t.sourceName }} → {{ t.destinationName }}{{ t.accessibleOnly ? ', step-free' : '' }}</span>
-              <button @click="removeTrip(t.trip)" aria-label="Remove trip">✕</button>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <h3>Preferences</h3>
-          <label class="check"><input type="checkbox" v-model="prefStepFree" @change="savePreferences" /> Step-free routes by default</label>
-          <label class="check"><input type="checkbox" v-model="prefLocation" @change="savePreferences" /> Use my location</label>
-        </div>
-        <div>
-          <h3>Your travels</h3>
-          <p><strong>{{ mine.totals.trips }}</strong> {{ mine.totals.trips === 1 ? 'trip' : 'trips' }}, about <strong>{{ distanceLabel(mine.totals.meters) }}</strong> (estimated)</p>
-          <ul class="plain">
-            <li v-for="h in mine.history" :key="h.entry"><span>{{ h.sourceName }} → {{ h.destinationName }}</span><span class="floor">{{ distanceLabel(h.meters) }}</span></li>
-          </ul>
+        <div class="options">
+          <label class="toggle" :class="{ on: accessibleOnly }"><input type="checkbox" v-model="accessibleOnly" /> Step-free</label>
+          <label class="time">Leaving at <input type="time" v-model="time" /></label>
         </div>
       </section>
-    </template>
 
-    <h2>Open problem reports</h2>
-    <section>
-      <p v-if="!reports.length && !unreported.length" class="sub">Nothing is reported as blocked.</p>
-      <ul class="plain">
-        <li v-for="r in reports" :key="r.report">
-          <span><strong>{{ r.sourceName }} to {{ r.destinationName }}</strong>: {{ r.forward }}<br /><span class="floor">{{ r.reporter ?? 'someone' }}: {{ r.reason }}</span></span>
-          <button @click="unblock(r.link)">Mark as clear</button>
-        </li>
-        <li v-for="l in unreported" :key="l.link">
-          <span><strong>{{ l.sourceName }} to {{ l.destinationName }}</strong>: {{ l.forward }}<br /><span class="floor">blocked{{ l.service ? ' with ' + l.service : '' }}</span></span>
-          <button @click="unblock(l.link)">Mark as clear</button>
-        </li>
-      </ul>
-    </section>
-  </main>`,
+      <nav class="tabs" role="tablist">
+        <button role="tab" :aria-selected="tab === 'route'" @click="tab = 'route'">Route</button>
+        <button role="tab" :aria-selected="tab === 'saved'" @click="tab = 'saved'">Saved</button>
+        <button role="tab" :aria-selected="tab === 'problems'" @click="tab = 'problems'">Problems<span v-if="reports.length + unreported.length" class="count">{{ reports.length + unreported.length }}</span></button>
+      </nav>
+
+      <div class="body">
+        <p v-if="message" :class="['note', messageKind]" role="status">{{ message }}</p>
+
+        <section v-show="tab === 'route'" class="route">
+          <div v-if="nearestKind" class="closest">
+            <h2>Nearest {{ nearestKind.toLowerCase() }} from {{ from ? from.name : 'your start' }}</h2>
+            <p v-if="!closest.length" class="empty">{{ from ? 'Nothing of that kind is reachable from here' + (accessibleOnly ? ' without stairs' : '') + '.' : 'Choose where you are first.' }}</p>
+            <ul class="list">
+              <li v-for="c in closest" :key="c.place">
+                <button class="go" @click="chooseClosest(c)">{{ c.name }}<span class="at">Floor {{ c.floor }}<template v-if="c.meters !== undefined">, about {{ distanceLabel(c.meters) }} away</template></span></button>
+              </li>
+            </ul>
+            <button class="quiet" @click="nearestKind = ''">Close</button>
+          </div>
+          <div v-if="to" class="plaque">
+            <span class="number">{{ plaque.number }}</span>
+            <span class="what">{{ plaque.what }}</span>
+          </div>
+          <p v-if="from && to && from.place === to.place" class="empty">You're already there.</p>
+          <p v-else-if="searched && steps.length === 0" class="empty">
+            No route{{ accessibleOnly ? ' without stairs' : '' }} avoids the blocked or closed passages right now.
+            <template v-if="accessibleOnly">Turn off step-free to allow stairs.</template>
+          </p>
+          <template v-if="steps.length">
+            <div class="summary">
+              <span><strong>{{ distanceLabel(routeMeters) }}</strong> estimated walk</span>
+              <span>{{ steps.length }} steps</span>
+              <label class="toggle small" :class="{ on: tracking }"><input type="checkbox" v-model="tracking" /> Follow me</label>
+            </div>
+            <div v-if="me && to" class="keep">
+              <button class="quiet" @click="toggleFavorite(to)" :aria-pressed="isFavorite(to)">{{ isFavorite(to) ? '★ Favorite' : '☆ Favorite' }}</button>
+              <form v-if="from" @submit.prevent="saveTrip"><input type="text" v-model="tripName" placeholder="Name this trip" aria-label="Trip name" /><button class="quiet" type="submit">Save trip</button></form>
+            </div>
+            <ol class="steps">
+              <li v-for="(s, i) in steps" :key="s.step" :class="{ done: i < doneCount, current: i === doneCount }">
+                <span class="n">{{ s.step }}</span>
+                <div class="text">
+                  <p>{{ inUnits(s.instruction) }}</p>
+                  <p v-if="arrivalLabel(s)" class="at">{{ arrivalLabel(s) }}</p>
+                  <div class="acts">
+                    <button v-if="i === doneCount" class="quiet" @click="doneCount++">Done</button>
+                    <button class="quiet warn" @click="startFlag(s.link)">Report a problem</button>
+                  </div>
+                  <form v-if="flagging === s.link" class="flag" @submit.prevent="block(s.link)">
+                    <input type="text" v-model="reason" placeholder="What's wrong? e.g. elevator out of service" aria-label="What's wrong" />
+                    <button class="primary" type="submit">Report</button>
+                  </form>
+                </div>
+              </li>
+            </ol>
+            <button v-if="me" class="primary wide" @click="finishTrip" :disabled="finished">{{ finished ? 'Trip recorded' : "I've arrived" }}</button>
+            <div v-if="routeFloors.length" class="floors">
+              <p>Floor plans on this route</p>
+              <div class="chips">
+                <button v-for="f in routeFloors" :key="f.building + '/' + f.floor" :aria-pressed="!!activeFloor && activeFloor.building === f.building && activeFloor.floor === f.floor" @click="showFloor(f)">{{ f.building }}, floor {{ f.floor }}</button>
+                <button v-if="activeFloor" class="quiet" @click="hideFloor">Hide plan</button>
+              </div>
+              <p v-if="activeFloor" class="fine">Redrawn from room positions on MIT's plans, so walls are approximate. Zoom in to read room numbers.</p>
+            </div>
+          </template>
+        </section>
+
+        <section v-show="tab === 'saved'" class="saved">
+          <template v-if="me && mine">
+            <h2>Favorites</h2>
+            <p v-if="!mine.favorites.length" class="empty">Star a destination to keep it here.</p>
+            <ul class="list">
+              <li v-for="f in mine.favorites" :key="f.place">
+                <button class="go" @click="to = f; tab = 'route'">{{ f.name }}</button>
+                <button class="quiet" @click="toggleFavorite(f)" aria-label="Remove from favorites">★</button>
+              </li>
+            </ul>
+            <h2>Trips</h2>
+            <p v-if="!mine.trips.length" class="empty">Plan a route, then save it with a name.</p>
+            <ul class="list">
+              <li v-for="t in mine.trips" :key="t.trip">
+                <button class="go" @click="useTrip(t); tab = 'route'">{{ t.name }}<span class="at">{{ t.sourceName }} to {{ t.destinationName }}{{ t.accessibleOnly ? ', step-free' : '' }}</span></button>
+                <button class="quiet" @click="removeTrip(t.trip)" aria-label="Delete trip">Delete</button>
+              </li>
+            </ul>
+            <h2>Travels</h2>
+            <p class="tally"><strong>{{ mine.totals.trips }}</strong> {{ mine.totals.trips === 1 ? 'trip' : 'trips' }}, about <strong>{{ distanceLabel(mine.totals.meters) }}</strong> walked</p>
+            <ul class="list">
+              <li v-for="h in mine.history" :key="h.entry"><span>{{ h.sourceName }} to {{ h.destinationName }}</span><span class="at">{{ distanceLabel(h.meters) }}</span></li>
+            </ul>
+            <h2>Preferences</h2>
+            <label class="toggle" :class="{ on: prefStepFree }"><input type="checkbox" v-model="prefStepFree" @change="savePreferences" /> Step-free routes by default</label>
+            <label class="toggle" :class="{ on: prefLocation }"><input type="checkbox" v-model="prefLocation" @change="savePreferences" /> Follow my location when I open the app</label>
+          </template>
+          <h2>Distances</h2>
+          <div class="segmented" role="radiogroup" aria-label="Show distances in">
+            <label v-for="u in unitChoices" :key="u.value" :class="{ on: units === u.value }"><input type="radio" name="units" :value="u.value" v-model="units" @change="chooseUnits" /> {{ u.label }}</label>
+          </div>
+          <div v-else class="empty">
+            <p>Sign in to keep favorite places, saved trips and how far you've walked.</p>
+            <button class="primary" @click="showSignIn = true">Sign in</button>
+          </div>
+        </section>
+
+        <section v-show="tab === 'problems'" class="problems">
+          <p v-if="!reports.length && !unreported.length" class="empty">Nothing is blocked right now. If a door, elevator or path is out of service, report it from a step of your route.</p>
+          <ul class="list">
+            <li v-for="r in reports" :key="r.report">
+              <span><strong>{{ r.forward }}</strong><span class="at">{{ r.sourceName }} to {{ r.destinationName }}</span><span class="at">{{ r.reporter ?? 'Someone' }}: {{ r.reason }}</span></span>
+              <button class="quiet" @click="unblock(r.link)">Mark clear</button>
+            </li>
+            <li v-for="l in unreported" :key="l.link">
+              <span><strong>{{ l.forward }}</strong><span class="at">{{ l.sourceName }} to {{ l.destinationName }}{{ l.service ? ', ' + l.service : '' }}</span></span>
+              <button class="quiet" @click="unblock(l.link)">Mark clear</button>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </aside>
+
+    <div id="map" aria-label="Map"></div>
+
+    <div v-if="(showSignIn && !me) || choosing" class="modal" role="dialog" aria-modal="true" aria-labelledby="signin-title" @click.self="showSignIn = false">
+      <section class="sheet-card">
+        <template v-if="choosing">
+          <h2 id="signin-title">Choose a username</h2>
+          <p>Your Commons username is taken here or can't be used. Pick another.</p>
+          <form @submit.prevent="chooseUsername">
+            <label>Username <input type="text" v-model="username" autocomplete="username" required /></label>
+            <button class="primary wide" type="submit">Continue</button>
+          </form>
+        </template>
+        <template v-else>
+          <h2 id="signin-title">{{ creating ? 'Create an account' : 'Sign in' }}</h2>
+          <button class="commons wide" @click="startCommons">Continue with your MIT class account</button>
+          <p class="or">or use a username and password</p>
+          <form @submit.prevent="submitPassword">
+            <label>Username
+              <input type="text" v-model="username" autocomplete="username" autocapitalize="off" spellcheck="false" required />
+              <span v-if="creating" class="hint">3 to 32 letters, digits, _ or -</span>
+            </label>
+            <label>Password
+              <input type="password" v-model="password" :autocomplete="creating ? 'new-password' : 'current-password'" required />
+              <span v-if="creating" class="hint">8 to 128 characters</span>
+            </label>
+            <button class="primary wide" type="submit">{{ creating ? 'Create account' : 'Sign in' }}</button>
+          </form>
+          <p class="switch">{{ creating ? 'Have an account?' : 'New here?' }}
+            <button class="link" @click="creating = !creating; authError = ''">{{ creating ? 'Sign in' : 'Create an account' }}</button></p>
+        </template>
+        <p v-if="authError" class="note bad" role="alert">{{ authError }}</p>
+        <button class="close quiet" @click="showSignIn = false" aria-label="Close">Close</button>
+      </section>
+    </div>
+  </div>
+`,
   setup() {
     const me = ref<string | null>(null);
     const mine = ref<any>(null);
@@ -298,6 +360,18 @@ const app = createApp({
     const tripName = ref("");
     const finished = ref(false);
     const tracking = ref(false);
+    const tab = ref<"route" | "saved" | "problems">("route");
+    const sheetOpen = ref(true);
+    /** The destination as a door plaque: its number large, what it is beneath. */
+    const plaque = computed(() => {
+      const name = to.value?.name ?? "";
+      const room = /^([A-Z]*\d+[A-Z]*-\S+)\s+(.*)$/.exec(name);
+      if (room) return { number: room[1], what: room[2] };
+      const building = /^(.*) \(Building ([^)]+)\)$/.exec(name) ?? /^Building ([^,]+)$/.exec(name);
+      if (building) return building.length === 3 ? { number: building[2], what: building[1] } : { number: building[1], what: "Building" };
+      return { number: name, what: "" };
+    });
+    function swap() { [from.value, to.value] = [to.value, from.value]; }
     const doneCount = ref(0);
     const now = new Date();
     const time = ref(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
@@ -311,7 +385,8 @@ const app = createApp({
     const message = ref("");
     const messageKind = ref("ok");
     const say = (text: string, kind = "ok") => { message.value = text; messageKind.value = kind; };
-    const routeMeters = computed(() => steps.value.reduce((sum, s) => sum + s.distance, 0) * METERS_PER_UNIT);
+    // The walking the directions describe: the "about N m" written in each step (rides add none).
+    const routeMeters = computed(() => steps.value.reduce((sum, s) => sum + Number(/about (\d+) m/.exec(s.instruction)?.[1] ?? 0), 0));
     // Blocked passages that have no open report still need a way to be cleared.
     const unreported = computed(() => blocked.value.filter((l) => !reports.value.some((r) => r.link === l.link)));
 
@@ -333,6 +408,7 @@ const app = createApp({
       const p = result.preferences.preferences[0];
       prefStepFree.value = p?.stepFree ?? false;
       prefLocation.value = p?.useLocation ?? false;
+      if (p?.units) { units.value = p.units; remember("units", p.units); }
     }
     /** Sends a sign-in request; on success loads the person, on refusal shows the sentence for its category. */
     async function enter(answer: Promise<any>, messages: Record<string, string>) {
@@ -392,6 +468,7 @@ const app = createApp({
     }
 
     let latestRoute = 0;
+    let pathSteps: any[] = [];
     async function findRoute() {
       const asked = ++latestRoute;
       finished.value = false;
@@ -399,6 +476,7 @@ const app = createApp({
       const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, hour: hour.value });
       if (asked !== latestRoute) return; // an answer to an older choice of places
       if ("error" in result) return say(`Could not find a route: ${result.error}`, "bad");
+      pathSteps = result.route.steps; // every point, for drawing; the list shows merged steps
       steps.value = mergeSteps(result.route.steps);
       searched.value = true;
       doneCount.value = 0;
@@ -407,27 +485,56 @@ const app = createApp({
 
     // ---- The map: the route as a line through the places it reaches, and where the person is. ----
     let map: any, routeLayer: any, meMarker: any;
-    const routeLine = (): Point[] => {
+    /** The route as map points, and for each raw step the index of the last point it reaches. */
+    const routeGeometry = () => {
       const points: Point[] = [];
+      const reached: number[] = [];
       const add = (p: any) => {
-        if (!known(p)) return;
-        const pt: Point = [p.latitude, p.longitude];
-        const last = points[points.length - 1];
-        if (!last || last[0] !== pt[0] || last[1] !== pt[1]) points.push(pt);
+        if (known(p)) {
+          const pt: Point = [p.latitude, p.longitude];
+          const last = points[points.length - 1];
+          if (!last || last[0] !== pt[0] || last[1] !== pt[1]) points.push(pt);
+        }
+        return points.length - 1;
       };
       add(from.value);
-      steps.value.forEach(add);
-      return points;
+      for (const s of pathSteps) reached.push(add(s));
+      return { points, reached };
     };
+    const routeLine = (): Point[] => routeGeometry().points;
+    /**
+     * The route line, split by progress: walked (grey), the step you're on (cardinal on signage yellow),
+     * and still to come (cardinal). Without a location, a dot marks where the done steps end.
+     */
+    function drawProgress() {
+      routeLayer.clearLayers();
+      const { points, reached } = routeGeometry();
+      if (!points.length) return points;
+      const end = (stepIndex: number) => (stepIndex < 0 ? 0 : reached[steps.value[stepIndex]?.upto ?? pathSteps.length - 1] ?? points.length - 1);
+      const doneTo = end(doneCount.value - 1);
+      const currentTo = doneCount.value < steps.value.length ? end(doneCount.value) : doneTo;
+      const part = (from: number, to: number) => points.slice(from, to + 1);
+      if (doneTo > 0) L.polyline(part(0, doneTo), { color: "#7d8891", weight: 6, opacity: 0.85 }).addTo(routeLayer);
+      if (currentTo > doneTo) {
+        L.polyline(part(doneTo, currentTo), { color: "#f2cf5b", weight: 11, opacity: 0.95 }).addTo(routeLayer);
+        L.polyline(part(doneTo, currentTo), { color: "#a31f34", weight: 5 }).addTo(routeLayer);
+      }
+      if (currentTo < points.length - 1) L.polyline(part(currentTo, points.length - 1), { color: "#a31f34", weight: 4, opacity: 0.75 }).addTo(routeLayer);
+      L.circleMarker(points[0], { radius: 6, color: "#1c2b39", fillColor: "#ffffff", fillOpacity: 1, weight: 3 }).bindTooltip("Start").addTo(routeLayer);
+      L.circleMarker(points[points.length - 1], { radius: 8, color: "#ffffff", fillColor: "#a31f34", fillOpacity: 1, weight: 3 }).bindTooltip("Destination").addTo(routeLayer);
+      if (!tracking.value && doneTo > 0) L.circleMarker(points[doneTo], { radius: 6, color: "#ffffff", fillColor: "#1c2b39", fillOpacity: 1, weight: 2 }).bindTooltip("Where your done steps end").addTo(routeLayer);
+      return points;
+    }
+    watch(doneCount, () => map && drawProgress());
     function draw() {
       if (!map) return;
-      routeLayer.clearLayers();
-      const line = routeLine();
+      map.invalidateSize(); // the panel may have changed the map's size since it was laid out
+      const line = drawProgress();
       if (!line.length) return;
-      L.polyline(line, { color: "#a31f34", weight: 5, opacity: 0.85 }).addTo(routeLayer);
-      L.circleMarker(line[0], { radius: 7, color: "#1f7a3f", fillOpacity: 1 }).bindTooltip("Start").addTo(routeLayer);
-      L.circleMarker(line[line.length - 1], { radius: 7, color: "#a31f34", fillOpacity: 1 }).bindTooltip("Destination").addTo(routeLayer);
-      map.fitBounds(L.latLngBounds(line).pad(0.25), { maxZoom: 18 });
+      // On a phone the sheet covers the bottom of the map, so keep the route above it.
+      const phone = window.matchMedia("(max-width: 760px)").matches;
+      const covered = phone ? (sheetOpen.value ? window.innerHeight * 0.55 : 100) : 0;
+      map.fitBounds(L.latLngBounds(line), { maxZoom: 18, paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + covered] });
     }
 
     // ---- Floor plans for the floors the route passes through. ----
@@ -460,9 +567,59 @@ const app = createApp({
         }
       }
       map.fitBounds(L.polygon(outline).getBounds().pad(0.05));
+      if (window.matchMedia("(max-width: 760px)").matches) sheetOpen.value = false;
     }
     function hideFloor() { floorLayer.clearLayers(); activeFloor.value = null; draw(); }
     watch(steps, () => { if (activeFloor.value) hideFloor(); });
+    watch(sheetOpen, () => setTimeout(() => (activeFloor.value ? undefined : draw()), 280)); // after the sheet slides
+
+    // ---- Nearest restroom, food, study space or lounge, by route from the start. ----
+    const kinds = [
+      { label: "Restroom", text: "Lavatory" },
+      { label: "Food", text: "Food Facility" },
+      { label: "Study space", text: "Study" },
+      { label: "Lounge", text: "Lounge" },
+    ];
+    const nearestKind = ref("");
+    const closest = ref<any[]>([]);
+    async function findNearest(kind: { label: string; text: string }) {
+      nearestKind.value = kind.label;
+      tab.value = "route";
+      sheetOpen.value = true;
+      closest.value = [];
+      if (!from.value) return;
+      const result = await client.route.closest({ source: from.value.place, text: kind.text, accessibleOnly: accessibleOnly.value, hour: hour.value });
+      if ("error" in result) return;
+      closest.value = result.closest.places;
+      // How far each is: the metres written in its route, as for any route (the cost is not a length).
+      const metres = await Promise.all(closest.value.map(async (c: any) => {
+        const route = await client.route.find({ source: from.value!.place, destination: c.place, accessibleOnly: accessibleOnly.value, hour: hour.value });
+        return "error" in route ? undefined : route.route.steps.reduce((sum: number, st: any) => sum + Number(/about (\d+) m/.exec(st.instruction)?.[1] ?? 0), 0);
+      }));
+      closest.value = closest.value.map((c: any, i: number) => ({ ...c, meters: metres[i] }));
+    }
+    function chooseClosest(c: any) {
+      to.value = { place: c.place, name: c.name, kind: "ROOM", floor: c.floor };
+      nearestKind.value = "";
+    }
+
+    // ---- Distance units: saved with the account when signed in, and on this device either way. ----
+    const unitChoices = [
+      { value: "METERS", label: "Metres" },
+      { value: "FEET", label: "Feet" },
+      { value: "MINUTES", label: "Minutes" },
+    ];
+    function chooseUnits() {
+      remember("units", units.value);
+      if (me.value) savePreferences();
+    }
+
+    // After "Done", bring the next step into view.
+    watch(doneCount, async () => {
+      await nextTick();
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.querySelector(".steps li.current")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    });
 
     // ---- Following the person's location (only while they have it turned on). ----
     let watchId: number | undefined;
@@ -508,6 +665,7 @@ const app = createApp({
         if ("error" in result || !result.route.steps.length) return say(`You seem to be off the route, and there is no route from ${nearest.name}. Keep to the old route.`, "bad");
         skipNextRoute = true;
         from.value = { ...nearest, kind: "ENTRANCE", floor: 1 };
+        pathSteps = result.route.steps;
         steps.value = mergeSteps(result.route.steps);
         doneCount.value = 0;
         draw();
@@ -564,7 +722,7 @@ const app = createApp({
       await loadMine();
     }
     async function savePreferences() {
-      await client.me.preferences.set({ stepFree: prefStepFree.value, useLocation: prefLocation.value });
+      await client.me.preferences.set({ stepFree: prefStepFree.value, useLocation: prefLocation.value, units: units.value });
     }
     async function finishTrip() {
       if (!from.value || !to.value || finished.value) return;
@@ -602,7 +760,7 @@ const app = createApp({
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
       reports, unreported, steps, from, to, accessibleOnly, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      startFlag, block, unblock, tracking, arrivalLabel, routeFloors, activeFloor, showFloor, hideFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
+      startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeFloors, activeFloor, showFloor, hideFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });
@@ -612,8 +770,8 @@ app.component("PlacePicker", {
   props: { modelValue: { type: Object, default: null }, label: String },
   emits: ["update:modelValue"],
   template: `
-    <label class="combo">{{ label }}
-      <input type="text" :value="text" placeholder="Building or room, e.g. 32-123" autocomplete="off"
+    <label class="combo"><span>{{ label }}</span>
+      <input type="text" :value="text" :placeholder="label === 'From' ? 'Where are you?' : 'Building, room or place'" autocomplete="off" enterkeyhint="search"
         @focus="onFocus" @input="onInput" @blur="close" @keydown.esc="close" @keydown.enter.prevent="pickFirst" />
       <ul v-if="open" class="options">
         <li v-for="p in pinned" :key="p.place" :class="{ chosen: p.place === modelValue?.place }" @mousedown.prevent="choose(p)">
@@ -624,7 +782,7 @@ app.component("PlacePicker", {
           <span class="name">{{ p.name }}</span> <span class="floor">{{ floorLabel(p.floor) }}</span>
         </li>
         <li v-if="!results.length" class="none">No matching places</li>
-        <li v-else-if="results.length >= 40" class="none">Showing the first 40. Type more to narrow the list.</li>
+        <li v-else-if="results.length >= 40" class="none">Type more to narrow the list.</li>
       </ul>
     </label>`,
   setup(props: any, { emit }: any) {

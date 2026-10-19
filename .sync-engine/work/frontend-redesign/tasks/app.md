@@ -1,0 +1,1 @@
+Implement: path segment cost m/50; Wayfinding _closest with shared cheapest(); Preferring units; Saved units + validator; Campus FindClosest; frontend redesign, nearest buttons with real route metres, units everywhere, honest distance sum, auto-scroll after Done, progress on the map; tests.

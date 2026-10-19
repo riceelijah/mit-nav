@@ -482,7 +482,8 @@ export async function buildCampus() {
   for (const pt of paths.points) places.push({ name: pathName(pt.id), kind: "TRANSIT", floor: 1, ...toLatLon(pt.at) });
   for (const e of paths.edges) {
     const text = `Walk about ${Math.max(1, Math.round(e.meters))} m outside${e.name ? ` along ${e.name}` : ""}.`;
-    links.push([pathName(e.from), pathName(e.to), text, text, e.stepFree, 0, 0, "", outdoorWalk(e.meters)]);
+    // Along a path only the metres count, so a path is not penalised for its bends.
+    links.push([pathName(e.from), pathName(e.to), text, text, e.stepFree, 0, 0, "", e.meters / 50]);
   }
   const unreached: number[] = [];
   buildings.forEach((b, i) => {

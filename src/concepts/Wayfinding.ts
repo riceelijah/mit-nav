@@ -34,6 +34,7 @@ interface LinkDoc {
 }
 
 const SEARCH_LIMIT = 40;
+const CLOSEST = 5;
 // Building and room numbers sort the way people read them: 2 before 10, 32-123 before 32-G904.
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
@@ -55,6 +56,76 @@ export function groundMeters(lat1: number, lon1: number, lat2: number, lon2: num
 async function describe(places: Collection<PlaceDoc>, l: LinkDoc) {
   const [source, destination] = await Promise.all([places.findOne({ _id: l.source }), places.findOne({ _id: l.destination })]);
   return { sourceName: source?.name ?? "?", destinationName: destination?.name ?? "?", forward: l.forward, service: l.service ?? "" };
+}
+
+/**
+ * Dijkstra from `source` until `stop` says to: the cheapest cost to each place reached, how it was reached,
+ * and the places in the order they were settled (cheapest first, earliest discovered on a tie).
+ */
+function cheapest(links: LinkDoc[], source: string, accessibleOnly: boolean, hour: number, stop: (place: string) => boolean) {
+  const settled: string[] = [];
+  // Dijkstra finds the cheapest route. Each connection costs the distance it was given when it was made.
+  // Blocked connections and ones closed at this hour are never used, and neither are inaccessible ones when asked to avoid them.
+  const usable = links.filter(
+    (l) => !l.blocked && !isClosed(l.closedFrom ?? 0, l.closedUntil ?? 0, hour) && (!accessibleOnly || l.accessible),
+  );
+  const next = new Map<string, { link: LinkDoc; to: string; instruction: string }[]>();
+  for (const l of usable) {
+    (next.get(l.source) ?? next.set(l.source, []).get(l.source)!).push({ link: l, to: l.destination, instruction: l.forward });
+    (next.get(l.destination) ?? next.set(l.destination, []).get(l.destination)!).push({ link: l, to: l.source, instruction: l.backward });
+  }
+  const dist = new Map<string, number>([[source, 0]]);
+  const came = new Map<string, { from: string; link: LinkDoc; instruction: string }>();
+  const done = new Set<string>();
+  // Binary heap of [distance, discovery order, place]: the smallest distance comes out first, and the
+  // place discovered earliest wins a tie, so ties still go to connections made earlier.
+  const order = new Map<string, number>([[source, 0]]);
+  const heap: [number, number, string][] = [[0, 0, source]];
+  const less = (a: [number, number, string], b: [number, number, string]) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+  const push = (item: [number, number, string]) => {
+    heap.push(item);
+    for (let i = heap.length - 1; i > 0; ) {
+      const parent = (i - 1) >> 1;
+      if (!less(heap[i], heap[parent])) break;
+      [heap[i], heap[parent]] = [heap[parent], heap[i]];
+      i = parent;
+    }
+  };
+  const pop = () => {
+    const top = heap[0];
+    const last = heap.pop()!;
+    if (heap.length) {
+      heap[0] = last;
+      for (let i = 0; ; ) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < heap.length && less(heap[l], heap[m])) m = l;
+        if (r < heap.length && less(heap[r], heap[m])) m = r;
+        if (m === i) break;
+        [heap[i], heap[m]] = [heap[m], heap[i]];
+        i = m;
+      }
+    }
+    return top;
+  };
+  while (heap.length) {
+    const [d, , here] = pop();
+    if (done.has(here) || d > dist.get(here)!) continue; // a stale entry for a place already improved
+    settled.push(here);
+    if (stop(here)) break;
+    done.add(here);
+    for (const edge of next.get(here) ?? []) {
+      if (done.has(edge.to)) continue;
+      const candidate = d + (edge.link.distance ?? 1);
+      if (!order.has(edge.to)) order.set(edge.to, order.size);
+      if (!dist.has(edge.to) || candidate < dist.get(edge.to)!) {
+        dist.set(edge.to, candidate);
+        came.set(edge.to, { from: here, link: edge.link, instruction: edge.instruction });
+        push([candidate, order.get(edge.to)!, edge.to]);
+      }
+    }
+  }
+  return { dist, came, settled };
 }
 
 export class WayfindingConcept {
@@ -205,6 +276,24 @@ export class WayfindingConcept {
       .map(({ _id, name, kind, floor, latitude, longitude }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0 }));
   }
 
+  async _closest({ source, text, accessibleOnly, hour }: { source: string; text: string; accessibleOnly: boolean; hour: number }) {
+    const places = new Map((await this.places.find({}).toArray()).map((p) => [p._id, p]));
+    if (!places.has(source)) return [];
+    const q = text.trim().toLowerCase();
+    const matches = (id: string) => {
+      const p = places.get(id)!;
+      return id !== source && p.kind !== "TRANSIT" && p.name.toLowerCase().includes(q);
+    };
+    const links = (await this.links.find({}).toArray()).sort((a, b) => a.order - b.order);
+    let found = 0;
+    // Settled order is cheapest first, so the search can stop at the fifth match.
+    const { dist, settled } = cheapest(links, source, accessibleOnly, hour, (id) => matches(id) && ++found >= CLOSEST);
+    return settled
+      .filter(matches)
+      .slice(0, CLOSEST)
+      .map((id) => ({ place: id, name: places.get(id)!.name, floor: places.get(id)!.floor, cost: dist.get(id)! }));
+  }
+
   async _onFloor({ building, floor }: { building: string; floor: number }) {
     const prefix = `${building}-`;
     const rows = await this.places.find({ floor }).toArray();
@@ -249,66 +338,7 @@ export class WayfindingConcept {
     if (!places.has(source) || !places.has(destination) || source === destination) return [];
     const links = (await this.links.find({}).toArray()).sort((a, b) => a.order - b.order);
 
-    // Dijkstra finds the cheapest route. Each connection costs the distance it was given when it was made.
-    // Blocked connections and ones closed at this hour are never used, and neither are inaccessible ones when asked to avoid them.
-    const usable = links.filter(
-      (l) => !l.blocked && !isClosed(l.closedFrom ?? 0, l.closedUntil ?? 0, hour) && (!accessibleOnly || l.accessible),
-    );
-    const next = new Map<string, { link: LinkDoc; to: string; instruction: string }[]>();
-    for (const l of usable) {
-      (next.get(l.source) ?? next.set(l.source, []).get(l.source)!).push({ link: l, to: l.destination, instruction: l.forward });
-      (next.get(l.destination) ?? next.set(l.destination, []).get(l.destination)!).push({ link: l, to: l.source, instruction: l.backward });
-    }
-    const dist = new Map<string, number>([[source, 0]]);
-    const came = new Map<string, { from: string; link: LinkDoc; instruction: string }>();
-    const done = new Set<string>();
-    // Binary heap of [distance, discovery order, place]: the smallest distance comes out first, and the
-    // place discovered earliest wins a tie, so ties still go to connections made earlier.
-    const order = new Map<string, number>([[source, 0]]);
-    const heap: [number, number, string][] = [[0, 0, source]];
-    const less = (a: [number, number, string], b: [number, number, string]) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
-    const push = (item: [number, number, string]) => {
-      heap.push(item);
-      for (let i = heap.length - 1; i > 0; ) {
-        const parent = (i - 1) >> 1;
-        if (!less(heap[i], heap[parent])) break;
-        [heap[i], heap[parent]] = [heap[parent], heap[i]];
-        i = parent;
-      }
-    };
-    const pop = () => {
-      const top = heap[0];
-      const last = heap.pop()!;
-      if (heap.length) {
-        heap[0] = last;
-        for (let i = 0; ; ) {
-          const l = 2 * i + 1, r = l + 1;
-          let m = i;
-          if (l < heap.length && less(heap[l], heap[m])) m = l;
-          if (r < heap.length && less(heap[r], heap[m])) m = r;
-          if (m === i) break;
-          [heap[i], heap[m]] = [heap[m], heap[i]];
-          i = m;
-        }
-      }
-      return top;
-    };
-    while (heap.length) {
-      const [d, , here] = pop();
-      if (done.has(here) || d > dist.get(here)!) continue; // a stale entry for a place already improved
-      if (here === destination) break;
-      done.add(here);
-      for (const edge of next.get(here) ?? []) {
-        if (done.has(edge.to)) continue;
-        const candidate = d + (edge.link.distance ?? 1);
-        if (!order.has(edge.to)) order.set(edge.to, order.size);
-        if (!dist.has(edge.to) || candidate < dist.get(edge.to)!) {
-          dist.set(edge.to, candidate);
-          came.set(edge.to, { from: here, link: edge.link, instruction: edge.instruction });
-          push([candidate, order.get(edge.to)!, edge.to]);
-        }
-      }
-    }
+    const { came } = cheapest(links, source, accessibleOnly, hour, (place) => place === destination);
     if (!came.has(destination)) return [];
 
     const path: { link: LinkDoc; instruction: string; place: PlaceDoc }[] = [];

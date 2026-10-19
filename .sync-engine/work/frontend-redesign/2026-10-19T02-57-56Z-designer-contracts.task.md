@@ -1,0 +1,1 @@
+Repair M1..M3 from 2026-10-19T02-56-43Z-critic-contracts, and add (per the updated brief) Wayfinding _closest, endpoint Campus.Routing.FindClosest at /route/closest with former Campus.Routing.Closest, and Preferring units (METERS, FEET, MINUTES) with SetPreferences carrying it.

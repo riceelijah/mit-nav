@@ -1,0 +1,1 @@
+Update Campus.md cost prose (outdoor path segments cost metres/50; +1 only for the walk between a building door and the paths) and Saved.md distance prose (the page adds up the metres written in the directions; rides add none). Check syntax.

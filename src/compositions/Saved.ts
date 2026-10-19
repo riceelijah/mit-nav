@@ -1,6 +1,6 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
 import { each, form, former, no, where } from "@mit-sdg/sync-engine/language";
-import { signedIn } from "./inputs.ts";
+import { preferencesInput, signedIn } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
 const { Sessioning, Wayfinding, Favoriting, Planning, Journaling, Preferring } = concepts;
@@ -23,8 +23,8 @@ const MyTrips = former("the saved trips of (user)", ({ user }, { trip, name, sou
   }),
 );
 
-const MyPreferences = former("the preferences of (user)", ({ user }, { stepFree, useLocation }) =>
-  form({ preferences: each(Preferring._preferences({ user }).is({ stepFree, useLocation })).form({ stepFree, useLocation }) }),
+const MyPreferences = former("the preferences of (user)", ({ user }, { stepFree, useLocation, units }) =>
+  form({ preferences: each(Preferring._preferences({ user }).is({ stepFree, useLocation, units })).form({ stepFree, useLocation, units }) }),
 );
 
 const MyHistory = former("the recent trips of (user)", ({ user }, { entry, source, destination, meters, sourceName, destinationName }) =>
@@ -109,12 +109,12 @@ const RemoveTrip = endpoint(
 
 const SetPreferences = endpoint(
   "/me/preferences/set",
-  ({ session, user, stepFree, useLocation }) =>
-    receive({ session, stepFree, useLocation })
+  ({ session, user, stepFree, useLocation, units }) =>
+    receive({ session, stepFree, useLocation, units })
       .then(Sessioning.use({ session }).responds({ subject: user }))
-      .then(Preferring.set({ user, stepFree, useLocation }).responds({}))
+      .then(Preferring.set({ user, stepFree, useLocation, units }).responds({}))
       .then(respond({})),
-  { validators: { input: signedIn("stepFree", "useLocation") } },
+  { validators: { input: preferencesInput } },
 );
 
 const FinishTrip = endpoint(

@@ -203,3 +203,39 @@ test("floor endpoint answers places and refuses a floor that is not a number", a
   expect((await post("/map/floor", { building: "32", floor: "one" })).error).toBe("INVALID_REQUEST");
   await close();
 });
+
+test("_closest: nearest matches by route cost, step-free respected, never the start or transit, at most 5", async () => {
+  const { db } = await freshDb();
+  const w = new WayfindingConcept(db);
+  const at = { latitude: 0, longitude: 0 };
+  const add = async (name: string, kind: "ROOM" | "TRANSIT" | "HALLWAY" = "ROOM") => (await w.addPlace({ name, kind, floor: 1, ...at })).place;
+  const hall = await add("Hall", "HALLWAY");
+  const near = await add("1-101 Male Lavatory");
+  const far = await add("1-301 Female Lavatory");
+  const corridor = await add("1-100CA Lavatory corridor", "TRANSIT");
+  const up = await add("Up", "HALLWAY");
+  const link = (a: string, b: string, distance: number, accessible = true) =>
+    w.connect({ source: a, destination: b, forward: "go", backward: "back", accessible, closedFrom: 0, closedUntil: 0, service: "", distance });
+  await link(hall, near, 1);
+  await link(hall, corridor, 0.5);
+  await link(hall, up, 1, false); // stairs
+  await link(up, far, 1);
+  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: false, hour: 12 })).map((c) => [c.name, c.cost])).toEqual([["1-101 Male Lavatory", 1], ["1-301 Female Lavatory", 2]]);
+  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: true, hour: 12 })).map((c) => c.name)).toEqual(["1-101 Male Lavatory"]);
+  expect(await w._closest({ source: near, text: "male lavatory", accessibleOnly: false, hour: 12 }).then((r) => r.map((c) => c.name))).toEqual(["1-301 Female Lavatory"]);
+  expect(await w._closest({ source: "nowhere", text: "lavatory", accessibleOnly: false, hour: 12 })).toEqual([]);
+  for (let i = 0; i < 7; i++) await link(hall, await add(`2-10${i} Public Lavatory`), 3 + i);
+  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: false, hour: 12 })).length).toBe(5);
+});
+
+test("closest endpoint answers matches and refuses a missing flag", async () => {
+  const { close, browser } = await freshApi();
+  const post = browser();
+  const at = { latitude: 0, longitude: 0, floor: 1 };
+  const a = (await post("/map/add-place", { name: "A", kind: "HALLWAY", ...at })).place;
+  const b = (await post("/map/add-place", { name: "1-101 Male Lavatory", kind: "ROOM", ...at })).place;
+  await post("/map/connect", { source: a, destination: b, forward: "go", backward: "back", accessible: true, closedFrom: 0, closedUntil: 0, service: "", distance: 1 });
+  expect((await post("/route/closest", { source: a, text: "Lavatory", accessibleOnly: false, hour: 12 })).closest.places.map((p: any) => p.name)).toEqual(["1-101 Male Lavatory"]);
+  expect((await post("/route/closest", { source: a, text: "Lavatory", hour: 12 })).error).toBe("INVALID_REQUEST");
+  await close();
+});

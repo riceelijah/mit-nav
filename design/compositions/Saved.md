@@ -22,13 +22,13 @@ Saved.Trips.SaveTrip at /me/trips/save
 Saved.Trips.RemoveTrip at /me/trips/remove
 ```
 
-[Setting preferences](reaction:Saved.Preferences.SetPreferences) carries the session and both flags (step-free routes by default, use my location) and answers with nothing. The page applies them when it loads.
+[Setting preferences](reaction:Saved.Preferences.SetPreferences) carries the session, both flags (step-free routes by default, use my location) and the units for distances (METERS, FEET or MINUTES) and answers with nothing; a request missing any of the three, or with units other than those, is refused as an invalid request and changes nothing. The page applies them when it loads, reporting every distance it shows in those units (minutes at 80 metres a minute); someone who is not signed in can still choose units, which the page keeps on that device only. Journal entries are stored in metres whatever the units.
 
 ```endpoints
 Saved.Preferences.SetPreferences at /me/preferences/set
 ```
 
-When a person reaches the end of a route, the page [records the trip](reaction:Saved.Journal.FinishTrip) with the session, the two places and the distance in metres. The page works out the metres itself before sending them: it adds up the route's step distances and multiplies by 50, because an outdoor walk's distance is 1 plus its metres over 50, and treats indoor steps the same way, so the figure is an estimate and the page says so. The endpoint stores the metres as given. It answers with the entry; an unknown place is refused with NO_SUCH_PLACE and a negative distance with INVALID_DISTANCE. The page sends one finish per route; a repeated request, such as a retry, adds a second entry, which this beta accepts because the totals are estimates.
+When a person reaches the end of a route, the page [records the trip](reaction:Saved.Journal.FinishTrip) with the session, the two places and the distance in metres. The page works out the metres itself before sending them: it adds up the metres written in the route's directions ("Walk about 30 m…"), which include the walk to an elevator or stairway written in its directions but nothing for the ride itself, so the figure is an estimate of the walking, and the page says so. It shows the same figure before the trip. After a reroute, the route shown is the new one, from the building it starts at, and that start and its figure are what the page records. The endpoint stores the metres as given. It answers with the entry; an unknown place is refused with NO_SUCH_PLACE and a negative distance with INVALID_DISTANCE. The page sends one finish per route; a repeated request, such as a retry, adds a second entry, which this beta accepts because the totals are estimates.
 
 ```endpoints
 Saved.Journal.FinishTrip at /me/trips/finish

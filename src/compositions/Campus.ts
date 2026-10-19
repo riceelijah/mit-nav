@@ -1,6 +1,6 @@
 import { endpoint, receive, respond } from "@mit-sdg/sync-engine/boundary";
 import { each, form, former, reaction, when, whether } from "@mit-sdg/sync-engine/language";
-import { floorInput, numbers, signedIn } from "./inputs.ts";
+import { closestInput, floorInput, numbers, signedIn } from "./inputs.ts";
 import { concepts } from "../concepts.ts";
 
 const { Wayfinding, Reporting, Registering, Sessioning } = concepts;
@@ -126,6 +126,21 @@ const NearestPlace = endpoint(
   { validators: { input: numbers("latitude", "longitude") } },
 );
 
+const Closest = former(
+  "the places matching (text) nearest (source)",
+  ({ source, text, accessibleOnly, hour }, { place, name, floor, cost }) =>
+    form({
+      places: each(Wayfinding._closest({ source, text, accessibleOnly, hour }).is({ place, name, floor, cost })).form({ place, name, floor, cost }),
+    }),
+);
+
+const FindClosest = endpoint(
+  "/route/closest",
+  ({ source, text, accessibleOnly, hour }) =>
+    receive({ source, text, accessibleOnly, hour }).then(respond({ closest: Closest({ source, text, accessibleOnly, hour }) })),
+  { validators: { input: closestInput } },
+);
+
 const FindRoute = endpoint(
   "/route/find",
   ({ source, destination, accessibleOnly, hour }) =>
@@ -170,7 +185,7 @@ const ClearingResolvesSharedReports = reaction(({ link, other }) =>
 
 export const composition = {
   Browsing: { PlaceSearch, ProblemList, BlockedList, FloorPlan, ShowOverview, SearchPlaces, ShowFloor },
-  Routing: { Route, FindRoute, Nearest, NearestPlace },
+  Routing: { Route, FindRoute, Nearest, NearestPlace, Closest, FindClosest },
   Problems: { BlockLink, UnblockLink, UnblockResolvesReports, ClearingResolvesSharedReports },
   Setup: { AddPlace, Connect },
 };

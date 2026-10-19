@@ -56,10 +56,10 @@ test("Journaling keeps only the 20 most recent in history, but totals count all"
 
 test("Preferring principle: defaults until set, set overwrites, per person", async () => {
   const p = new PreferringConcept((await freshDb()).db);
-  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, useLocation: false });
-  await p.set({ user: "ana", stepFree: true, useLocation: true });
-  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: true, useLocation: true });
-  await p.set({ user: "ana", stepFree: false, useLocation: true });
-  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, useLocation: true });
-  expect(await p._preferences({ user: "ben" })).toEqual({ stepFree: false, useLocation: false });
+  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, useLocation: false, units: "METERS" });
+  await p.set({ user: "ana", stepFree: true, useLocation: true, units: "MINUTES" });
+  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: true, useLocation: true, units: "MINUTES" });
+  await p.set({ user: "ana", stepFree: false, useLocation: true, units: "FEET" });
+  expect(await p._preferences({ user: "ana" })).toEqual({ stepFree: false, useLocation: true, units: "FEET" });
+  expect(await p._preferences({ user: "ben" })).toEqual({ stepFree: false, useLocation: false, units: "METERS" });
 });

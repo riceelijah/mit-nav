@@ -43,3 +43,19 @@ export const floorInput: EndpointValidator = (value) => {
   const ok = typeof body === "object" && body !== null && typeof body.building === "string" && typeof body.floor === "number" && Number.isFinite(body.floor);
   return ok ? { ok: true } : { ok: false, detail: "expected a building and a floor number" };
 };
+
+/** A start, the text naming a kind of place, a step-free flag and an hour, for the nearest-of-a-kind search. */
+export const closestInput: EndpointValidator = (value) => {
+  const b = value as Record<string, unknown> | null;
+  const ok = typeof b === "object" && b !== null && typeof b.source === "string" && typeof b.text === "string" &&
+    typeof b.accessibleOnly === "boolean" && typeof b.hour === "number" && Number.isFinite(b.hour);
+  return ok ? { ok: true } : { ok: false, detail: "expected source, text, accessibleOnly and hour" };
+};
+
+/** signedIn(...) plus units that are one of METERS, FEET, MINUTES. */
+export const preferencesInput: EndpointValidator = (value) => {
+  const base = signedIn("stepFree", "useLocation", "units")(value);
+  if (!base.ok) return base;
+  const units = (value as Record<string, unknown>).units;
+  return units === "METERS" || units === "FEET" || units === "MINUTES" ? { ok: true } : { ok: false, detail: "units must be METERS, FEET or MINUTES" };
+};
