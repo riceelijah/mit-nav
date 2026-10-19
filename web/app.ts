@@ -105,6 +105,8 @@ const PLAN_FILL: [RegExp, string][] = [
   [/^STAIRWAY$/, "#dde2e8"],
   [/SHAFT|UTILITY|MECH|ELECTRIC|TELECOM|CUSTODIAL|STORAGE/, "#eceeec"],
 ];
+/** Service rooms (shafts and closets) are never drawn: most sit inside corridor walls and would cover the corridor. */
+const SERVICE = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
 const planFill = (use: string) => PLAN_FILL.find(([re]) => re.test(use))?.[1] ?? "#ffffff";
 const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 
@@ -170,12 +172,14 @@ async function placeNamed(name: string): Promise<Place | null> {
 const app = createApp({
   template: `
   <div class="app" :class="{ open: sheetOpen }">
-    <aside class="panel" aria-label="Directions">
-      <button class="handle" @click="sheetOpen = !sheetOpen" :aria-expanded="sheetOpen" aria-label="Show or hide directions"><span></span></button>
-      <button v-if="to" class="peek" @click="sheetOpen = true" aria-label="Show directions">
-        <span class="number">{{ plaque.number }}</span>
-        <span class="next">{{ steps[doneCount] ? inUnits(steps[doneCount].instruction) : 'Tap for directions' }}</span>
-      </button>
+    <aside class="panel" aria-label="Directions" :style="sheetStyle" @pointerdown="grab">
+      <div class="grab">
+        <button class="handle" @click="$event.detail || (sheetOpen = !sheetOpen)" :aria-expanded="sheetOpen" aria-label="Show or hide directions"><span></span></button>
+        <button v-if="to" class="peek" @click="$event.detail || (sheetOpen = true)" aria-label="Show directions">
+          <span class="number">{{ plaque.number }}</span>
+          <span class="next">{{ steps[doneCount] ? inUnits(steps[doneCount].instruction) : 'Tap for directions' }}</span>
+        </button>
+      </div>
 
       <header class="brand">
         <span class="mark" aria-hidden="true">MIT</span>
@@ -385,6 +389,40 @@ const app = createApp({
     const tab = ref<"route" | "saved" | "problems">("route");
     // On a phone the sheet starts at its peek, so the route on the map is visible first.
     const sheetOpen = ref(!window.matchMedia("(max-width: 760px)").matches);
+    // Dragging the sheet's handle or peek (or anywhere on it while it is at its peek) moves it with the finger; let go and
+    // it settles open or at its peek. A touch that barely moves is a tap, which toggles it, unless it was on another
+    // button. The handle's and peek's pointer clicks are handled here; keyboard clicks (detail 0) by the buttons.
+    const PEEK = 96;
+    let pullFrom: { y: number; closed: number } | null = null;
+    const pulled = ref<number | null>(null);
+    const sheetStyle = computed(() => (pulled.value === null ? undefined : { transform: `translateY(${pulled.value}px)`, transition: "none" }));
+    let pullTarget: Element | null = null;
+    function grab(e: PointerEvent) {
+      const onGrab = !!(e.target as Element).closest(".grab");
+      if (!window.matchMedia("(max-width: 760px)").matches || (sheetOpen.value && !onGrab)) return;
+      pullFrom = { y: e.clientY, closed: (e.currentTarget as HTMLElement).offsetHeight - PEEK };
+      pullTarget = onGrab ? null : (e.target as Element).closest("button, input, a, label");
+      // Followed on the window: a quick flick's first move can already be off the sheet.
+      window.addEventListener("pointermove", pull);
+      window.addEventListener("pointerup", release);
+      window.addEventListener("pointercancel", release);
+    }
+    function pull(e: PointerEvent) {
+      if (!pullFrom) return;
+      const dy = e.clientY - pullFrom.y;
+      if (pulled.value === null && Math.abs(dy) < 6) return;
+      pulled.value = Math.min(pullFrom.closed, Math.max(0, (sheetOpen.value ? 0 : pullFrom.closed) + dy));
+    }
+    function release(e: PointerEvent) {
+      if (!pullFrom) return;
+      window.removeEventListener("pointermove", pull);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      const dy = e.clientY - pullFrom.y;
+      if (e.type === "pointerup" && !(Math.abs(dy) < 6 && pullTarget)) sheetOpen.value = Math.abs(dy) < 6 ? !sheetOpen.value : dy < 0;
+      pullFrom = null;
+      pulled.value = null;
+    }
     /** The destination as a door plaque: its number large, what it is beneath. */
     const plaque = computed(() => {
       const name = to.value?.name ?? "";
@@ -753,7 +791,7 @@ const app = createApp({
           continue;
         }
         // Traced outlines last, so they sit over the approximate shapes of untraced neighbours.
-        const drawn = roomShapes(plan.floors[code].rooms, plan.outline).sort((a, b) => Number(!!a.room.s) - Number(!!b.room.s));
+        const drawn = roomShapes(plan.floors[code].rooms.filter((r) => !SERVICE.test(r.u)), plan.outline).sort((a, b) => Number(!!a.room.s) - Number(!!b.room.s));
         for (const { room, shapes } of drawn) {
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
           for (const shape of shapes) {
@@ -999,7 +1037,7 @@ const app = createApp({
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
       reports, unreported, steps, from, to, accessibleOnly, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      planStyle, choosePlanStyle, startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
+      planStyle, choosePlanStyle, startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, sheetStyle, grab, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });
