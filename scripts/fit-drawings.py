@@ -322,7 +322,7 @@ def main():
         outline_file = OUT / "outlines" / f"{ref}.json"
         outline_file.parent.mkdir(exist_ok=True)
         outlines = json.loads(outline_file.read_text()) if outline_file.exists() else {}
-        outlines[floor] = traced_floor(pdf, to_map, rooms, plan["outline"])
+        outlines[floor] = traced_floor(pdf, to_map, rooms, [r for r in plan["outline"] if len(r) >= 3])
         outline_file.write_text(json.dumps(outlines) + "\n")
         print(f"  traced {len(outlines[floor]) - 2} of {len(rooms)} rooms ({len(outlines[floor]['!'])} recovered), {len(outlines[floor][''])} unlabelled open areas")
 
