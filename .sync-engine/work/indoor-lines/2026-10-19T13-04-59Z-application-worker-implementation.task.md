@@ -1,0 +1,1 @@
+Implement corridor-following indoor route lines (web/indoor.ts, app.ts routeGeometry; off-course on straight lines; fetch all route plans when a route arrives) and the safe unbounded-tracing fallback in fit-drawings.py; retrace, regenerate, test.

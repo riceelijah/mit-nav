@@ -511,17 +511,23 @@ export function pathNetwork(elements: any[], streets: Street[] = []) {
 }
 
 /**
- * Room outlines traced from MIT's drawings (scripts/fit-drawings.py), by floor code and room number. Without this
+ * Room outlines traced from MIT's drawings (scripts/fit-drawings.py), by floor code and room number ("" holds the floor's
+ * unlabelled open floor, "!" the rooms whose outlines were recovered from beyond the footprint). Without this
  * machine's traced file, the building's current plan file keeps the outlines it already has.
  */
-export function tracedOutlines(ref: string): Record<string, Record<string, [number, number][]>> {
+export function tracedOutlines(ref: string): Record<string, Record<string, any>> {
   const local = new URL(`drawings/outlines/${ref}.json`, raw);
   if (existsSync(local)) return JSON.parse(readFileSync(local, "utf8"));
   const committed = new URL(`../web/plans/${ref}.json`, import.meta.url);
   if (!existsSync(committed)) return {};
   const plan = JSON.parse(readFileSync(committed, "utf8"));
-  const kept: Record<string, Record<string, [number, number][]>> = {};
-  for (const [code, floor] of Object.entries<any>(plan.floors)) for (const r of floor.rooms) if (r.s) (kept[code] ??= {})[r.n] = r.s;
+  const kept: Record<string, Record<string, any>> = {};
+  for (const [code, floor] of Object.entries<any>(plan.floors)) {
+    for (const r of floor.rooms) if (r.s) (kept[code] ??= {})[r.n] = r.s;
+    const recovered = floor.rooms.filter((r: any) => r.f).map((r: any) => r.n);
+    if (recovered.length) (kept[code] ??= {})["!"] = recovered;
+    if (floor.open) (kept[code] ??= {})[""] = floor.open;
+  }
   return kept;
 }
 
@@ -662,8 +668,12 @@ async function buildCampus() {
     const traced = tracedOutlines(b.ref);
     for (const r of plan.drawn) {
       const s = traced[r.code]?.[r.number];
-      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}) });
+      // `f` marks an outline recovered from beyond the footprint: the route line only starts or ends in one.
+      const f = s && traced[r.code]?.["!"]?.includes(r.number);
+      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}), ...(f ? { f: 1 } : {}) });
     }
+    // Unlabelled open floor traced on each floor (key ""), for drawing route lines through corridors no room names.
+    for (const [code, f] of Object.entries(floors)) if (traced[code]?.[""]?.length) (f as any).open = traced[code][""];
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }
   return { places, links, planFiles, buildings: buildings.length, interiors: [...inside.keys()] };

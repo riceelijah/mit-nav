@@ -1,6 +1,7 @@
 import { createApp, ref, computed, watch, onMounted, nextTick } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
+import { corridorPath } from "./indoor.ts";
 import { mergeSteps } from "./steps.ts";
 
 const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
@@ -36,9 +37,11 @@ function metersFromLine(p: Point, line: Point[]) {
 }
 
 // ---- Floor plans: every room the inventory places on a floor, drawn as a schematic (not MIT's walls). ----
-// `s` is the room's outline traced from MIT's drawing, when one was (scripts/fit-drawings.py).
-type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][] };
-type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[] }> };
+// `s` is the room's outline traced from MIT's drawing, when one was (scripts/fit-drawings.py); `f` marks one recovered
+// from beyond the building's footprint, which the route line only starts or ends in.
+type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][]; f?: 1 };
+// `open` is the floor's unlabelled open floor (corridor stretches no room names), traced like the rooms.
+type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][] }> };
 type Flat = [number, number];
 /** Keeps the part of a polygon on the side of the line through `p` where (x - p) · n <= 0. */
 function clip(poly: Flat[], p: Flat, n: Flat): Flat[] {
@@ -505,11 +508,18 @@ const app = createApp({
 
     // ---- The map: the route as a line through the places it reaches, and where the person is. ----
     let map: any, routeLayer: any, meMarker: any;
-    /** The route as map points, and for each raw step the index of the last point it reaches. */
-    const routeGeometry = () => {
+    /**
+     * The route as map points, and for each raw step the index of the last point it reaches. With `indoor`, a walk
+     * between two places on one floor of a building with traced outlines follows them instead of a straight line.
+     */
+    const routeGeometry = (indoor = false) => {
       const points: Point[] = [];
       const reached: number[] = [];
+      let previous: any = from.value;
       const add = (p: any) => {
+        const path = indoor ? indoorPath(previous, p) : undefined;
+        previous = p;
+        for (const q of path ?? []) points.push(q);
         if (known(p)) {
           const pt: Point = [p.latitude, p.longitude];
           const last = points[points.length - 1];
@@ -521,14 +531,37 @@ const app = createApp({
       for (const s of pathSteps) reached.push(add(s));
       return { points, reached };
     };
+    // The off-course check measures against straight lines between places; only the drawn line follows corridors.
     const routeLine = (): Point[] => routeGeometry().points;
+    const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL)$/;
+    const indoorPaths = new Map<string, Point[] | undefined>();
+    /** The corners of a walk from place `a` to place `b` along traced outlines, or undefined to draw it straight. */
+    function indoorPath(a: any, b: any): Point[] | undefined {
+      const ref = BUILDING_PREFIX.exec(a?.placeName ?? "")?.[1];
+      if (!ref || ref !== BUILDING_PREFIX.exec(b?.placeName ?? "")?.[1] || a.floor !== b.floor || !known(a) || !known(b)) return undefined;
+      const plan = planFiles.value[ref];
+      const floor = plan && Object.values(plan.floors).find((f) => f.level === b.floor);
+      if (!floor) return undefined;
+      const key = `${a.placeName}|${b.placeName}`;
+      if (!indoorPaths.has(key)) {
+        const ends = [a, b].map((p) => p.placeName.split(" ")[0].slice(ref.length + 1));
+        const preferred = (r: PlanRoom) => CIRCULATION.test(r.u) || ends.includes(r.n);
+        const traced = floor.rooms.filter((r) => r.s);
+        indoorPaths.set(key, corridorPath(
+          [...traced.filter(preferred).map((r) => r.s!), ...(floor.open ?? [])],
+          [a.latitude, a.longitude], [b.latitude, b.longitude],
+          traced.filter((r) => !preferred(r) && !r.f).map((r) => r.s!),
+        ));
+      }
+      return indoorPaths.get(key);
+    }
     /**
      * The route line, split by progress: walked (grey), the step you're on (cardinal on signage yellow),
      * and still to come (cardinal). Without a location, a dot marks where the done steps end.
      */
     function drawProgress() {
       routeLayer.clearLayers();
-      const { points, reached } = routeGeometry();
+      const { points, reached } = routeGeometry(true);
       if (!points.length) return points;
       const end = (stepIndex: number) => (stepIndex < 0 ? 0 : reached[steps.value[stepIndex]?.upto ?? pathSteps.length - 1] ?? points.length - 1);
       const doneTo = end(doneCount.value - 1);
@@ -549,6 +582,8 @@ const app = createApp({
     function draw() {
       if (!map) return;
       map.invalidateSize(); // the panel may have changed the map's size since it was laid out
+      // Every route building's plan, so indoor walks can follow its traced corridors (the line is redrawn as each loads).
+      for (const b of routeBuildings.value) loadPlan(b.ref);
       const line = drawProgress();
       if (!line.length) return;
       // On a phone the sheet covers the bottom of the map, so keep the route above it.
@@ -585,6 +620,8 @@ const app = createApp({
       planFiles.value = { ...planFiles.value, [ref]: response?.ok ? await response.json() : null };
       return planFiles.value[ref];
     }
+    // However a plan arrives (with a route, or by zooming in), the route line can now follow its corridors.
+    watch(planFiles, () => map && drawProgress());
     const floorsOf = (plan: PlanFile) => Object.entries(plan.floors).sort((a, b) => b[1].level - a[1].level);
     /** Where a building's plan opens: the current step's floor if it is in this building, else the route's first floor there. */
     function openingFloor(ref: string, plan: PlanFile) {

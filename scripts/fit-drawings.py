@@ -81,12 +81,56 @@ def drawing_png(page, path):
 TRACE_SCALE = 4  # pixels per PDF point when tracing rooms
 INK = 170  # grey level below which a pixel is part of a line
 MARK = 0.9  # metres: ink smaller than this across is text or a symbol, not a wall
-DOORWAY = 0.45  # metres each wall grows by, so doorways up to about a metre close
+DOORWAY = 0.45  # metres each wall grows by (then shrinks back), so doorways up to about 0.9 m close
 NEAR_LABEL = (1.0, 0.7)  # metres: half-size of the ring around a label that decides its room's space
 MIN_POCKET = 1.0  # m²: pockets smaller than this (inside letters) are never a room
 UNCHECKED = 3.0  # m²: inventory areas smaller than this (or missing) are not trusted for the size check
 NEVER_TRACED = {"ELEVATOR", "STAIRWAY"}
+CIRCULATION = {"CORRIDOR", "LOBBY", "BRIDGE/TUNNEL"}
+UNCLAIMED_MIN = 4.0  # m²: unlabelled open floor smaller than this is a closet or a gap, not a corridor
 FOOTPRINT_MARGIN = 1.0  # metres beyond the building outline still counted as inside
+
+
+def share(whole, claimants, mpp, step=4):
+    """Splits one open space among the rooms whose labels lie in it: each room that is not a corridor, lobby or bridge
+    grows from its label through the open space (never across walls) until it reaches its inventory area; corridors,
+    lobbies and bridges take what is left, each the part nearest its label (with none, it stays unclaimed).
+    Returns, for each pixel of `whole`, the index of its claimant (-1 outside the space or unclaimed)."""
+    import cv2
+    small = whole[::step, ::step].astype(np.uint8)
+    cell = (mpp * step) ** 2
+    owner = np.full(small.shape, -1, np.int32)
+    seeds = [(min(small.shape[1] - 1, x // step), min(small.shape[0] - 1, y // step)) for x, y, _ in claimants]
+    # A label point on its own text: start from the nearest open cell instead.
+    open_y, open_x = np.nonzero(small)
+    seeds = [(x, y) if small[y, x] else tuple(int(v) for v in min(zip(open_x, open_y), key=lambda c: (c[0] - x) ** 2 + (c[1] - y) ** 2)) for x, y in seeds]
+    rooms = [i for i, (_, _, r) in enumerate(claimants) if r["u"] not in CIRCULATION]
+    quota = {i: max(claimants[i][2].get("a") or 0, UNCHECKED) / cell for i in rooms}
+    grown = {i: np.zeros(small.shape, np.uint8) for i in rooms}
+    for i in rooms:
+        x, y = seeds[i]
+        if small[y, x] and owner[y, x] < 0:
+            grown[i][y, x] = 1; owner[y, x] = i
+    cross = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+    active = [i for i in rooms if grown[i].any()]
+    while active:
+        still = []
+        for i in active:
+            ring = cv2.dilate(grown[i], cross) & small & (owner < 0)
+            if not ring.any():
+                continue
+            grown[i] |= ring; owner[ring == 1] = i
+            if grown[i].sum() < quota[i]:
+                still.append(i)
+        active = still
+    # The rest goes to corridors, lobbies and bridges by nearest label; with none, it stays unclaimed open floor.
+    rest = [i for i in range(len(claimants)) if i not in rooms]
+    if rest:
+        yy, xx = np.mgrid[0:small.shape[0], 0:small.shape[1]]
+        nearest = np.array(rest)[np.argmin([(xx - seeds[i][0]) ** 2 + (yy - seeds[i][1]) ** 2 for i in rest], axis=0)]
+        owner = np.where((owner < 0) & (small == 1), nearest, owner)
+    full = np.kron(owner, np.ones((step, step), np.int32))[: whole.shape[0], : whole.shape[1]]
+    return np.where(whole, full, -1)
 
 
 def trace(page, to_map, rooms, footprint):
@@ -105,15 +149,36 @@ def trace(page, to_map, rooms, footprint):
     wall[0] = False
     grow = max(1, round(DOORWAY / mpp))
     square = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * grow + 1, 2 * grow + 1))
-    closed = cv2.dilate(wall[blob].astype(np.uint8), square) | ink
+    line_width = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    # Closing (grow, then shrink back) shuts doorways without thickening walls or door swings into the rooms.
+    closed = cv2.morphologyEx(wall[blob].astype(np.uint8), cv2.MORPH_CLOSE, square) | ink
     # Beyond the building's footprint (plus a margin for where its outline and the drawing disagree) is never open
     # floor, so open entrance doors do not join lobbies and corridors to the outdoors.
-    inside = np.zeros((h, w), np.uint8)
-    for ring in footprint:
-        cv2.fillPoly(inside, [np.array([to_pdf(to_m(*p)) * TRACE_SCALE for p in ring]).round().astype(np.int32)], 1)
-    margin = round(FOOTPRINT_MARGIN / mpp)
-    closed |= 1 - cv2.dilate(inside, cv2.getStructuringElement(cv2.MORPH_RECT, (2 * margin + 1, 2 * margin + 1)))
+    if footprint:
+        inside = np.zeros((h, w), np.uint8)
+        for ring in footprint:
+            cv2.fillPoly(inside, [np.array([to_pdf(to_m(*p)) * TRACE_SCALE for p in ring]).round().astype(np.int32)], 1)
+        margin = round(FOOTPRINT_MARGIN / mpp)
+        beyond = 1 - cv2.dilate(inside, cv2.getStructuringElement(cv2.MORPH_RECT, (2 * margin + 1, 2 * margin + 1)))
+        closed |= beyond
+    else:
+        beyond = np.zeros((h, w), np.uint8)
     _, space, stats, _ = cv2.connectedComponentsWithStats(1 - closed, connectivity=4)
+    cross = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+
+    def into_doorways(region):
+        """A space grown back through what closing doorways took, without crossing a drawn line, then out to the middle
+        of the lines around it: spaces on either side of a door meet in the doorway, never through a wall."""
+        ys, xs = np.nonzero(region)
+        if not len(ys):
+            return region
+        y0, y1, x0, x1 = max(0, ys.min() - grow - 3), ys.max() + grow + 4, max(0, xs.min() - grow - 3), xs.max() + grow + 4
+        part, free = region[y0:y1, x0:x1], 1 - ink[y0:y1, x0:x1]
+        for _ in range(grow):
+            part = cv2.dilate(part, cross) & free
+        out = np.zeros_like(region)
+        out[y0:y1, x0:x1] = cv2.dilate(part | region[y0:y1, x0:x1], line_width)
+        return out
     outside = set(np.unique(np.concatenate([space[0], space[-1], space[:, 0], space[:, -1]])))
     area = lambda k: stats[k, cv2.CC_STAT_AREA] * mpp * mpp
     # Each room's space: the open area most of a ring just outside its label text lies in.
@@ -130,19 +195,24 @@ def trace(page, to_map, rooms, footprint):
         ring = ring[(ring > 0) & (np.vectorize(area)(ring) >= MIN_POCKET)] if ring.size else ring
         if ring.size:
             claims.setdefault(int(np.bincount(ring).argmax()), []).append((r, x, y))
-    outlines = {}
+    outlines, spare = {}, []
     for k, claimants in claims.items():
         if k in outside:
             continue  # open to the edge of the sheet: outdoors, or a doorway too wide to close
         left, top, width, height = (stats[k, c] for c in (cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP, cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT))
         whole = space[top:top + height, left:left + width] == k
         yy, xx = np.mgrid[top:top + height, left:left + width]
-        nearest = np.argmin([(xx - x) ** 2 + (yy - y) ** 2 for _, x, y in claimants], axis=0)  # shared space: nearest label
+        # One room has its whole space; several share it (see share()), and what none takes is unlabelled open floor.
+        nearest = np.zeros(whole.shape, np.int32) if len(claimants) == 1 else share(whole, [(x - left, y - top, r) for r, x, y in claimants], mpp)
+        leftover = np.zeros((h, w), np.uint8)
+        leftover[top:top + height, left:left + width] = whole & (nearest < 0)
+        if leftover.sum() * mpp * mpp >= UNCLAIMED_MIN:
+            spare.append(leftover)
         together = sum(r.get("a") or 0 for r, _, _ in claimants)  # known areas only
         for i, (r, _, _) in enumerate(claimants):
             region = np.zeros((h, w), np.uint8)
             region[top:top + height, left:left + width] = whole & (nearest == i)
-            region = cv2.dilate(region, square)  # give back the wall growth
+            region = into_doorways(region)
             traced = region.sum() * mpp * mpp
             own = r.get("a") or 0
             fits = own < UNCHECKED or 0.5 <= traced / own <= 2
@@ -154,8 +224,65 @@ def trace(page, to_map, rooms, footprint):
                 continue  # nearer labels took all of a shared space
             ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
             outlines[r["n"]] = [to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px]
+    # Open floor no room's label claims (unlabelled stretches of corridor), for drawing route lines through; never
+    # what is open to the outdoors, and not pockets smaller than a room could be.
+    unclaimed = []
+    for raw_region in spare:
+        if not (cv2.dilate(raw_region, cross) & beyond).any():
+            contours, _ = cv2.findContours(into_doorways(raw_region), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
+            unclaimed.append([to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px])
+    for k in range(1, len(stats)):
+        if k in claims or k in outside or area(k) < UNCLAIMED_MIN:
+            continue
+        raw_region = (space == k).astype(np.uint8)
+        if (cv2.dilate(raw_region, cross) & beyond).any():
+            continue  # reaches the footprint's edge: the strip outside the building's walls, not a corridor
+        region = into_doorways(raw_region)
+        contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
+        unclaimed.append([to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px])
+    outlines[""] = unclaimed
     return outlines
 
+SHARED_WALL = 0.15  # neighbouring outlines meet inside the wall between them; more overlap than this share is not that
+
+
+def traced_floor(pdf, to_map, rooms, footprint):
+    """One floor's outlines: the footprint-bounded tracing and its unlabelled open floor (key ""), each cut to the
+    building's outline itself; plus, for a room the bounding cut off, its unbounded outline (listed under "!" as
+    recovered, and not cut) when that is not circulation and overlaps no bounded outline beyond a shared wall."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    building = unary_union([Polygon(ring).buffer(0) for ring in footprint]) if footprint else None
+
+    def cut(ring):
+        """The ring cut to the building's outline (its largest piece), or None when nothing is left."""
+        shape = Polygon(ring).buffer(0)
+        if building is None:
+            return ring
+        piece = shape.intersection(building)
+        if piece.is_empty:
+            return None
+        piece = max(getattr(piece, "geoms", [piece]), key=lambda g: g.area)
+        return [[round(x, 8), round(y, 8)] for x, y in piece.exterior.coords] if piece.geom_type == "Polygon" else None
+
+    bounded = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms, footprint)
+    unbounded = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms, [])
+    out = {n: c for n, ring in bounded.items() if n and (c := cut(ring))}
+    out[""] = [c for ring in bounded[""] if (c := cut(ring))]
+    use = {r["n"]: r["u"] for r in rooms}
+    kept = [Polygon(ring).buffer(0) for n, ring in out.items() if n]
+    out["!"] = []
+    for n, ring in unbounded.items():
+        if not n or n in out or use.get(n) in CIRCULATION:
+            continue
+        shape = Polygon(ring).buffer(0)
+        if all(shape.intersection(k).area <= SHARED_WALL * min(shape.area, k.area) for k in kept):
+            out[n] = ring
+            out["!"].append(n)
+            kept.append(shape)
+    return out
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
@@ -195,9 +322,9 @@ def main():
         outline_file = OUT / "outlines" / f"{ref}.json"
         outline_file.parent.mkdir(exist_ok=True)
         outlines = json.loads(outline_file.read_text()) if outline_file.exists() else {}
-        outlines[floor] = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms, plan["outline"])
+        outlines[floor] = traced_floor(pdf, to_map, rooms, plan["outline"])
         outline_file.write_text(json.dumps(outlines) + "\n")
-        print(f"  traced {len(outlines[floor])} of {len(rooms)} rooms")
+        print(f"  traced {len(outlines[floor]) - 2} of {len(rooms)} rooms ({len(outlines[floor]['!'])} recovered), {len(outlines[floor][''])} unlabelled open areas")
 
 
 if __name__ == "__main__":

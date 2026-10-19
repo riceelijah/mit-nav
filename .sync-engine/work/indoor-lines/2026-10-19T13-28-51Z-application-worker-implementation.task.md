@@ -1,0 +1,1 @@
+Resume implementation against the revised design: outline cut for bounded spaces and open floor (after checks; recovered exempt), recovered marks in plan files (walked only as ends), regeneration keeps open floor and marks; full retrace; tests.
