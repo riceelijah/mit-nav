@@ -36,7 +36,8 @@ function metersFromLine(p: Point, line: Point[]) {
 }
 
 // ---- Floor plans: every room the inventory places on a floor, drawn as a schematic (not MIT's walls). ----
-type PlanRoom = { n: string; u: string; at: [number, number]; a: number };
+// `s` is the room's outline traced from MIT's drawing, when one was (scripts/fit-drawings.py).
+type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][] };
 type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[] }> };
 type Flat = [number, number];
 /** Keeps the part of a polygon on the side of the line through `p` where (x - p) · n <= 0. */
@@ -75,6 +76,7 @@ export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
   const points = rooms.map((r) => flat(r.at));
   // ponytail: n² half-plane cuts per floor (a few hundred rooms); a Delaunay library if floors get much larger.
   return rooms.map((room, i) => {
+    if (room.s) return { room, shapes: [room.s] };
     const p = points[i];
     const shapes = rings.map((ring) => {
       let poly = ring.slice(0, -1);
@@ -255,7 +257,7 @@ const app = createApp({
               <div class="chips">
                 <button v-for="b in routeBuildings" :key="b.ref" @click="seeBuilding(b.ref)">See building {{ b.ref }}</button>
               </div>
-              <p class="fine">Zoom in on a building on your route to see its plan. Plans are a schematic of every room at its real position and size, not MIT's walls.</p>
+              <p class="fine">Zoom in on a building on your route to see its plan. Plans are a schematic of every room at its real position and size, not MIT's walls; rooms traced from MIT's drawings show their real shape.</p>
             </div>
           </template>
         </section>
@@ -624,7 +626,9 @@ const app = createApp({
           if (room) L.circleMarker(room.at, { pane: "planLabels", radius: 9, color: "#a31f34", weight: 3, fill: false }).bindTooltip(`${ref}-${room.n}`).addTo(planLayer);
           continue;
         }
-        for (const { room, shapes } of roomShapes(plan.floors[code].rooms, plan.outline)) {
+        // Traced outlines last, so they sit over the approximate shapes of untraced neighbours.
+        const drawn = roomShapes(plan.floors[code].rooms, plan.outline).sort((a, b) => Number(!!a.room.s) - Number(!!b.room.s));
+        for (const { room, shapes } of drawn) {
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
           for (const shape of shapes) {
             L.polygon(shape, {

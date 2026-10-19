@@ -24,7 +24,8 @@
 // Touching buildings are joined indoors on a floor when each has a corridor within 35 m of the other's
 // outline; any corridors within 15 m are joined too (bridges); floors without positions join where outlines
 // touch. For the page's floor plans it also writes web/plans/<building>.json: the outline and every room the
-// inventory places on each floor, with its use, position and area (drawn on plans, never routed).
+// inventory places on each floor, with its use, position and area (drawn on plans, never routed), and the room's
+// outline when one was traced from MIT's drawing (see tracedOutlines).
 // Usage: bun run campus
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -509,6 +510,21 @@ export function pathNetwork(elements: any[], streets: Street[] = []) {
   return { points: [...points.values()], edges: kept };
 }
 
+/**
+ * Room outlines traced from MIT's drawings (scripts/fit-drawings.py), by floor code and room number. Without this
+ * machine's traced file, the building's current plan file keeps the outlines it already has.
+ */
+export function tracedOutlines(ref: string): Record<string, Record<string, [number, number][]>> {
+  const local = new URL(`drawings/outlines/${ref}.json`, raw);
+  if (existsSync(local)) return JSON.parse(readFileSync(local, "utf8"));
+  const committed = new URL(`../web/plans/${ref}.json`, import.meta.url);
+  if (!existsSync(committed)) return {};
+  const plan = JSON.parse(readFileSync(committed, "utf8"));
+  const kept: Record<string, Record<string, [number, number][]>> = {};
+  for (const [code, floor] of Object.entries<any>(plan.floors)) for (const r of floor.rooms) if (r.s) (kept[code] ??= {})[r.n] = r.s;
+  return kept;
+}
+
 /** MapIT's room positions by building, when the file has been saved; otherwise none. */
 function loadLocated(): Map<string, Located> {
   const file = new URL("relative-room-locations.json", raw);
@@ -643,8 +659,10 @@ async function buildCampus() {
     const plan = inside.get(b.ref);
     if (!plan) continue;
     const floors: Record<string, { level: number; rooms: object[] }> = {};
+    const traced = tracedOutlines(b.ref);
     for (const r of plan.drawn) {
-      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area });
+      const s = traced[r.code]?.[r.number];
+      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}) });
     }
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }

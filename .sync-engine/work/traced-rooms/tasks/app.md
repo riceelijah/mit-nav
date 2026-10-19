@@ -1,0 +1,1 @@
+Implement traced room outlines: tracing in scripts/fit-drawings.py writing data/raw/drawings/outlines/<building>.json per floor; the converter merges them into plan files (keeping committed outlines when local ones are missing); the page draws traced outlines and says traced rooms show their real shape; tests; regenerate plans.

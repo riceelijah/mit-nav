@@ -1,0 +1,146 @@
+{
+  "state": "finalized",
+  "work": {
+    "slug": "traced-rooms",
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/traced-rooms"
+  },
+  "role": "critic",
+  "phase": "verification",
+  "execution": "delegated",
+  "independent": true,
+  "harness": "claude-code",
+  "timeoutSeconds": 1800,
+  "prompt": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/traced-rooms/2026-10-19T04-09-18Z-critic-verification.prompt.md",
+    "sha256": "af507f3ef6cd24a5e10a7d05b8cfc56195bb9cd414ffb3dc5bb73e840698d535"
+  },
+  "capabilities": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/traced-rooms/2026-10-19T04-09-18Z-critic-verification.capabilities.json",
+    "sha256": "2491c8b75843e5ed2a58c1fd64dd107b45c7923f1575cb76e94ac4a572e4dad8"
+  },
+  "grant": {
+    "readableAreas": [],
+    "writableAreas": [],
+    "toolKinds": [],
+    "projectShell": "none",
+    "network": false,
+    "generatedOutput": false,
+    "longRunningProcesses": false
+  },
+  "response": {
+    "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/traced-rooms/2026-10-19T04-09-18Z-critic-verification.response.md",
+    "sha256": "5f89613420970ae8d1ce3eaec13b0050fda9b14e145a016bf39f4915c6c4159c",
+    "bytes": 1967
+  },
+  "retainedSources": [
+    {
+      "inputId": "brief",
+      "displayName": ".sync-engine/work/traced-rooms/brief.md",
+      "sha256": "fddf1daabdb67171177c564c3373d2df1cafb4d3781bc9e77848c735a8f84a8d"
+    },
+    {
+      "inputId": "review-guidance",
+      "displayName": "../../../../../../private/var/folders/nh/2rss2pjn1y7fwmc7wgkyn8sr0000gn/T/bunx-501-@mit-sdg/sync-engine-skill@1.1.0/node_modules/@mit-sdg/sync-engine-skill/skills/sync-engine/prompts/guidance/design/contracts.md",
+      "sha256": "11bb5143e7164b0694c3dd4f09c9000ed6363301df2aba9435c3f86cb20fd954"
+    }
+  ],
+  "policy": {
+    "review": "required",
+    "execution": "mixed"
+  },
+  "workspace": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav",
+    "baseline": {
+      "path": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/traced-rooms/2026-10-19T04-09-18Z-critic-verification.baseline.json",
+      "sha256": "92386e2033a3691265a2ce858fbc5374b3e338769ddbce7a7da129b3a20d3b9f"
+    }
+  },
+  "design": {
+    "root": "/Users/riceelijah/dev/classes/6104/simmons-nav/design",
+    "before": "3e1ea5d911158286de6afa829dbe282cfcb05332df82516441d9755284167578",
+    "beforeFiles": [
+      {
+        "path": "compositions/Accounts.md",
+        "sha256": "a32a9c8c00a35ef084d71c636a6e8d35e041cb63782d815e76b262866b6fcd39"
+      },
+      {
+        "path": "compositions/Campus.md",
+        "sha256": "d2f5d631de319e109a46a87156678a4ebd5d060d8430455536983bfcadfa41db"
+      },
+      {
+        "path": "compositions/Commons.md",
+        "sha256": "0a97f4ac87dfffd5db28437ca2a2d88183e6c39301bb56cded80ed096e3f7ebb"
+      },
+      {
+        "path": "compositions/Passwords.md",
+        "sha256": "20527c7d49bd1bec22679eae148b887eb45219e6574f3fc595df68252c5c8eea"
+      },
+      {
+        "path": "compositions/Saved.md",
+        "sha256": "795b2b615328a729eca4f0126c652e622b4442c1e2ac5d6c9d2209b36e9f34ac"
+      },
+      {
+        "path": "concepts/Authenticating.md",
+        "sha256": "0c415f85ad32f100f229269d30c76f7d978baff4f711426ca55ffca1d54639e7"
+      },
+      {
+        "path": "concepts/Favoriting.md",
+        "sha256": "e6a5b50cd86c255f638deba57e5cc591478d9728211626785355eb777e0a180d"
+      },
+      {
+        "path": "concepts/Federating.md",
+        "sha256": "fdd29a2154b9d7c68938d278eaada07e80779250ec03c16f3b0f8e2768c3b699"
+      },
+      {
+        "path": "concepts/Journaling.md",
+        "sha256": "6bc212a12bc51a6c40fb41fca7fd518c71b7db829894b517371ce0d35b460f94"
+      },
+      {
+        "path": "concepts/Planning.md",
+        "sha256": "8ed59003ff3b56ebb33572ec329804cb4031ee1d0ec0c5e075164b28b61d2fdf"
+      },
+      {
+        "path": "concepts/Preferring.md",
+        "sha256": "11a6eb7a05f44e23d4bb89921bc8077e7b680a41919d5432bcb5882624ccc529"
+      },
+      {
+        "path": "concepts/Registering.md",
+        "sha256": "72e2f72dba60dc1c7def945510c7337ae1805d7d30fd757f6f5beac83d86e9cb"
+      },
+      {
+        "path": "concepts/Reporting.md",
+        "sha256": "5c7a3ac1e29d7ee1d0a42c10d573524c7f22bf53a5fb2555ade7d9a9b8348b16"
+      },
+      {
+        "path": "concepts/Sessioning.md",
+        "sha256": "b47a9125cadab0e938b6298ac2cd782d7592eefdbd76caa879d4c8366e0ef9bc"
+      },
+      {
+        "path": "concepts/Wayfinding.md",
+        "sha256": "ed79a225b3d2c996bc715e4018d6c4ef006bb712996b4bfa21b34715b2ab5e74"
+      },
+      {
+        "path": "journey.md",
+        "sha256": "89a4da60cbc9ebe2d05edaf53dd0a2918708cc96cbffb72e2d200cac67fe976a"
+      },
+      {
+        "path": "types.md",
+        "sha256": "04b7229c367b7627872672e11b30648e63db03252d58c34da3cb94f76f7c4c7b"
+      }
+    ]
+  },
+  "review": {
+    "subject": "design",
+    "digest": "3e1ea5d911158286de6afa829dbe282cfcb05332df82516441d9755284167578"
+  },
+  "relationship": {
+    "kind": "continuation",
+    "recordPath": "/Users/riceelijah/dev/classes/6104/simmons-nav/.sync-engine/work/traced-rooms/2026-10-19T04-07-59Z-critic-contracts.record.json",
+    "targetHarness": "claude-code",
+    "targetAgentId": "a508c13847aa2e42f"
+  },
+  "status": "completed",
+  "result": "approve",
+  "agentId": "a508c13847aa2e42f",
+  "enforcement": "prompt-guided"
+}

@@ -8,7 +8,10 @@
 # that floor, and fits the drawing to the map by turning, scaling and moving it (never stretching). A fit with at least
 # MIN_LABELS matches whose median error is at most MAX_MEDIAN metres is kept: the drawing's lines are written as a
 # transparent PNG to data/raw/drawings/<building>_<floor>.png, and data/raw/drawings/index.json records where three of
-# its corners land. Needs: tesseract, and python packages pypdfium2, numpy and pillow.
+# its corners land. It also traces room outlines from the drawing (the open floor inside its walls around each room's
+# position; see design/compositions/Campus.md) into data/raw/drawings/outlines/<building>.json, which the campus
+# converter adds to the plan files: only these shapes leave this machine. Needs: tesseract, and python packages
+# pypdfium2, numpy, pillow and opencv-python.
 import csv, json, math, re, subprocess, sys, tempfile
 from pathlib import Path
 import numpy as np
@@ -75,6 +78,77 @@ def drawing_png(page, path):
     return [c / IMAGE_SCALE for c in box]
 
 
+TRACE_SCALE = 4  # pixels per PDF point when tracing rooms
+INK = 170  # grey level below which a pixel is part of a line
+MARK = 0.9  # metres: ink smaller than this across is text or a symbol, not a wall
+DOORWAY = 0.45  # metres each wall grows by, so doorways up to about a metre close
+NEAR_LABEL = (1.0, 0.7)  # metres: half-size of the ring around a label that decides its room's space
+MIN_POCKET = 1.0  # m²: pockets smaller than this (inside letters) are never a room
+UNCHECKED = 3.0  # m²: inventory areas smaller than this (or missing) are not trusted for the size check
+NEVER_TRACED = {"ELEVATOR", "STAIRWAY"}
+
+
+def trace(page, to_map, rooms):
+    """Outlines of the rooms the drawing encloses: {room number: [[lat, lon], ...]}, only those that pass the size check."""
+    import cv2  # only needed for tracing
+    origin, ex, ey = to_map(0, 0), to_map(1, 0) - to_map(0, 0), to_map(0, 1) - to_map(0, 0)
+    to_pdf = lambda q: np.linalg.solve(np.column_stack([ex, ey]), np.asarray(q) - origin)
+    img = np.array(page.render(scale=TRACE_SCALE).to_pil().convert("L"))
+    h, w = int(img.shape[0] * DRAWING), img.shape[1]
+    img = img[:h]
+    mpp = float(np.linalg.norm(ex)) / TRACE_SCALE  # metres per pixel
+    ink = (img < INK).astype(np.uint8)
+    # Grow only long ink (walls) to close doorways; text and small marks stay as drawn.
+    _, blob, bstats, _ = cv2.connectedComponentsWithStats(ink, connectivity=8)
+    wall = np.maximum(bstats[:, cv2.CC_STAT_WIDTH], bstats[:, cv2.CC_STAT_HEIGHT]) * mpp >= MARK
+    wall[0] = False
+    grow = max(1, round(DOORWAY / mpp))
+    square = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * grow + 1, 2 * grow + 1))
+    closed = cv2.dilate(wall[blob].astype(np.uint8), square) | ink
+    _, space, stats, _ = cv2.connectedComponentsWithStats(1 - closed, connectivity=4)
+    outside = set(np.unique(np.concatenate([space[0], space[-1], space[:, 0], space[:, -1]])))
+    area = lambda k: stats[k, cv2.CC_STAT_AREA] * mpp * mpp
+    # Each room's space: the open area most of a ring just outside its label text lies in.
+    rx, ry = round(NEAR_LABEL[0] / mpp), round(NEAR_LABEL[1] / mpp)
+    claims = {}
+    for r in rooms:
+        if r["u"] in NEVER_TRACED:
+            continue
+        x, y = (to_pdf(to_m(*r["at"])) * TRACE_SCALE).round().astype(int)
+        if not (0 <= y < h and 0 <= x < w):
+            continue
+        x0, x1, y0, y1 = max(0, x - rx), min(w - 1, x + rx), max(0, y - ry), min(h - 1, y + ry)
+        ring = np.concatenate([space[y0, x0:x1], space[y1, x0:x1], space[y0:y1, x0], space[y0:y1, x1]])
+        ring = ring[(ring > 0) & (np.vectorize(area)(ring) >= MIN_POCKET)] if ring.size else ring
+        if ring.size:
+            claims.setdefault(int(np.bincount(ring).argmax()), []).append((r, x, y))
+    outlines = {}
+    for k, claimants in claims.items():
+        if k in outside:
+            continue  # open to the edge of the sheet: outdoors, or a doorway too wide to close
+        left, top, width, height = (stats[k, c] for c in (cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP, cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT))
+        whole = space[top:top + height, left:left + width] == k
+        yy, xx = np.mgrid[top:top + height, left:left + width]
+        nearest = np.argmin([(xx - x) ** 2 + (yy - y) ** 2 for _, x, y in claimants], axis=0)  # shared space: nearest label
+        together = sum(r.get("a") or 0 for r, _, _ in claimants)  # known areas only
+        for i, (r, _, _) in enumerate(claimants):
+            region = np.zeros((h, w), np.uint8)
+            region[top:top + height, left:left + width] = whole & (nearest == i)
+            region = cv2.dilate(region, square)  # give back the wall growth
+            traced = region.sum() * mpp * mpp
+            own = r.get("a") or 0
+            fits = own < UNCHECKED or 0.5 <= traced / own <= 2
+            shared_fits = len(claimants) > 1 and (together < UNCHECKED or 0.5 <= area(k) / together <= 2)
+            if not (fits or shared_fits):
+                continue
+            contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                continue  # nearer labels took all of a shared space
+            ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
+            outlines[r["n"]] = [to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px]
+    return outlines
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     index_file = OUT / "index.json"
@@ -93,6 +167,11 @@ def main():
             print(f"{ref} floor {floor}: only {len(pairs)} labels match the plan; not kept")
             continue
         to_map, errors = fit(pairs)
+        # A misread label can match the wrong room: refit once without matches far off the first fit.
+        close = [p for p, e in zip(pairs, errors) if e <= max(2.0, 3 * float(np.median(errors)))]
+        if MIN_LABELS <= len(close) < len(pairs):
+            pairs = close
+            to_map, errors = fit(pairs)
         median = float(np.median(errors))
         print(f"{ref} floor {floor}: {len(pairs)} labels, median error {median:.1f} m, worst {max(errors):.1f} m", "" if median <= MAX_MEDIAN else "; not kept")
         if median > MAX_MEDIAN:
@@ -102,6 +181,13 @@ def main():
         corners = [to_ll(to_map(x, y)) for x, y in [(x0, y0), (x1, y0), (x0, y1)]]  # top left, top right, bottom left
         index.setdefault(ref, {})[floor] = {"image": image, "corners": corners, "labels": len(pairs), "median": round(median, 2)}
         index_file.write_text(json.dumps(index, indent=1) + "\n")
+        # Room outlines traced from the drawing (shapes only), replacing this floor's earlier ones.
+        outline_file = OUT / "outlines" / f"{ref}.json"
+        outline_file.parent.mkdir(exist_ok=True)
+        outlines = json.loads(outline_file.read_text()) if outline_file.exists() else {}
+        outlines[floor] = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms)
+        outline_file.write_text(json.dumps(outlines) + "\n")
+        print(f"  traced {len(outlines[floor])} of {len(rooms)} rooms")
 
 
 if __name__ == "__main__":

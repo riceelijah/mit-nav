@@ -1,0 +1,17 @@
+{
+  "readableAreas": [],
+  "writableAreas": [
+    {
+      "area": "assigned-design",
+      "path": "compositions/Campus.md"
+    }
+  ],
+  "toolKinds": [
+    "repository-read",
+    "repository-write"
+  ],
+  "projectShell": "project-validation",
+  "network": false,
+  "generatedOutput": false,
+  "longRunningProcesses": false
+}
