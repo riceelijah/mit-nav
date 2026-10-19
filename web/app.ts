@@ -103,6 +103,7 @@ const PLAN_FILL: [RegExp, string][] = [
   [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#ffe0b5"],
   [/^ELEVATOR$/, "#cfe0f4"],
   [/^STAIRWAY$/, "#dde2e8"],
+  [/^LOUNGE$/, "#fff0dc"], // open public space, often walked through (Stata's Student Street)
   [/SHAFT|UTILITY|MECH|ELECTRIC|TELECOM|CUSTODIAL|STORAGE/, "#eceeec"],
 ];
 /** Service rooms (shafts and closets) are never drawn: most sit inside corridor walls and would cover the corridor. */
@@ -628,7 +629,7 @@ const app = createApp({
       const ref = buildingOf(p), floor = ref && tracedFloor(ref, p.floor);
       return !!floor && !floor.rooms.some((r) => r.n === roomNumber(p, ref!) && r.s);
     }
-    /** One building's walkable spaces on a floor: corridors, open floor and the walk's own places at normal cost; other rooms dearer. */
+    /** One building's walkable spaces on a floor: corridors, lounges, open floor and the walk's own places at normal cost; other rooms dearer. */
     function spaces(ref: string, level: number, ends: any[]) {
       const floor = tracedFloor(ref, level);
       if (!floor) return undefined;
@@ -636,7 +637,7 @@ const app = createApp({
       const preferred: Point[][] = [...(floor.open ?? [])], other: Point[][] = [];
       for (const r of floor.rooms) {
         if (!r.s) continue;
-        if (CIRCULATION.test(r.u) || own.includes(r.n)) preferred.push(r.s);
+        if (CIRCULATION.test(r.u) || r.u === "LOUNGE" || own.includes(r.n)) preferred.push(r.s);
         else if (!r.f) other.push(r.s); // a recovered outline is never passed through
       }
       return { preferred, other };
@@ -832,6 +833,10 @@ const app = createApp({
             }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}`).addTo(planLayer);
           }
           L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: "room-label", html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
+        }
+        // Unlabelled open floor (corridor stretches no label names) is tinted like corridors, over approximate shapes.
+        for (const ring of plan.floors[code].open ?? []) {
+          L.polygon(ring, { pane: "plans", color: "#9aa3ab", weight: 0.6, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
         }
       }
     }
