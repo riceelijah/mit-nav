@@ -41,14 +41,26 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
   const near = (rings: LatLon[][]) => rings.map((r) => r.map(flat)).filter((r) => r.some(([x, y]) => x >= x0 && x <= x0 + w * CELL && y >= y0 && y <= y0 + h * CELL));
   const good = near(preferred), rest = near(other);
   const centre = (i: number, j: number): [number, number] => [x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL];
-  // 0 closed, 1 preferred, ROOM_COST another room.
+  // 0 closed, 1 preferred, ROOM_COST another room: each outline filled row by row (cells whose centres it holds).
   const open = new Uint8Array(w * h);
-  for (let j = 0; j < h; j++)
-    for (let i = 0; i < w; i++) {
-      const c = centre(i, j);
-      if (good.some((r) => inside(c, r))) open[j * w + i] = 1;
-      else if (rest.some((r) => inside(c, r))) open[j * w + i] = ROOM_COST;
+  const fill = (ring: [number, number][], value: number) => {
+    const ys = ring.map(([, y]) => y);
+    const j0 = Math.max(0, Math.ceil((Math.min(...ys) - y0) / CELL - 0.5)), j1 = Math.min(h - 1, Math.floor((Math.max(...ys) - y0) / CELL - 0.5));
+    for (let j = j0; j <= j1; j++) {
+      const y = y0 + (j + 0.5) * CELL, xs: number[] = [];
+      for (let m = 0, n = ring.length - 1; m < ring.length; n = m++) {
+        const [xi, yi] = ring[m], [xj, yj] = ring[n];
+        if (yi > y !== yj > y) xs.push(((xj - xi) * (y - yi)) / (yj - yi) + xi);
+      }
+      xs.sort((p, q) => p - q);
+      for (let e = 0; e + 1 < xs.length; e += 2) {
+        const i0 = Math.max(0, Math.ceil((xs[e] - x0) / CELL - 0.5)), i1 = Math.min(w - 1, Math.ceil((xs[e + 1] - x0) / CELL - 0.5) - 1);
+        for (let i = i0; i <= i1; i++) open[j * w + i] = value;
+      }
     }
+  };
+  for (const r of rest) fill(r, ROOM_COST);
+  for (const r of good) fill(r, 1);
   // Each end joins the walkable cell nearest it, within REACH.
   const snap = ([x, y]: [number, number]) => {
     const ci = Math.floor((x - x0) / CELL), cj = Math.floor((y - y0) / CELL), r = Math.ceil(REACH / CELL);

@@ -383,6 +383,38 @@ export function floorJoin(
   return dx <= REACHES_NEIGHBOUR && dy <= REACHES_NEIGHBOUR ? [x, y, meters(x.at!, y.at!)] : undefined;
 }
 
+const SPACES_MEET = 15; // metres: joined buildings join where their traced spaces come closest, when that is this close
+
+/**
+ * Where two buildings' traced corridors, lobbies, bridges or unlabelled open floor on one floor come closest (within
+ * SPACES_MEET; the stretch between is often a doorway or vestibule no drawing traces): each building's traced corridor
+ * nearest that point, and the walk between them through it. Undefined when either floor has no traced corridor or the
+ * spaces are further apart.
+ */
+export function tracedMeeting(fa: Floor, fb: Floor, ta: Record<string, any> | undefined, tb: Record<string, any> | undefined): [Spot, Spot, number] | undefined {
+  const flat = (ring: [number, number][]): Point[] => { const r = ring.map(([lat, lon]) => toMeters(lon, lat)); return [...r, r[0]]; };
+  const shapes = (f: Floor, t: Record<string, any> | undefined) => {
+    const named = f.corridors.flatMap((c) => { const ring = t?.[/^[^-]+-(\S+)/.exec(c.name)?.[1] ?? ""]; return c.at && Array.isArray(ring) ? [{ spot: c, ring: flat(ring) }] : []; });
+    return { named, all: [...named.map((n) => n.ring), ...((t?.[""] ?? []) as [number, number][][]).map(flat)] };
+  };
+  const A = shapes(fa, ta), B = shapes(fb, tb);
+  if (!A.named.length || !B.named.length) return undefined;
+  let best = SPACES_MEET, at: Point | undefined;
+  for (const [from, to] of [[A.all, B.all], [B.all, A.all]])
+    for (const ring of from) for (const p of ring) for (const other of to)
+      for (let i = 0; i + 1 < other.length; i++) {
+        const d = segmentDistance(p, other[i], other[i + 1]);
+        if (d < best) [best, at] = [d, p];
+      }
+  if (!at) return undefined;
+  const nearest = (named: { spot: Spot; ring: Point[] }[]) => {
+    const d = (r: Point[]) => Math.min(...r.slice(0, -1).map((q, i) => segmentDistance(at!, q, r[i + 1])));
+    return named.reduce((x, y) => (d(y.ring) < d(x.ring) ? y : x)).spot;
+  };
+  const x = nearest(A.named), y = nearest(B.named);
+  return [x, y, meters(x.at!, at) + meters(at, y.at!)];
+}
+
 async function cached(file: URL, fetchIt: () => Promise<string>) {
   if (!existsSync(file)) writeFileSync(file, await fetchIt());
   return JSON.parse(readFileSync(file, "utf8"));
@@ -524,9 +556,11 @@ export function tracedOutlines(ref: string): Record<string, Record<string, any>>
   const kept: Record<string, Record<string, any>> = {};
   for (const [code, floor] of Object.entries<any>(plan.floors)) {
     for (const r of floor.rooms) if (r.s) (kept[code] ??= {})[r.n] = r.s;
+    for (const r of floor.rooms) if (r.d) ((kept[code] ??= {})["~"] ??= {})[r.n] = r.d;
     const recovered = floor.rooms.filter((r: any) => r.f).map((r: any) => r.n);
     if (recovered.length) (kept[code] ??= {})["!"] = recovered;
     if (floor.open) (kept[code] ??= {})[""] = floor.open;
+    if (floor.openD) (kept[code] ??= {})["~open"] = floor.openD;
   }
   return kept;
 }
@@ -639,6 +673,8 @@ async function buildCampus() {
     }
   }
   // Indoors between buildings: where corridors meet on a floor, or, without positions, where outlines touch.
+  const outlinesOf = new Map<string, ReturnType<typeof tracedOutlines>>();
+  const traced = (ref: string) => outlinesOf.get(ref) ?? outlinesOf.set(ref, tracedOutlines(ref)).get(ref)!;
   for (let i = 0; i < buildings.length; i++) {
     for (let j = i + 1; j < buildings.length; j++) {
       const a = inside.get(buildings[i].ref), b = inside.get(buildings[j].ref);
@@ -646,7 +682,10 @@ async function buildCampus() {
       for (const [code, fa] of a.floors) {
         const fb = b.floors.get(code);
         if (!fb) continue;
-        const pair = floorJoin(fa, fb, gap(i, j) <= TOUCHING_METERS, buildings[i], buildings[j], a.attach, b.attach);
+        const joined = floorJoin(fa, fb, gap(i, j) <= TOUCHING_METERS, buildings[i], buildings[j], a.attach, b.attach);
+        // Where both floors are traced, joined buildings join where their corridors or open floor actually meet
+        // (whether they join at all stays with floorJoin: a party wall without a door looks the same up close).
+        const pair = joined && (tracedMeeting(fa, fb, traced(buildings[i].ref)[code], traced(buildings[j].ref)[code]) ?? joined);
         if (!pair) continue;
         const m = Math.round(pair[2]);
         links.push([
@@ -670,10 +709,16 @@ async function buildCampus() {
       const s = traced[r.code]?.[r.number];
       // `f` marks an outline recovered from beyond the footprint: the route line only starts or ends in one.
       const f = s && traced[r.code]?.["!"]?.includes(r.number);
-      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}), ...(f ? { f: 1 } : {}) });
+      // `d` is a corridor's outline smoothed for drawing (without its doorway notches); routes use `s`.
+      const d = s && traced[r.code]?.["~"]?.[r.number];
+      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}), ...(d ? { d } : {}), ...(f ? { f: 1 } : {}) });
     }
     // Unlabelled open floor traced on each floor (key ""), for drawing route lines through corridors no room names.
-    for (const [code, f] of Object.entries(floors)) if (traced[code]?.[""]?.length) (f as any).open = traced[code][""];
+    for (const [code, f] of Object.entries(floors)) {
+      if (!traced[code]?.[""]?.length) continue;
+      (f as any).open = traced[code][""];
+      if (traced[code]["~open"]?.length === traced[code][""].length) (f as any).openD = traced[code]["~open"];
+    }
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }
   return { places, links, planFiles, buildings: buildings.length, interiors: [...inside.keys()] };

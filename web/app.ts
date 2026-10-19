@@ -39,9 +39,10 @@ function metersFromLine(p: Point, line: Point[]) {
 // ---- Floor plans: every room the inventory places on a floor, drawn as a schematic (not MIT's walls). ----
 // `s` is the room's outline traced from MIT's drawing, when one was (scripts/fit-drawings.py); `f` marks one recovered
 // from beyond the building's footprint, which the route line only starts or ends in.
-type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][]; f?: 1 };
+type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][]; d?: [number, number][]; f?: 1 };
 // `open` is the floor's unlabelled open floor (corridor stretches no room names), traced like the rooms.
-type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][] }> };
+// `d` and `openD` are corridors and open floor smoothed for drawing (without doorway notches); route lines use `s` and `open`.
+type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][] }> };
 type Flat = [number, number];
 /** Keeps the part of a polygon on the side of the line through `p` where (x - p) · n <= 0. */
 function clip(poly: Flat[], p: Flat, n: Flat): Flat[] {
@@ -79,7 +80,7 @@ export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
   const points = rooms.map((r) => flat(r.at));
   // ponytail: n² half-plane cuts per floor (a few hundred rooms); a Delaunay library if floors get much larger.
   return rooms.map((room, i) => {
-    if (room.s) return { room, shapes: [room.s] };
+    if (room.s) return { room, shapes: [room.d ?? room.s] };
     const p = points[i];
     const shapes = rings.map((ring) => {
       let poly = ring.slice(0, -1);
@@ -611,6 +612,7 @@ const app = createApp({
     const UNTRACED_REACH = 15; // metres: an untraced room is met at reachable open floor this near it
     const JOIN = 4; // metres: a walk joins a traced place at the reachable open floor this near it (through its door)
     const CROSSING = 20; // metres: a longer straight crossing between two buildings means their open floors do not meet
+    const NEAR_JOIN = 60; // metres: where two buildings' open floors come closest is looked for this near the second place
     /** The traced floor of building `ref` with floor number `level`, once its plan file has loaded. */
     const tracedFloor = (ref: string | undefined, level: number) => {
       const plan = ref ? planFiles.value[ref] : undefined;
@@ -642,7 +644,21 @@ const app = createApp({
       }
       return { preferred, other };
     }
-    const walks = new Map<string, ReturnType<typeof computeWalk>>();
+    /** The point of rings `b` nearest any point of rings `a` (vertices only, both within NEAR_JOIN of `near`), within CROSSING metres. */
+    function closestApproach(a: Point[][], b: Point[][], near: Point): Point | undefined {
+      const k = Math.cos((near[0] * Math.PI) / 180);
+      const flat = (p: Point): [number, number] => [(p[1] - near[1]) * 111_320 * k, (p[0] - near[0]) * 111_320];
+      const close = (rings: Point[][]) => rings.flat().map((p) => [p, flat(p)] as const).filter(([, [x, y]]) => Math.hypot(x, y) <= NEAR_JOIN);
+      const as = close(a), bs = close(b);
+      let best = CROSSING, at: Point | undefined;
+      for (const [, [px, py]] of as) for (const [q, [qx, qy]] of bs) {
+        const d = Math.hypot(px - qx, py - qy);
+        if (d < best) [best, at] = [d, q];
+      }
+      return at;
+    }
+    // Each walk is kept with the buildings whose plans had not loaded when it was drawn, to be redrawn when they do.
+    const walks = new Map<string, { walk: ReturnType<typeof computeWalk>; missing: string[] }>();
     /**
      * A walk from place `a` (where the line stands at `aDrawn`, or undefined when `a` is an untraced route start) to
      * place `b` along traced spaces: the corners to draw, where it ends, and whether that is `b`'s own position (not,
@@ -653,9 +669,10 @@ const app = createApp({
       if (!walks.has(key)) {
         // A place closed off in its own outline (a vestibule between doors) is left from the open floor the walk into it joined.
         const walk = computeWalk(a, aDrawn, b) ?? (joined && aDrawn ? computeWalk(a, joined, b) : undefined);
-        walks.set(key, walk && joined && aDrawn && walk.path[0] === joined ? { ...walk, path: [aDrawn, ...walk.path] } : walk);
+        const missing = [buildingOf(a), buildingOf(b)].filter((r): r is string => !!r && !planFiles.value[r]);
+        walks.set(key, { walk: walk && joined && aDrawn && walk.path[0] === joined ? { ...walk, path: [aDrawn, ...walk.path] } : walk, missing });
       }
-      return walks.get(key);
+      return walks.get(key)!.walk;
     }
     function computeWalk(a: any, aDrawn: Point | undefined, b: any): { path: Point[]; end: Point; reachesPlace: boolean } | undefined {
       const ra = buildingOf(a), rb = buildingOf(b);
@@ -676,8 +693,9 @@ const app = createApp({
         if (!w) return undefined;
         return { path: [start, ...w.path], end: bOpen ? w.path[w.path.length - 1] : bAt, reachesPlace: !bOpen };
       }
-      // Two buildings: a part in each, joined by a straight crossing of at most CROSSING metres.
-      const partA = sa ? walkToward(sa.preferred, start, bAt, sa.other, Infinity) : undefined;
+      // Two buildings: a part in each, joined by a straight crossing of at most CROSSING metres. The first part heads
+      // for the second building's walkable floor where it comes closest to the first's (the doorway between them).
+      const partA = sa ? walkToward(sa.preferred, start, (sb && closestApproach(sa.preferred, sb.preferred, bAt)) ?? bAt, sa.other, Infinity) : undefined;
       const endA = partA ? partA.path[partA.path.length - 1] : start;
       if (!sb) return groundMeters(endA, bAt) <= CROSSING ? { path: [start, ...(partA?.path ?? [])], end: bAt, reachesPlace: true } : undefined;
       const entry = nearestOpen(sb.preferred, endA, CROSSING);
@@ -696,14 +714,33 @@ const app = createApp({
       if (!points.length) return points;
       const end = (stepIndex: number) => (stepIndex < 0 ? 0 : reached[steps.value[stepIndex]?.upto ?? pathSteps.length - 1] ?? points.length - 1);
       const doneTo = end(doneCount.value - 1);
-      const currentTo = doneCount.value < steps.value.length ? end(doneCount.value) : doneTo;
-      const part = (from: number, to: number) => points.slice(from, to + 1);
-      if (doneTo > 0) L.polyline(part(0, doneTo), { color: "#8a90a0", weight: 6, opacity: 0.85 }).addTo(routeLayer);
-      if (currentTo > doneTo) {
-        L.polyline(part(doneTo, currentTo), { color: "#bdb246", weight: 11, opacity: 0.95 }).addTo(routeLayer);
-        L.polyline(part(doneTo, currentTo), { color: "#a31f34", weight: 5 }).addTo(routeLayer);
+      const doneUpto = doneCount.value > 0 ? steps.value[doneCount.value - 1]?.upto ?? pathSteps.length - 1 : -1;
+      const currentUpto = doneCount.value < steps.value.length ? steps.value[doneCount.value].upto : doneUpto;
+      // Inside a building whose plan is showing, only the walks on the floor shown are drawn (badges mark the changes).
+      const offFloor = (k: number) => {
+        const s = pathSteps[k], before = pathSteps[k - 1], ref = buildingOf(s);
+        if (!ref || !visiblePlans.value.includes(ref)) return false;
+        const level = planFiles.value[ref]?.floors[shownFloor.value[ref]]?.level;
+        const drawnOn = before && buildingOf(before) === ref ? before.floor : s.floor; // a walk to the stairs is on the floor it leaves
+        return level !== undefined && drawnOn !== level;
+      };
+      const styles = {
+        done: [{ color: "#8a90a0", weight: 6, opacity: 0.85 }],
+        current: [{ color: "#bdb246", weight: 11, opacity: 0.95 }, { color: "#a31f34", weight: 5 }],
+        upcoming: [{ color: "#a31f34", weight: 4, opacity: 0.75 }],
+      };
+      // Each walk is drawn in its progress style, consecutive walks of one style as one line.
+      let run: { style: keyof typeof styles; from: number; to: number } | undefined;
+      const flush = () => { if (run && run.to > run.from) for (const o of styles[run.style]) L.polyline(points.slice(run.from, run.to + 1), o).addTo(routeLayer); run = undefined; };
+      for (let k = 0; k < pathSteps.length; k++) {
+        const from = k === 0 ? 0 : reached[k - 1] ?? 0, to = reached[k] ?? from;
+        if (offFloor(k)) { flush(); continue; }
+        const style = k <= doneUpto ? "done" : k <= currentUpto ? "current" : "upcoming";
+        if (run && (run.style !== style || run.to !== from)) flush();
+        run ??= { style, from, to };
+        run.to = to;
       }
-      if (currentTo < points.length - 1) L.polyline(part(currentTo, points.length - 1), { color: "#a31f34", weight: 4, opacity: 0.75 }).addTo(routeLayer);
+      flush();
       L.circleMarker(points[0], { radius: 6, color: "#0a122a", fillColor: "#ffffff", fillOpacity: 1, weight: 3 }).bindTooltip("Start").addTo(routeLayer);
       // The destination is marked at its own position, even when the line ends at the open floor beside it.
       const last = pathSteps[pathSteps.length - 1];
@@ -755,6 +792,7 @@ const app = createApp({
     const planFiles = ref<Record<string, PlanFile | null>>({});
     const shownFloor = ref<Record<string, string>>({}); // building -> floor code being drawn
     const visiblePlans = ref<string[]>([]);
+    watch([shownFloor, visiblePlans], () => map && drawProgress());
     const focus = ref("");
     const drawings = ref<Record<string, Record<string, Drawing>>>({});
     const planStyle = ref(remembered("planStyle") === "drawing" ? "drawing" : "schematic");
@@ -780,7 +818,10 @@ const app = createApp({
       return planFiles.value[ref];
     }
     // However a plan arrives (with a route, or by zooming in), the route line can now follow its corridors.
-    watch(planFiles, () => { walks.clear(); if (map) drawProgress(); });
+    watch(planFiles, () => {
+      for (const [key, w] of walks) if (w.missing.some((r) => planFiles.value[r])) walks.delete(key);
+      if (map) drawProgress();
+    });
     const floorsOf = (plan: PlanFile) => Object.entries(plan.floors).sort((a, b) => b[1].level - a[1].level);
     /** Where a building's plan opens: the current step's floor if it is in this building, else the route's first floor there. */
     function openingFloor(ref: string, plan: PlanFile) {
@@ -835,7 +876,7 @@ const app = createApp({
           L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: "room-label", html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
         }
         // Unlabelled open floor (corridor stretches no label names) is tinted like corridors, over approximate shapes.
-        for (const ring of plan.floors[code].open ?? []) {
+        for (const ring of plan.floors[code].openD ?? plan.floors[code].open ?? []) {
           L.polygon(ring, { pane: "plans", color: "#9aa3ab", weight: 0.6, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
         }
       }

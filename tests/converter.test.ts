@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { floorJoin, interior, parseFloor, pathNetwork, withMisreadings, type Located, type Point } from "../scripts/campus-to-map.ts";
+import { floorJoin, interior, tracedMeeting, parseFloor, pathNetwork, withMisreadings, type Located, type Point } from "../scripts/campus-to-map.ts";
 
 // Positions are metres on a local grid (x east, y north), as the converter uses after converting lat/long.
 const csv = `"FLOOR","ROOM NUMBER","SQ FT","ROOM USE","DEPARTMENT","MAJOR USE"
@@ -153,4 +153,16 @@ test("paths: ramped steps are step-free, and an unnamed sidewalk takes the name 
     [{ name: "Vassar Street", line: [[10, -100], [10, 100]] as Point[] }, { name: "Far Street", line: [[-60, -100], [-60, 100]] as Point[] }],
   );
   expect(edges.map((e) => [e.name, e.stepFree])).toEqual([["Vassar Street", true], ["", true]]);
+});
+
+test("joined buildings join where their traced spaces come closest", () => {
+  // Lat/long rings: A has corridors far (A1) and near (A2) its east end; B's lobby starts 5 m east of A2.
+  const m = 1 / 111320 / Math.cos((42.36 * Math.PI) / 180); // degrees of longitude per metre
+  const box = (x0: number, x1: number): [number, number][] => [[42.36, -71.09 + x0 * m], [42.36, -71.09 + x1 * m], [42.36002, -71.09 + x1 * m], [42.36002, -71.09 + x0 * m]];
+  const spot = (name: string, x: number) => ({ name, at: [x, 1] as Point });
+  const fa = { code: "1", level: 1, hub: false, corridors: [spot("A-100CA Corridor", 5), spot("A-100CB Corridor", 25)] };
+  const fb = { code: "1", level: 1, hub: false, corridors: [spot("B-100LA Lobby", 40)] };
+  const join = tracedMeeting(fa, fb, { "100CA": box(0, 10), "100CB": box(20, 30) }, { "100LA": box(35, 45) });
+  expect(join?.slice(0, 2).map((s: any) => s.name)).toEqual(["A-100CB Corridor", "B-100LA Lobby"]);
+  expect(tracedMeeting(fa, fb, { "100CA": box(0, 10) }, { "100LA": box(35, 45) })).toBeUndefined(); // 25 m apart
 });

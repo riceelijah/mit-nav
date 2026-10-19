@@ -86,10 +86,13 @@ NEAR_LABEL = (1.0, 0.7)  # metres: half-size of the ring around a label that dec
 MIN_POCKET = 1.0  # m²: pockets smaller than this (inside letters) are never a room
 UNCHECKED = 3.0  # m²: inventory areas smaller than this (or missing) are not trusted for the size check
 SERVICE = {"SHAFT SPACE", "ELECTRIC CLOSET", "TELECOM CLOSET", "UTILITY/MECH RM", "CUSTODIAL CLOSET"}  # never drawn either
-NEVER_TRACED = {"ELEVATOR", "STAIRWAY"} | SERVICE
+NEVER_TRACED = {"ELEVATOR", "STAIRWAY"}
 CIRCULATION = {"CORRIDOR", "LOBBY", "BRIDGE/TUNNEL"}
 UNCLAIMED_MIN = 4.0  # m²: unlabelled open floor smaller than this is a closet or a gap, not a corridor
 FOOTPRINT_MARGIN = 1.0  # metres beyond the building outline still counted as inside
+OUTER_WALL = 0.3  # metres: a space leaking into that margin is cut back to the outline plus this
+HALL_LINE = 0.1  # metres: spaces this close across a line are rows of one seated hall when its own space is too small
+SEATING = 1.0  # metres: ink thicker than this throughout (no wall is) is a hall's seating, drawn too densely to trace
 
 
 def share(whole, claimants, mpp, step=4):
@@ -162,9 +165,16 @@ def trace(page, to_map, rooms, footprint):
         margin = round(FOOTPRINT_MARGIN / mpp)
         beyond = 1 - cv2.dilate(inside, cv2.getStructuringElement(cv2.MORPH_RECT, (2 * margin + 1, 2 * margin + 1)))
         closed |= beyond
+        # The outline itself, plus the outer wall's thickness: what a space in the margin is cut back to (below).
+        wall_in = round(OUTER_WALL / mpp)
+        outline_mask = cv2.dilate(inside, cv2.getStructuringElement(cv2.MORPH_RECT, (2 * wall_in + 1, 2 * wall_in + 1))).astype(bool)
     else:
         beyond = np.zeros((h, w), np.uint8)
-    _, space, stats, _ = cv2.connectedComponentsWithStats(1 - closed, connectivity=4)
+        outline_mask = None
+    _, space, stats, middles = cv2.connectedComponentsWithStats(1 - closed, connectivity=4)
+    # Spaces reaching the margin's outer edge: a corridor open at a building's end (where the next building carries
+    # it on) runs out into the margin strip around the whole outside; such spaces are cut back to the outline.
+    leaky = set(np.unique(space[(cv2.dilate(beyond, cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))) == 1) & (beyond == 0)]).tolist()) - {0}
     cross = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
 
     def into_doorways(region):
@@ -196,12 +206,98 @@ def trace(page, to_map, rooms, footprint):
         ring = ring[(ring > 0) & (np.vectorize(area)(ring) >= MIN_POCKET)] if ring.size else ring
         if ring.size:
             claims.setdefault(int(np.bincount(ring).argmax()), []).append((r, x, y))
-    outlines, spare = {}, []
+    def box(ks):
+        """The bounding box (left, top, width, height) of spaces ks."""
+        x0 = min(stats[k, cv2.CC_STAT_LEFT] for k in ks); y0 = min(stats[k, cv2.CC_STAT_TOP] for k in ks)
+        x1 = max(stats[k, cv2.CC_STAT_LEFT] + stats[k, cv2.CC_STAT_WIDTH] for k in ks)
+        y1 = max(stats[k, cv2.CC_STAT_TOP] + stats[k, cv2.CC_STAT_HEIGHT] for k in ks)
+        return x0, y0, x1 - x0, y1 - y0
+
+    absorbed = set()
+    reach = max(2, round(HALL_LINE / mpp))
+    near_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * reach + 1, 2 * reach + 1))
+
+    def hall(k, r, x, y):
+        """The spaces of a room whose own space is under half its inventory area (a seated hall, split into rows by the
+        drawing's lines): it takes in the unlabelled spaces just across a thin line from it, nearest its position first,
+        while it stays under 1.3 times its area, until it has 0.85 of it. Rooms that do not reach half keep their own."""
+        own = r.get("a") or 0
+        members, total, skip = {k}, area(k), set()
+        if r["u"] in CIRCULATION or own < UNCHECKED or total >= 0.5 * own:
+            return members, None
+        while total < 0.85 * own:
+            left, top, width, height = box(members)
+            x0, y0 = max(0, left - reach), max(0, top - reach)
+            crop = space[y0:top + height + reach, x0:left + width + reach]
+            mine = np.isin(crop, list(members)).astype(np.uint8)
+            ring = cv2.dilate(mine, near_kernel) & (1 - mine)
+            near = [int(c) for c in np.unique(crop[ring == 1]) if c > 0 and c not in members | skip | absorbed | outside and c not in claims and area(c) >= MIN_POCKET]
+            if not near:
+                break
+            c = min(near, key=lambda c: (middles[c][0] - x) ** 2 + (middles[c][1] - y) ** 2)
+            if total + area(c) > 1.3 * own:
+                skip.add(c)
+                continue
+            members.add(c)
+            total += area(c)
+        if total < 0.5 * own:
+            # Rows drawn so densely that closing doorways filled them: the solid ink beside the hall's own space.
+            seating = solid_beside(k)
+            if seating is not None and 0.5 * own <= area(k) + seating.sum() * mpp * mpp <= 1.3 * own:
+                return {k}, seating
+            return {k}, None
+        absorbed.update(members - {k})
+        return members, None
+
+    solid = []
+    def solid_beside(k):
+        """The largest piece of ink thicker than SEATING throughout that touches space k, as a full-size mask."""
+        # ponytail: one bincount over the page per hall; cache sizes if a floor has many halls.
+        if not solid:
+            thick = cv2.morphologyEx(closed, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (round(SEATING / mpp),) * 2))
+            solid.extend(cv2.connectedComponents(thick, connectivity=8))
+        _, pieces = solid
+        left, top, width, height = box({k})
+        pad = round(SEATING / mpp)
+        y0, x0 = max(0, top - pad), max(0, left - pad)
+        crop = pieces[y0:top + height + pad, x0:left + width + pad]
+        mine = (space[y0:top + height + pad, x0:left + width + pad] == k).astype(np.uint8)
+        touching = crop[cv2.dilate(mine, near_kernel) == 1]
+        touching = touching[touching > 0]
+        if not touching.size:
+            return None
+        sizes = np.bincount(pieces.ravel())
+        return (pieces == max(np.unique(touching), key=lambda c: sizes[c])).astype(np.uint8)
+
+    def ring_of(mask):
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
+        return [to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px]
+
+    # Corridors and open floor are also kept as drawn: bounded by their walls and closed doorways, without the notches
+    # growing through doorways leaves (key "~", and "~open" alongside ""); route lines use the grown outlines.
+    outlines, spare, drawn = {}, [], {}
     for k, claimants in claims.items():
         if k in outside:
             continue  # open to the edge of the sheet: outdoors, or a doorway too wide to close
-        left, top, width, height = (stats[k, c] for c in (cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP, cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT))
-        whole = space[top:top + height, left:left + width] == k
+        # A service room (closet, shaft) keeps a space of its own from being open floor but is never drawn, and takes
+        # no part of a space it shares: most closets' labels sit in the corridor outside them.
+        if all(r["u"] in SERVICE for r, _, _ in claimants):
+            continue
+        claimants = [c for c in claimants if c[0]["u"] not in SERVICE]
+        # The largest room whose label lies here may be a hall the drawing split (shared spaces are then split as usual).
+        members, seating = hall(k, *max(claimants, key=lambda c: c[0].get("a") or 0))
+        left, top, width, height = box(members)
+        if seating is not None:
+            ys, xs = np.nonzero(seating)
+            right, bottom = max(left + width, xs.max() + 1), max(top + height, ys.max() + 1)
+            left, top = min(left, xs.min()), min(top, ys.min())
+            width, height = right - left, bottom - top
+        whole = np.isin(space[top:top + height, left:left + width], list(members))
+        if seating is not None:
+            whole |= seating[top:top + height, left:left + width].astype(bool)
+        if outline_mask is not None and members & leaky:
+            whole &= outline_mask[top:top + height, left:left + width]
         yy, xx = np.mgrid[top:top + height, left:left + width]
         # One room has its whole space; several share it (see share()), and what none takes is unlabelled open floor.
         nearest = np.zeros(whole.shape, np.int32) if len(claimants) == 1 else share(whole, [(x - left, y - top, r) for r, x, y in claimants], mpp)
@@ -210,14 +306,23 @@ def trace(page, to_map, rooms, footprint):
         if leftover.sum() * mpp * mpp >= UNCLAIMED_MIN:
             spare.append(leftover)
         together = sum(r.get("a") or 0 for r, _, _ in claimants)  # known areas only
-        for i, (r, _, _) in enumerate(claimants):
+        cut = outline_mask is not None and bool(members & leaky)
+        for i, (r, cx, cy) in enumerate(claimants):
             region = np.zeros((h, w), np.uint8)
-            region[top:top + height, left:left + width] = whole & (nearest == i)
+            part = (whole & (nearest == i)).astype(np.uint8)
+            if cut:  # cutting can leave the strip outside the walls as a piece of its own: keep the one at the label
+                n, pieces = cv2.connectedComponents(part, connectivity=4)
+                if n > 2:
+                    ys, xs = np.nonzero(part)
+                    at = np.argmin((xs - (cx - left)) ** 2 + (ys - (cy - top)) ** 2)
+                    part = (pieces == pieces[ys[at], xs[at]]).astype(np.uint8)
+            region[top:top + height, left:left + width] = part
+            plain = cv2.dilate(region, line_width)
             region = into_doorways(region)
             traced = region.sum() * mpp * mpp
             own = r.get("a") or 0
             fits = own < UNCHECKED or 0.5 <= traced / own <= 2
-            shared_fits = len(claimants) > 1 and (together < UNCHECKED or 0.5 <= area(k) / together <= 2)
+            shared_fits = len(claimants) > 1 and (together < UNCHECKED or 0.5 <= whole.sum() * mpp * mpp / together <= 2)
             if not (fits or shared_fits):
                 continue
             contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -225,25 +330,43 @@ def trace(page, to_map, rooms, footprint):
                 continue  # nearer labels took all of a shared space
             ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
             outlines[r["n"]] = [to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px]
+            if r["u"] in CIRCULATION:
+                drawn[r["n"]] = ring_of(plain)
     # Open floor no room's label claims (unlabelled stretches of corridor), for drawing route lines through; never
     # what is open to the outdoors, and not pockets smaller than a room could be.
-    unclaimed = []
+    dark = cv2.erode(img, np.ones((2 * round(0.15 / mpp) + 1,) * 2, np.uint8)) < 200  # ink within 0.15 m, faint lines included
+
+    def triangle(raw_region):
+        """A box the drawing crosses out (an opening to below, or a shaft), not a corridor: a three-cornered quarter of
+        one whose X is drawn as walls, or a whole one whose X is drawn too faintly to split it (both diagonals inked)."""
+        contours, _ = cv2.findContours(raw_region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        outline = max(contours, key=cv2.contourArea)
+        if len(cv2.approxPolyDP(outline, 0.6 / mpp, True)) <= 3:  # a corner clipped by less than this still counts
+            return True
+        corners = cv2.boxPoints(cv2.minAreaRect(outline))
+        def inked(a, b):
+            t = np.linspace(0.1, 0.9, 60)
+            xs, ys = (a[0] + (b[0] - a[0]) * t).astype(int), (a[1] + (b[1] - a[1]) * t).astype(int)
+            ok = (xs >= 0) & (xs < w) & (ys >= 0) & (ys < h)
+            return ok.all() and dark[ys, xs].mean() > 0.7
+        return inked(corners[0], corners[2]) and inked(corners[1], corners[3])
+
+    unclaimed, unclaimed_drawn = [], []
     for raw_region in spare:
-        if not (cv2.dilate(raw_region, cross) & beyond).any():
-            contours, _ = cv2.findContours(into_doorways(raw_region), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
-            unclaimed.append([to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px])
+        if not (cv2.dilate(raw_region, cross) & beyond).any() and not triangle(raw_region):
+            unclaimed.append(ring_of(into_doorways(raw_region)))
+            unclaimed_drawn.append(ring_of(cv2.dilate(raw_region, line_width)))
     for k in range(1, len(stats)):
-        if k in claims or k in outside or area(k) < UNCLAIMED_MIN:
+        if k in claims or k in outside or k in absorbed or area(k) < UNCLAIMED_MIN:
             continue
         raw_region = (space == k).astype(np.uint8)
         if (cv2.dilate(raw_region, cross) & beyond).any():
             continue  # reaches the footprint's edge: the strip outside the building's walls, not a corridor
-        region = into_doorways(raw_region)
-        contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        ring_px = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 0.25 / mpp, True)[:, 0, :]
-        unclaimed.append([to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in ring_px])
-    outlines[""] = unclaimed
+        if triangle(raw_region):
+            continue
+        unclaimed.append(ring_of(into_doorways(raw_region)))
+        unclaimed_drawn.append(ring_of(cv2.dilate(raw_region, line_width)))
+    outlines[""], outlines["~open"], outlines["~"] = unclaimed, unclaimed_drawn, drawn
     return outlines
 
 SHARED_WALL = 0.15  # neighbouring outlines meet inside the wall between them; more overlap than this share is not that
@@ -259,6 +382,8 @@ def traced_floor(pdf, to_map, rooms, footprint):
 
     def cut(ring):
         """The ring cut to the building's outline (its largest piece), or None when nothing is left."""
+        if len(ring) < 3:
+            return None  # simplified away to a line
         shape = Polygon(ring).buffer(0)
         if building is None:
             return ring
@@ -270,13 +395,15 @@ def traced_floor(pdf, to_map, rooms, footprint):
 
     bounded = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms, footprint)
     unbounded = trace(pypdfium2.PdfDocument(str(pdf))[0], to_map, rooms, [])
-    out = {n: c for n, ring in bounded.items() if n and (c := cut(ring))}
-    out[""] = [c for ring in bounded[""] if (c := cut(ring))]
+    out = {n: c for n, ring in bounded.items() if n and n not in ("~", "~open") and (c := cut(ring))}
+    pairs = [(c, cut(d) or c) for ring, d in zip(bounded[""], bounded["~open"]) if (c := cut(ring))]
+    out[""], out["~open"] = [c for c, _ in pairs], [d for _, d in pairs]
+    out["~"] = {n: c for n, ring in bounded["~"].items() if n in out and (c := cut(ring))}
     use = {r["n"]: r["u"] for r in rooms}
-    kept = [Polygon(ring).buffer(0) for n, ring in out.items() if n]
+    kept = [Polygon(ring).buffer(0) for n, ring in out.items() if n and n not in ("~", "~open")]
     out["!"] = []
     for n, ring in unbounded.items():
-        if not n or n in out or use.get(n) in CIRCULATION:
+        if not n or n in ("~", "~open") or n in out or len(ring) < 3 or use.get(n) in CIRCULATION:
             continue
         shape = Polygon(ring).buffer(0)
         if all(shape.intersection(k).area <= SHARED_WALL * min(shape.area, k.area) for k in kept):
@@ -325,7 +452,7 @@ def main():
         outlines = json.loads(outline_file.read_text()) if outline_file.exists() else {}
         outlines[floor] = traced_floor(pdf, to_map, rooms, [r for r in plan["outline"] if len(r) >= 3])
         outline_file.write_text(json.dumps(outlines) + "\n")
-        print(f"  traced {len(outlines[floor]) - 2} of {len(rooms)} rooms ({len(outlines[floor]['!'])} recovered), {len(outlines[floor][''])} unlabelled open areas")
+        print(f"  traced {len(outlines[floor]) - 4} of {len(rooms)} rooms ({len(outlines[floor]['!'])} recovered), {len(outlines[floor][''])} unlabelled open areas")
 
 
 if __name__ == "__main__":
