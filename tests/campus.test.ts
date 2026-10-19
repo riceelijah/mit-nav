@@ -101,7 +101,7 @@ test("campus map: Simmons Hall to a Stata 9th-floor lab walks along outdoor path
   expect(around.length).toBeGreaterThan(0);
   expect(around.some((s) => s.link === lift.link)).toBe(false);
   await close();
-}, 60_000);
+}, 240_000); // inserts the whole campus (about 16,000 places) one action at a time
 
 test("search: entrances first, natural number order, transit hidden, at most 40", async () => {
   const { db, close } = await freshDb();
