@@ -36,6 +36,22 @@ function metersFromLine(p: Point, line: Point[]) {
   return best;
 }
 
+const CORRIDOR = /^Walk about (\d+) m along the corridor\.$/;
+/** Shows several corridor walks in a row as one step, adding up the metres written in them. */
+function mergeCorridors(steps: any[]) {
+  const shown: any[] = [];
+  for (const s of steps) {
+    const prev = shown[shown.length - 1];
+    const m = CORRIDOR.exec(s.instruction);
+    const before = prev && /^Walk about (\d+) m along the corridors?\.$/.exec(prev.instruction);
+    if (m && before) {
+      // Keep the first connection (that is the one flagged) and arrive where the last one does.
+      Object.assign(prev, { ...s, link: prev.link, step: prev.step, distance: prev.distance + s.distance, instruction: `Walk about ${Number(before[1]) + Number(m[1])} m along the corridors.` });
+    } else shown.push({ ...s });
+  }
+  return shown.map((s, i) => ({ ...s, step: i + 1 }));
+}
+
 const distanceLabel = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
 
 /** The place with exactly this name, found through search (the browser never holds the whole map). */
@@ -306,7 +322,7 @@ const app = createApp({
       const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, hour: hour.value });
       if (asked !== latestRoute) return; // an answer to an older choice of places
       if ("error" in result) return say(`Could not find a route: ${result.error}`, "bad");
-      steps.value = result.route.steps;
+      steps.value = mergeCorridors(result.route.steps);
       searched.value = true;
       doneCount.value = 0;
       draw();
@@ -381,7 +397,7 @@ const app = createApp({
         if ("error" in result || !result.route.steps.length) return say(`You seem to be off the route, and there is no route from ${nearest.name}. Keep to the old route.`, "bad");
         skipNextRoute = true;
         from.value = { ...nearest, kind: "ENTRANCE", floor: 1 };
-        steps.value = result.route.steps;
+        steps.value = mergeCorridors(result.route.steps);
         doneCount.value = 0;
         draw();
         say(`You went off course, so here is a new route from ${nearest.name}.`);

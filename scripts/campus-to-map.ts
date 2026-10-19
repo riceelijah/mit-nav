@@ -9,12 +9,19 @@
 //   centers.json          MapIT's public building centres, downloaded on the first run, for
 //                         buildings OpenStreetMap has no outline for.
 //   whereis.json          Building names from whereis.mit.edu for buildings OpenStreetMap leaves unnamed.
+//   entrances.json        OpenStreetMap entrance nodes, downloaded on the first run.
+//   relative-room-locations.json
+//                         MapIT's position for every room label on MIT's floor plans (save
+//                         https://mitmapit.org/api/relative-room-locations while signed in). Optional:
+//                         without it every floor is a single corridor.
 //
-// Every building becomes a place joined to its nearest neighbours by outdoor walks. A building with a
-// room list also gets one corridor per floor, its elevators (one service each, so flagging any ride
-// blocks the whole elevator), its stairs, and the rooms a visitor would look for. Buildings whose
-// footprints touch are joined indoors on the floors they share. Simmons (W79) keeps its hand-made map
-// from data/simmons.json and is joined at its main lobby.
+// Every building becomes a place joined to its nearby buildings by outdoor walks. Inside a building with a
+// room list, each floor is a network of its corridors, lobbies and bridges at their real positions, with
+// rooms, elevator stops and stairways attached to the corridor nearest them (a floor without positions is
+// a single corridor). Each elevator is one service, so flagging any ride blocks the whole elevator.
+// Touching buildings are joined indoors on a floor when each has a corridor within 35 m of the other's
+// outline; any corridors within 15 m are joined too (bridges); floors without positions join where outlines touch. Simmons (W79) keeps its hand-made map from
+// data/simmons.json and is joined at its main lobby.
 // Usage: bun run campus
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -22,7 +29,7 @@ type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
 export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number };
 // source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance
 export type Link = [string, string, string, string, boolean, number, number, string, number];
-type Point = [number, number];
+export type Point = [number, number];
 type Building = { ref: string; name: string; rings: Point[][]; center: Point };
 
 const raw = new URL("../data/raw/", import.meta.url);
@@ -31,6 +38,15 @@ const raw = new URL("../data/raw/", import.meta.url);
 // half a unit per floor. Walking outside costs 1 per 50 m on top of getting through the door.
 const WALK = 1;
 const ENTER = 0.5;
+// Inside, a connection costs a little for the turn plus the metres over 50, on the same scale as walking outside.
+const indoorWalk = (meters: number) => 0.2 + meters / 50;
+const CORRIDOR_NEIGHBOURS = 3;
+const CORRIDOR_REACH = 40; // corridors further apart than this are only joined if nothing nearer joins them
+const MEETING_METERS = 15; // corridors of any two buildings this close on one floor are a way through (bridges)
+// Corridors are marked at their middles, so where two touching buildings join, each has a corridor this close to the other's outline.
+const REACHES_NEIGHBOUR = 35;
+const ENTRANCE_REACH = 15;
+const CORRIDORS = new Set(["CORRIDOR", "LOBBY", "BRIDGE/TUNNEL"]);
 const STAIRS_PER_FLOOR = 2;
 const elevatorRide = (floors: number) => 3.5 + 0.5 * floors;
 const outdoorWalk = (meters: number) => 1 + meters / 50;
@@ -67,72 +83,144 @@ export function parseCsv(text: string) {
   return body.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ""])));
 }
 
-/** One building's interior from its room list. */
-export function interior(ref: string, csv: string) {
-  const places: Place[] = [];
+export type Spot = { name: string; at: Point | undefined };
+export type Floor = { code: string; level: number; corridors: Spot[]; hub: boolean };
+/** Positions of one building's room labels, by room number without the building ("100LA"), for one floor code. */
+export type Located = Map<string, { floor: string; at: Point }>;
+
+const meters = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const nearest = (spots: Spot[], at: Point) =>
+  spots.reduce((best, s) => (meters(s.at!, at) < meters(best.at!, at) ? s : best), spots[0]);
+const middle = (spots: Spot[]): Point => [
+  spots.reduce((t, s) => t + s.at![0], 0) / spots.length,
+  spots.reduce((t, s) => t + s.at![1], 0) / spots.length,
+];
+
+/**
+ * One building's interior from its room list, placing corridors, rooms, elevators and stairs where
+ * `located` says they are. Positions are in metres (see toMeters); places without one are left at undefined.
+ */
+export function interior(ref: string, csv: string, located: Located = new Map()) {
+  const places: (Place & { at?: Point })[] = [];
   const links: Link[] = [];
-  const hubs = new Map<string, number>(); // floor code -> level
-  const elevators = new Map<string, Map<string, number>>(); // E1 -> code -> level
-  const stairs = new Map<string, Map<string, number>>(); // tower + SA -> code -> level
-  const rooms: { name: string; code: string; level: number; number: string; use: string }[] = [];
+  const floors = new Map<string, Floor>();
+  const stops = new Map<string, { code: string; level: number; at?: Point }[]>(); // E1 -> its stops
+  const flights = new Map<string, { code: string; level: number; at?: Point }[]>(); // tower + SA -> its landings
+  const rooms: { name: string; code: string; level: number; number: string; use: string; at?: Point }[] = [];
   let code = "";
   for (const row of parseCsv(csv)) {
     if (row.FLOOR) code = row.FLOOR;
     const number = row["ROOM NUMBER"];
     const floor = parseFloor(code);
     if (!number || !floor) continue;
-    hubs.set(code, floor.level);
+    const here = floors.get(code) ?? floors.set(code, { code, level: floor.level, corridors: [], hub: false }).get(code)!;
     const use = row["ROOM USE"];
-    const local = number.slice(number.indexOf("-") + 1).replace(/^[A-Z]*/, "");
-    if (use === "ELEVATOR") {
+    const sub = number.slice(number.indexOf("-") + 1);
+    const spot = located.get(sub);
+    const at = spot?.floor === code ? spot.at : undefined; // a label on another floor is a misreading
+    const local = sub.replace(/^[A-Z]*/, "");
+    if (CORRIDORS.has(use)) {
+      if (at) here.corridors.push({ name: `${number} ${title(use)}`, at });
+    } else if (use === "ELEVATOR") {
       const id = /E\d+$/.exec(number)?.[0];
-      if (id) (elevators.get(id) ?? elevators.set(id, new Map()).get(id)!).set(code, floor.level);
+      if (id) (stops.get(id) ?? stops.set(id, []).get(id)!).push({ code, level: floor.level, at });
     } else if (use === "STAIRWAY" && local.startsWith(`${floor.digits}00`)) {
       const id = floor.tower + local.slice(floor.digits.length + 2);
-      (stairs.get(id) ?? stairs.set(id, new Map()).get(id)!).set(code, floor.level);
+      (flights.get(id) ?? flights.set(id, []).get(id)!).push({ code, level: floor.level, at });
     } else if (DESTINATIONS.has(use)) {
-      rooms.push({ name: `${number} ${title(use)}`, code, level: floor.level, number, use });
+      rooms.push({ name: `${number} ${title(use)}`, code, level: floor.level, number, use, at });
     }
   }
-  const byLevel = (m: Map<string, number>) => [...m].sort((a, b) => a[1] - b[1]);
-  for (const [c, level] of byLevel(hubs)) places.push({ name: hubName(ref, c), kind: "TRANSIT", floor: level, latitude: 0, longitude: 0 });
-  for (const [id, served] of [...elevators].sort()) {
-    const floors = byLevel(served);
-    for (let i = 0; i < floors.length; i++) {
-      for (let j = i + 1; j < floors.length; j++) {
-        const [lo, loLevel] = floors[i], [hi, hiLevel] = floors[j];
+  const ordered = [...floors.values()].sort((a, b) => a.level - b.level);
+
+  for (const f of ordered) {
+    if (!f.corridors.length) {
+      // No positions on this floor: one corridor, as before.
+      f.hub = true;
+      f.corridors.push({ name: hubName(ref, f.code), at: undefined });
+      places.push({ name: hubName(ref, f.code), kind: "TRANSIT", floor: f.level, latitude: 0, longitude: 0 });
+      continue;
+    }
+    for (const c of f.corridors) places.push({ name: c.name, kind: "TRANSIT", floor: f.level, latitude: 0, longitude: 0, at: c.at });
+    // Each corridor to its nearest few within reach, then the closest pairs that join separate pieces.
+    const n = f.corridors.length;
+    const joined = new Set<string>();
+    const join = (i: number, j: number) => {
+      const key = i < j ? `${i},${j}` : `${j},${i}`;
+      if (joined.has(key)) return;
+      joined.add(key);
+      const a = f.corridors[i], b = f.corridors[j];
+      const m = Math.round(meters(a.at!, b.at!));
+      links.push([a.name, b.name, `Walk about ${m} m along the corridor.`, `Walk about ${m} m along the corridor.`, true, 0, 0, "", indoorWalk(m)]);
+    };
+    for (let i = 0; i < n; i++) {
+      const close = [...Array(n).keys()].filter((j) => j !== i).sort((x, y) => meters(f.corridors[i].at!, f.corridors[x].at!) - meters(f.corridors[i].at!, f.corridors[y].at!));
+      for (const j of close.slice(0, CORRIDOR_NEIGHBOURS)) if (meters(f.corridors[i].at!, f.corridors[j].at!) <= CORRIDOR_REACH) join(i, j);
+    }
+    const parent = [...Array(n).keys()];
+    const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i])));
+    for (const key of joined) { const [i, j] = key.split(",").map(Number); parent[root(i)] = root(j); }
+    for (;;) {
+      let best: [number, number] | undefined;
+      for (let i = 0; i < n; i++)
+        for (let j = i + 1; j < n; j++)
+          if (root(i) !== root(j) && (!best || meters(f.corridors[i].at!, f.corridors[j].at!) < meters(f.corridors[best[0]].at!, f.corridors[best[1]].at!))) best = [i, j];
+      if (!best) break;
+      join(...best);
+      parent[root(best[0])] = root(best[1]);
+    }
+  }
+
+  /** Where something at `at` on floor `code` joins the floor, and how far it is from there. */
+  const attach = (code: string, at: Point | undefined) => {
+    const f = floors.get(code)!;
+    if (f.hub) return { corridor: f.corridors[0], meters: undefined, at: undefined };
+    const corridor = nearest(f.corridors, at ?? middle(f.corridors));
+    return { corridor, meters: at ? Math.round(meters(corridor.at!, at)) : undefined, at: at ?? corridor.at };
+  };
+  const walkTo = (m: number | undefined, what: string) => (m === undefined ? `Go to ${what}` : `Walk about ${m} m to ${what}`);
+
+  for (const [id, list] of [...stops].sort()) {
+    const served = list.sort((a, b) => a.level - b.level);
+    for (let i = 0; i < served.length; i++) {
+      for (let j = i + 1; j < served.length; j++) {
+        const lo = attach(served[i].code, served[i].at), hi = attach(served[j].code, served[j].at);
         links.push([
-          hubName(ref, lo), hubName(ref, hi),
-          `Take elevator ${id} up to floor ${hi}.`, `Take elevator ${id} down to floor ${lo}.`,
-          true, 0, 0, `Building ${ref} elevator ${id}`, elevatorRide(hiLevel - loLevel),
+          lo.corridor.name, hi.corridor.name,
+          `${walkTo(lo.meters, `elevator ${id}`)} and take it up to floor ${served[j].code}.`,
+          `${walkTo(hi.meters, `elevator ${id}`)} and take it down to floor ${served[i].code}.`,
+          true, 0, 0, `Building ${ref} elevator ${id}`,
+          elevatorRide(served[j].level - served[i].level) + ((lo.meters ?? 0) + (hi.meters ?? 0)) / 50,
         ]);
       }
     }
   }
-  for (const [id, served] of [...stairs].sort()) {
-    const floors = byLevel(served);
-    for (let i = 0; i + 1 < floors.length; i++) {
-      const [lo, loLevel] = floors[i], [hi, hiLevel] = floors[i + 1];
-      if (hiLevel - loLevel > 1.5) continue; // a gap in the list, not a real flight
+  for (const [id, list] of [...flights].sort()) {
+    const landings = list.sort((a, b) => a.level - b.level);
+    for (let i = 0; i + 1 < landings.length; i++) {
+      const [a, b] = [landings[i], landings[i + 1]];
+      if (b.level - a.level > 1.5) continue; // a gap in the list, not a real flight
+      const lo = attach(a.code, a.at), hi = attach(b.code, b.at);
       links.push([
-        hubName(ref, lo), hubName(ref, hi),
-        `Take stairway ${id} up to floor ${hi}.`, `Take stairway ${id} down to floor ${lo}.`,
-        false, 0, 0, "", STAIRS_PER_FLOOR * (hiLevel - loLevel),
+        lo.corridor.name, hi.corridor.name,
+        `${walkTo(lo.meters, `stairway ${id}`)} and take it up to floor ${b.code}.`,
+        `${walkTo(hi.meters, `stairway ${id}`)} and take it down to floor ${a.code}.`,
+        false, 0, 0, "", STAIRS_PER_FLOOR * (b.level - a.level) + ((lo.meters ?? 0) + (hi.meters ?? 0)) / 50,
       ]);
     }
   }
   for (const r of rooms) {
-    places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0 });
+    const { corridor, meters: m, at } = attach(r.code, r.at);
+    places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0, at });
     links.push([
-      hubName(ref, r.code), r.name,
-      `Walk to ${r.number} (${title(r.use).toLowerCase()}).`, `Leave ${r.number} for the floor ${r.code} corridor.`,
-      true, 0, 0, "", WALK,
+      corridor.name, r.name,
+      `${walkTo(m, `${r.number} (${title(r.use).toLowerCase()})`)}.`, `Leave ${r.number} for the corridor.`,
+      true, 0, 0, "", m === undefined ? WALK : indoorWalk(m),
     ]);
   }
-  // The way in is on the first floor, or the lowest floor above ground when there is no first floor.
-  const levels = byLevel(hubs);
-  const ground = levels.find(([c]) => c === "1") ?? levels.find(([, l]) => l >= 1) ?? levels[0];
-  return { places, links, floors: new Map(levels), ground: ground?.[0] };
+  // The ground floor is floor 1, or the lowest floor above it, or the lowest floor.
+  const ground = ordered.find((f) => f.code === "1") ?? ordered.find((f) => f.level >= 1) ?? ordered[0];
+  return { places, links, floors, ground, attach };
 }
 
 // ---- Geometry: OpenStreetMap footprints in metres around MIT. ----
@@ -250,6 +338,62 @@ export function outdoorPairs(buildings: Building[], gap: (a: number, b: number) 
   return [...pairs].map((p) => p.split(",").map(Number) as [number, number]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 }
 
+/**
+ * Where two buildings join on one floor, if they do: corridors within 15 m (a bridge); or, for touching
+ * buildings, each one's corridor nearest the other's outline when both are within 35 m of it; or, when either
+ * floor has no positions, touching buildings at their corridors nearest each other's centre.
+ */
+export function floorJoin(
+  fa: Floor, fb: Floor, touching: boolean,
+  ba: Pick<Building, "rings" | "center">, bb: Pick<Building, "rings" | "center">,
+  attachA: (code: string, at: Point | undefined) => { corridor: Spot }, attachB: (code: string, at: Point | undefined) => { corridor: Spot },
+): [Spot, Spot, number] | undefined {
+  if (fa.hub || fb.hub) return touching ? [attachA(fa.code, bb.center).corridor, attachB(fb.code, ba.center).corridor, 0] : undefined;
+  let pair: [Spot, Spot, number] | undefined;
+  for (const x of fa.corridors) for (const y of fb.corridors) {
+    const m = meters(x.at!, y.at!);
+    if (m <= MEETING_METERS && (!pair || m < pair[2])) pair = [x, y, m];
+  }
+  if (pair || !touching) return pair;
+  const toward = (spots: Spot[], rings: Point[][]) =>
+    spots.map((c) => [c, footprintDistance([[c.at!, c.at!]], rings)] as const).sort((x, y) => x[1] - y[1])[0];
+  const [x, dx] = toward(fa.corridors, bb.rings);
+  const [y, dy] = toward(fb.corridors, ba.rings);
+  return dx <= REACHES_NEIGHBOUR && dy <= REACHES_NEIGHBOUR ? [x, y, meters(x.at!, y.at!)] : undefined;
+}
+
+async function cached(file: URL, fetchIt: () => Promise<string>) {
+  if (!existsSync(file)) writeFileSync(file, await fetchIt());
+  return JSON.parse(readFileSync(file, "utf8"));
+}
+
+/** OpenStreetMap entrances, in metres. */
+async function loadEntrances(): Promise<Point[]> {
+  const data = await cached(new URL("entrances.json", raw), async () => {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "user-agent": "mit-nav (6.1040 class project)" },
+      body: new URLSearchParams({ data: '[out:json][timeout:90];node["entrance"](42.353,-71.110,42.366,-71.080);out;' }),
+    });
+    if (!response.ok) throw new Error(`Overpass answered ${response.status}`);
+    return response.text();
+  });
+  return data.elements.map((e: any) => toMeters(e.lon, e.lat));
+}
+
+/** MapIT's room positions by building, when the file has been saved; otherwise none. */
+function loadLocated(): Map<string, Located> {
+  const file = new URL("relative-room-locations.json", raw);
+  const byBuilding = new Map<string, Located>();
+  if (!existsSync(file)) return byBuilding;
+  for (const b of JSON.parse(readFileSync(file, "utf8"))) {
+    const located: Located = new Map();
+    for (const f of b.floors) for (const r of f.roomLocations) located.set(r.subNumber, { floor: f.floor, at: toMeters(Number(r.long), Number(r.lat)) });
+    byBuilding.set(b.building, located);
+  }
+  return byBuilding;
+}
+
 export async function buildCampus() {
   const buildings = await loadBuildings();
   const places: Place[] = [];
@@ -277,34 +421,40 @@ export async function buildCampus() {
     ]);
   }
 
+  const entrances = await loadEntrances();
+  const located = loadLocated();
   const inside = new Map<string, ReturnType<typeof interior>>();
   for (const b of buildings) {
     if (!lists.has(b.ref)) continue;
-    const plan = interior(b.ref, readFileSync(new URL(`${b.ref}.csv`, dir), "utf8"));
+    const plan = interior(b.ref, readFileSync(new URL(`${b.ref}.csv`, dir), "utf8"), located.get(b.ref));
     inside.set(b.ref, plan);
-    // Floors and rooms share their building's position; a phone cannot tell them apart indoors.
-    places.push(...plan.places.map((p) => ({ ...p, ...toLatLon(b.center) })));
+    // Placed corridors and rooms keep their own position; the rest share their building's.
+    places.push(...plan.places.map(({ at, ...p }) => ({ ...p, ...toLatLon(at ?? b.center) })));
     links.push(...plan.links);
-    if (plan.ground) {
-      links.push([
-        buildingPlace(b), hubName(b.ref, plan.ground),
-        `Go inside ${buildingPlace(b)} to floor ${plan.ground}.`, `Leave ${buildingPlace(b)}.`,
-        true, 0, 0, "", ENTER,
-      ]);
+    if (!plan.ground) continue;
+    // In from the corridor nearest each entrance close to the building, or from the one nearest its centre.
+    const doors = plan.ground.hub ? [] : entrances.filter((e) => footprintDistance([[e, e]], b.rings) <= ENTRANCE_REACH);
+    const ways = new Set((doors.length ? doors : [b.center]).map((at) => plan.attach(plan.ground!.code, at).corridor.name));
+    for (const corridor of ways) {
+      links.push([buildingPlace(b), corridor, `Go inside ${buildingPlace(b)} to floor ${plan.ground.code}.`, `Leave ${buildingPlace(b)}.`, true, 0, 0, "", ENTER]);
     }
   }
-  // ponytail: touching buildings are joined on every floor both have; per-floor connection data would fix the few that are not.
+  // Indoors between buildings: where corridors meet on a floor, or, without positions, where outlines touch.
   for (let i = 0; i < buildings.length; i++) {
     for (let j = i + 1; j < buildings.length; j++) {
       const a = inside.get(buildings[i].ref), b = inside.get(buildings[j].ref);
-      if (!a || !b || gap(i, j) > TOUCHING_METERS) continue;
-      for (const code of a.floors.keys()) {
-        if (!b.floors.has(code) || !/^\d+$/.test(code)) continue;
+      if (!a || !b || gap(i, j) > 100) continue;
+      for (const [code, fa] of a.floors) {
+        const fb = b.floors.get(code);
+        if (!fb) continue;
+        const pair = floorJoin(fa, fb, gap(i, j) <= TOUCHING_METERS, buildings[i], buildings[j], a.attach, b.attach);
+        if (!pair) continue;
+        const m = Math.round(pair[2]);
         links.push([
-          hubName(buildings[i].ref, code), hubName(buildings[j].ref, code),
-          `Continue into ${buildingPlace(buildings[j])} on floor ${code}.`,
-          `Continue into ${buildingPlace(buildings[i])} on floor ${code}.`,
-          true, 0, 0, "", WALK,
+          pair[0].name, pair[1].name,
+          `Continue ${m ? `about ${m} m ` : ""}into ${buildingPlace(buildings[j])} on floor ${code}.`,
+          `Continue ${m ? `about ${m} m ` : ""}into ${buildingPlace(buildings[i])} on floor ${code}.`,
+          true, 0, 0, "", m ? indoorWalk(m) : WALK,
         ]);
       }
     }

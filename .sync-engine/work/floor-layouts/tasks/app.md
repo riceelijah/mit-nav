@@ -1,0 +1,1 @@
+Install the corridor-network converter (scripts/campus-to-map.ts), entrances.json fetch, regenerate data/campus.json, converter tests (tests/converter.test.ts), merge consecutive corridor steps in web/app.ts, docs.

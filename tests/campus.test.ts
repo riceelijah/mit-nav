@@ -35,9 +35,9 @@ test("converter: room list becomes floors, one elevator service, stairs and room
     ["Building 9, floor 2", "Building 9, floor D4"],
   ]);
   // Stair SA on floors 1 and 2 is one flight; the D tower's SA is a different stair.
-  const stairs = plan.links.filter((l) => l[2].startsWith("Take stairway"));
+  const stairs = plan.links.filter((l) => l[2].includes("stairway"));
   expect(stairs.map((l) => [l[0], l[1], l[4]])).toEqual([["Building 9, floor 1", "Building 9, floor 2", false]]);
-  expect(plan.ground).toBe("1");
+  expect(plan.ground?.code).toBe("1");
 });
 
 test("_sameService answers the other rides of an elevator, and nothing for an unshared link", async () => {
@@ -93,7 +93,7 @@ test("campus map: Simmons to a Stata 9th-floor lab goes outside and up a Stata e
   const said = steps.map((s) => s.instruction);
   expect(said.some((s) => s.startsWith("Walk outside"))).toBe(true);
   expect(said.some((s) => /stair/i.test(s))).toBe(false);
-  const lift = steps.find((s) => /^Take elevator/.test(s.instruction))!;
+  const lift = steps.find((s) => /elevator E\d+ and take it/.test(s.instruction))!;
   expect(lift).toBeTruthy();
 
   await w.block({ link: lift.link });

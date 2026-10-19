@@ -16,8 +16,10 @@ bun run seed       # in a second terminal, once, to load the map
 
 - `data/raw/rooms/<building>.csv`: the room inventory for one building. Sign in at floorplans.mit.edu, open Room Inventory → By Building → the building, and press "Report Download". Save it as `<building>.csv` (for example `32.csv`).
 - `data/raw/osm.json`: OpenStreetMap building footprints, downloaded automatically on the first run.
+- `data/raw/relative-room-locations.json`: where each room, corridor, elevator and stair is on MIT's floor plans. Sign in at mitmapit.org, open https://mitmapit.org/api/relative-room-locations, and save the page. Optional: without it, every floor is a single corridor.
+- `data/raw/entrances.json`, `centers.json`, `whereis.json`: building entrances (OpenStreetMap), centres (MapIT) and names (whereis.mit.edu), downloaded automatically.
 
-Each building becomes a place joined to nearby buildings by outdoor walks. A building with a room list also gets a corridor per floor, its elevators and stairs, and its rooms; buildings whose footprints touch are joined indoors on shared floors. After regenerating, run `bun run db:reset`, `bun run db:up`, and seed again.
+Each building becomes a place joined to nearby buildings by outdoor walks. A building with a room list also gets each floor's corridors at their real positions, its elevators and stairs, and its rooms, with walking distances. Touching buildings are joined on a floor where both have a corridor reaching the shared wall, and corridors within 15 m (bridges) are joined too. After regenerating, run `bun run db:reset`, `bun run db:up`, and seed again.
 
 Open http://127.0.0.1:8080. `bun test` runs the tests on an in-memory MongoDB (no setup needed; the first run downloads a MongoDB binary); `bun run test:real` runs them against the container database after `bun run db:up`. `bun run db:reset` empties the database.
 

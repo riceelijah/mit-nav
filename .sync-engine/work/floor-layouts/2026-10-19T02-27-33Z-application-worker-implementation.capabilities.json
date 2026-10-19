@@ -1,0 +1,38 @@
+{
+  "readableAreas": [
+    {
+      "area": "application",
+      "path": "."
+    }
+  ],
+  "writableAreas": [
+    {
+      "area": "owned-integration",
+      "path": "data"
+    },
+    {
+      "area": "owned-integration",
+      "path": "scripts"
+    },
+    {
+      "area": "owned-configuration",
+      "path": "README.md"
+    },
+    {
+      "area": "owned-frontend",
+      "path": "web"
+    },
+    {
+      "area": "owned-test",
+      "path": "tests"
+    }
+  ],
+  "toolKinds": [
+    "repository-read",
+    "repository-write"
+  ],
+  "projectShell": "project-local",
+  "network": false,
+  "generatedOutput": false,
+  "longRunningProcesses": false
+}
