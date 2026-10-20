@@ -86,6 +86,12 @@ Built (design first, then code; `bun run check:design`, `bun run generate`, `bun
   3. `PVT CIRCULATION` (a suite's private corridor) was costed as a room.
 - **What the audit still flags (3 908 of 15 189):** mostly tracing quality, not routing: a corridor label inside a room's traced shape (31-200LC in office 230), corridors swallowed into a room's trace, big labs that really are the way through (31-255), inner offices only reachable through a suite. The per-building table tells where retracing pays most (31, 13, E15, 45, 68).
 
+### Third round
+
+- **Building joins are one search** over both floors with a 3 m strip between the two places (the halves-and-crossing logic is gone; it aimed each half at a sliver between schematic rectangles and cut through rooms to get there).
+- **Schematic rooms are squares** of their inventory area, turned to the building's axis (`web/shapes.ts`, shared by page and converter), instead of Voronoi regions clipped to 1.5× the area. Crisper, and routing sees the same shapes it draws.
+- **Newer tracing merged in:** the main checkout's re-traced outlines (`data/raw/drawings/outlines`, 16:19–17:03 on 2026-10-19, after the last commit on main) regenerated 37 plan files. Audit: 3 821 of 15 219 flagged; 286 unjoined.
+
 Still open:
 
 1. **Entrance links** ("Go inside … to floor 1") have no path: the walk from the door to the entry corridor is straight.
