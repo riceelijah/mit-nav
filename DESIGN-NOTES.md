@@ -102,10 +102,14 @@ Built (design first, then code; `bun run check:design`, `bun run generate`, `bun
 - **Plans draw** the outline, corridors, room numbers, stairs/elevators as small squares, and the destination; no guessed room shapes (they read as wrong walls). The converter still uses the squares for routing.
 - **Corridors are the graph's own paths.** Cutting traced pieces into rectangles was tried and dropped: where tracing is sparse (35–39) it drew almost nothing. Instead each floor's `ways` are the paths of every connection between pass-through places on it (corridor–corridor, corridor–landing, entrance–corridor, building joins), written into the plan files by the converter, and the page strokes them 2.5 m wide with round ends. Every floor with positions gets a connected corridor network, and the route line lies on it by construction, since it is the same geometry. A step beside a wall costs extra in the search (`WALL_COST`), so paths run down the middle of traced corridors.
 
+### Sixth round: the open items
+
+- **Entrance walks have paths**: a door (the building's place or another entrance) walks in to its corridor like a building join, with a strip across the threshold. 15 308 links traced.
+- **Corridor labels on untraced floors** move to the nearest point within 6 m that no room's square covers, so paths no longer start inside a neighbour's room. Audit: 3 600 flagged.
+- **Off-course check** measures against the drawn line now (it is the route's own geometry); the design text says so.
+
 Still open:
 
-1. **Entrance links** ("Go inside … to floor 1") have no path: the walk from the door to the entry corridor is straight.
-2. **The 316 unjoined links** keep their straight line. Bridge short gaps, then drop what the floor does not join.
-3. **Corridor labels on untraced floors** are not snapped out of room rectangles (snapping needs traced open floor to snap to).
-4. **Off-course check** could now measure against the drawn line; left as is.
-5. **Wire size.** `path` rides on every `_route` step (a few KB per route). Fine today.
+1. **The 303 unjoined links** keep their straight line (mostly label positions outside the outline, and floors whose outline is a point: buildings 12, 46, E15 have no OSM footprint). Dropping them would strand floors; bridging needs per-case tracing.
+2. **Wire size.** `path` rides on every `_route` step (a few KB per route). Fine today.
+3. **What the audit still flags** is tracing quality (labels inside traced rooms, corridors swallowed into room traces, labs as thoroughfares); `bun scripts/audit-paths.ts <building>` says where.

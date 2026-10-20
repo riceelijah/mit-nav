@@ -673,12 +673,31 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     }
     return { preferred, other, base: planFiles.get(ref).outline as LatLon[][], traced: (n: string) => f.rooms.some((r: any) => r.n === n && r.s) };
   };
-  // Corridors onto their floor.
+  // Corridors onto their floor: the nearest traced open floor, or, on a floor without tracing, the nearest point of the
+  // outline that no room's square covers (labels often sit under a neighbour's square).
+  const inside = (q: LatLon, ring: LatLon[]) => {
+    let hit = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [yi, xi] = ring[i], [yj, xj] = ring[j];
+      if (yi > q[0] !== yj > q[0] && q[1] < ((xj - xi) * (q[0] - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
   for (const p of places) {
     const ref = building(p.name);
     if (p.kind !== "TRANSIT" || !ref) continue;
     const s = spaces(ref, p.floor, []);
-    const moved = s && s.preferred.length && nearestOpen(s.preferred, at(p), SNAP);
+    if (!s) continue;
+    let moved = s.preferred.length ? nearestOpen(s.preferred, at(p), SNAP) : undefined;
+    if (!moved && !s.preferred.length) {
+      const k = Math.cos((p.latitude * Math.PI) / 180);
+      let best = SNAP * SNAP;
+      for (let y = -SNAP; y <= SNAP; y += 0.5)
+        for (let x = -SNAP; x <= SNAP; x += 0.5) {
+          const q: LatLon = [p.latitude + y / 111_320, p.longitude + x / (111_320 * k)], d = x * x + y * y;
+          if (d < best && s.base.some((r) => inside(q, r)) && !s.other.some((r) => inside(q, r))) [best, moved] = [d, q];
+        }
+    }
     if (moved) [p.latitude, p.longitude] = moved;
   }
   let traced = 0, straight = 0;
@@ -686,13 +705,16 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
   for (const l of links) {
     const a = byName.get(l[0])!, b = byName.get(l[1])!;
     const ra = building(a.name), rb = building(b.name);
-    if (l[9] || !ra || !rb || a.floor !== b.floor) continue;
-    const own = [a, b].map((p) => roomOf(p.name, building(p.name)!));
-    const sa = spaces(ra, a.floor, own), sb = ra === rb ? sa : spaces(rb, b.floor, own);
+    // An entrance (the building's place or one of its other doors) walks in to its corridor on the corridor's floor.
+    const door = (p: Place, ref: string) => p.name.includes(`Building ${ref})`) || p.name === `Building ${ref}` || p.name.startsWith(`Building ${ref}, entrance`);
+    const entering = !ra !== !rb && door(ra ? b : a, ra ?? rb!);
+    if (l[9] || (!entering && (!ra || !rb || a.floor !== b.floor))) continue;
+    const own = [a, b].map((p) => (building(p.name) ? roomOf(p.name, building(p.name)!) : ""));
+    const sa = ra ? spaces(ra, a.floor, own) : undefined, sb = ra === rb ? sa : rb ? spaces(rb, b.floor, own) : undefined;
     if (!sa && !sb) continue;
-    const reach = (s: NonNullable<typeof sa>, p: Place) => (s.traced(roomOf(p.name, building(p.name)!)) || p.kind === "TRANSIT" ? DOOR_REACH : HALL_REACH);
+    const reach = (s: NonNullable<typeof sa>, p: Place) => (!building(p.name) || s.traced(roomOf(p.name, building(p.name)!)) || p.kind === "TRANSIT" ? DOOR_REACH : HALL_REACH);
     // Out of a hall the walk is found backwards, so it starts at the open floor the hall is met from. A connection between
-    // two buildings is one walk over both floors, with a strip between the two places making the gap between the
+    // two buildings, or in from a door, is one walk with a strip between the two places making the gap between the
     // outlines (a door, bridge or passage) walkable; rooms in either building still cost as rooms.
     const both = ra === rb ? sa! : { preferred: [...(sa?.preferred ?? []), ...(sb?.preferred ?? [])], other: [...(sa?.other ?? []), ...(sb?.other ?? [])], base: [...(sa?.base ?? []), ...(sb?.base ?? []), strip(at(a), at(b))] };
     const w = walkToward(both.preferred, at(b), at(a), both.other, sa ? reach(sa, a) : DOOR_REACH, both.base);
