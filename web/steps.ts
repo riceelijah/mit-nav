@@ -4,6 +4,9 @@
 const CORRIDOR = /^Walk about (\d+) m along the corridors?\.$/;
 const OUTSIDE = /^Walk about (\d+) m outside(?: along (.+))?\.$/;
 const ENTRANCE = /^Walk about (\d+) m to the entrance of (.+)\.$/;
+const LANDING = /^(?:Walk about (\d+) m|Go) to ((?:elevator|stairway) \S+)\.$/;
+const RIDE = /^Take (?:elevator|stairway) \S+ (up|down) to floor (\S+)\.$/;
+const LEAVE = /^Leave (?:elevator|stairway) \S+ for the corridor\.$/;
 const CROSSWALK = "a crosswalk";
 const SHORT = 20; // metres along another street that stay part of the current step
 
@@ -35,9 +38,17 @@ export function mergeSteps(steps: any[]) {
   steps.forEach((s, upto) => {
     const prev = shown[shown.length - 1];
     const corridor = CORRIDOR.exec(s.instruction), outside = OUTSIDE.exec(s.instruction), door = ENTRANCE.exec(s.instruction);
+    const landing = LANDING.exec(s.instruction), ride = RIDE.exec(s.instruction);
     // Keep the first connection (that is the one flagged) and arrive where the last one does.
     const absorb = (into: any, more: object) => Object.assign(into, { ...s, link: into.link, distance: into.distance + s.distance, upto, ...more });
-    if (corridor && prev?.merge === "corridor") {
+    if (ride && prev?.merge === "landing") {
+      // The walk to the stairs or elevator, the ride, and the step off it are one step, flagged by the ride (the thing that goes out of service).
+      absorb(prev, { link: s.link, instruction: `${prev.instruction.slice(0, -1)} and take it ${ride[1]} to floor ${ride[2]}.`, merge: "ride" });
+    } else if (LEAVE.test(s.instruction) && prev?.merge === "ride") {
+      absorb(prev, { instruction: prev.instruction, merge: "" });
+    } else if (landing) {
+      shown.push({ ...s, merge: "landing", meters: Number(landing[1] ?? 0), upto });
+    } else if (corridor && prev?.merge === "corridor") {
       const meters = prev.meters + Number(corridor[1]);
       absorb(prev, { meters, instruction: `Walk about ${meters} m along the corridors.`, merge: "corridor" });
     } else if (door && prev?.merge === "outside") {

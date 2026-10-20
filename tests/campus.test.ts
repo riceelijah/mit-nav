@@ -23,20 +23,22 @@ test("converter: room list becomes floors, one elevator service, stairs and room
   expect(parseCsv(csv)[0]["SQ FT"]).toBe("1,043");
 
   const plan = interior("9", csv);
+  // Floors without positions are single corridors; each elevator stop and stairway landing is a place reached from its floor.
   expect(plan.places.filter((p) => p.kind === "TRANSIT").map((p) => p.name)).toEqual([
     "Building 9, floor 1", "Building 9, floor 2", "Building 9, floor D4",
+    "9-100E1 Elevator", "9-200E1 Elevator", "9-D400E1 Elevator", "9-D400SA Stairway", "9-100SA Stairway", "9-200SA Stairway",
   ]);
   // Closets and shafts are not destinations.
   expect(plan.places.filter((p) => p.kind === "ROOM").map((p) => p.name)).toEqual(["9-123 Lecture Hall", "9-201 Office"]);
   const elevator = plan.links.filter((l) => l[7] === "Building 9 elevator E1");
-  expect(elevator.map((l) => [l[0], l[1]])).toEqual([
-    ["Building 9, floor 1", "Building 9, floor 2"],
-    ["Building 9, floor 1", "Building 9, floor D4"],
-    ["Building 9, floor 2", "Building 9, floor D4"],
+  expect(elevator.map((l) => [l[0], l[1]])).toEqual([ // rides join the stops, which are places of their own
+    ["9-100E1 Elevator", "9-200E1 Elevator"],
+    ["9-100E1 Elevator", "9-D400E1 Elevator"],
+    ["9-200E1 Elevator", "9-D400E1 Elevator"],
   ]);
   // Stair SA on floors 1 and 2 is one flight; the D tower's SA is a different stair.
-  const stairs = plan.links.filter((l) => l[2].includes("stairway"));
-  expect(stairs.map((l) => [l[0], l[1], l[4]])).toEqual([["Building 9, floor 1", "Building 9, floor 2", false]]);
+  const stairs = plan.links.filter((l) => l[2].startsWith("Take stairway"));
+  expect(stairs.map((l) => [l[0], l[1], l[4]])).toEqual([["9-100SA Stairway", "9-200SA Stairway", false]]);
   expect(plan.ground?.code).toBe("1");
 });
 
@@ -93,7 +95,7 @@ test("campus map: Simmons Hall to a Stata 9th-floor lab walks along outdoor path
   const said = steps.map((s) => s.instruction);
   expect(said.some((s) => / m outside/.test(s))).toBe(true);
   expect(said.some((s) => /stair/i.test(s))).toBe(false);
-  const lift = steps.find((s) => /elevator E\d+ and take it/.test(s.instruction))!;
+  const lift = steps.find((s) => /^Take elevator E\d+/.test(s.instruction))!;
   expect(lift).toBeTruthy();
 
   await w.block({ link: lift.link });

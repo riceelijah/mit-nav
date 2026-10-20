@@ -46,10 +46,12 @@ test("converter: corridors are linked by distance, and rooms and elevators attac
   // Elevator E2 is reached from the lobby beside it, so it costs less than E1 for a trip that starts there.
   const e1 = plan.links.find((l) => l[7] === "Building 9 elevator E1")!;
   const e2 = plan.links.find((l) => l[7] === "Building 9 elevator E2")!;
-  expect([e1[0], e1[2]]).toEqual(["9-100CA Corridor", "Walk about 2 m to elevator E1 and take it up to floor 2."]);
-  expect(e2[0]).toBe("9-100LA Lobby");
-  // Floor 2 has no corridor positions, so it is a single corridor.
-  expect(e1[1]).toBe("Building 9, floor 2");
+  expect([e1[0], e1[1], e1[2]]).toEqual(["9-100E1 Elevator", "9-200E1 Elevator", "Take elevator E1 up to floor 2."]);
+  const toE1 = plan.links.find((l) => l[1] === "9-100E1 Elevator")!, toE2 = plan.links.find((l) => l[1] === "9-100E2 Elevator")!;
+  expect([toE1[0], toE1[2]]).toEqual(["9-100CA Corridor", "Walk about 2 m to elevator E1."]);
+  expect(toE2[0]).toBe("9-100LA Lobby");
+  // Floor 2 has no corridor positions, so it is a single corridor, and the stop there is reached from it.
+  expect(plan.links.find((l) => l[1] === "9-200E1 Elevator")![0]).toBe("Building 9, floor 2");
   expect(plan.floors.get("2")!.hub).toBe(true);
 });
 

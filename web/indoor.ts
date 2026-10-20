@@ -30,8 +30,8 @@ export function corridorPath(preferred: LatLon[][], a: LatLon, b: LatLon, other:
  * Like corridorPath, but when `b` cannot be reached the path ends instead at the reached open floor nearest `b`, if that
  * is within `toward` metres of it; `gap` is how far that end is from `b` (0 when `b` itself is reached).
  */
-export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: LatLon[][], toward: number): { path: LatLon[]; gap: number } | undefined {
-  if (!preferred.length) return undefined;
+export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: LatLon[][], toward: number, base: LatLon[][] = []): { path: LatLon[]; gap: number } | undefined {
+  if (!preferred.length && !base.length) return undefined;
   const k = Math.cos((a[0] * Math.PI) / 180);
   const flat = ([lat, lon]: LatLon): [number, number] => [(lon - a[1]) * 111_320 * k, (lat - a[0]) * 111_320];
   const back = ([x, y]: [number, number]): LatLon => [a[0] + y / 111_320, a[1] + x / (111_320 * k)];
@@ -39,7 +39,7 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
   const x0 = Math.min(0, fb[0]) - MARGIN, y0 = Math.min(0, fb[1]) - MARGIN;
   const w = Math.ceil((Math.abs(fb[0]) + 2 * MARGIN) / CELL), h = Math.ceil((Math.abs(fb[1]) + 2 * MARGIN) / CELL);
   const near = (rings: LatLon[][]) => rings.map((r) => r.map(flat)).filter((r) => r.some(([x, y]) => x >= x0 && x <= x0 + w * CELL && y >= y0 && y <= y0 + h * CELL));
-  const good = near(preferred), rest = near(other);
+  const good = near(preferred), rest = near(other), floor = near(base);
   const centre = (i: number, j: number): [number, number] => [x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL];
   // 0 closed, 1 preferred, ROOM_COST another room: each outline filled row by row (cells whose centres it holds).
   const open = new Uint8Array(w * h);
@@ -59,7 +59,22 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
       }
     }
   };
+  // `base` is the whole floor (the building outline), walkable wherever no room is: rooms over it are fattened by a
+  // cell, so the cracks between approximate room shapes close while corridors stay open.
+  for (const r of floor) fill(r, 1);
   for (const r of rest) fill(r, ROOM_COST);
+  if (floor.length) {
+    const grown = new Uint8Array(open);
+    for (let c = 0; c < open.length; c++) {
+      if (open[c] !== ROOM_COST) continue;
+      const i = c % w, j = (c - i) / w;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const n = (j + dj) * w + i + di;
+        if (i + di >= 0 && i + di < w && j + dj >= 0 && j + dj < h && open[n] === 1) grown[n] = ROOM_COST;
+      }
+    }
+    open.set(grown);
+  }
   for (const r of good) fill(r, 1);
   // Each end joins the walkable cell nearest it, within REACH.
   const snap = ([x, y]: [number, number]) => {
@@ -124,11 +139,11 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
   }
   let end = goal >= 0 && from[goal] >= 0 ? goal : -1, gap = 0;
   if (end < 0) {
-    // Not reachable: the reached open floor nearest b, within `toward`.
+    // Not reachable: the reached open floor (never a room) nearest b, within `toward`.
     if (!toward) return undefined;
     let bestD = toward * toward;
     for (let c = 0; c < from.length; c++) {
-      if (from[c] < 0) continue;
+      if (from[c] < 0 || open[c] !== 1) continue;
       const [x, y] = centre(c % w, Math.floor(c / w)), d = (x - fb[0]) ** 2 + (y - fb[1]) ** 2;
       if (d <= bestD) [end, bestD] = [c, d];
     }
@@ -141,14 +156,14 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
   cells.reverse();
   // Keep only the corners a straight line between them would not cut off: a cell is skipped while the walkable
   // area still holds a straight line from the last kept cell to the next.
+  const walked = new Set(cells);
   const clear = (p: number, q: number) => {
     const [pi, pj] = [p % w, Math.floor(p / w)], [qi, qj] = [q % w, Math.floor(q / w)];
     const n = Math.max(Math.abs(qi - pi), Math.abs(qj - pj)) * 2;
-    // A shortcut may not leave the open floor, nor cut through a room the path itself went around.
-    const worst = Math.max(open[p], open[q]);
+    // A shortcut may not leave the open floor, nor cross a room except where the path itself went through it.
     for (let s = 0; s <= n; s++) {
-      const v = open[Math.round(pj + ((qj - pj) * s) / n) * w + Math.round(pi + ((qi - pi) * s) / n)];
-      if (!v || v > worst) return false;
+      const c = Math.round(pj + ((qj - pj) * s) / n) * w + Math.round(pi + ((qi - pi) * s) / n);
+      if (!open[c] || (open[c] > 1 && !walked.has(c))) return false;
     }
     return true;
   };

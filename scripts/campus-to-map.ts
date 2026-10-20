@@ -29,6 +29,7 @@
 // Usage: bun run campus
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { nearestOpen, walkToward } from "../web/indoor.ts";
+import { roomShapes } from "../web/shapes.ts";
 
 type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
 export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number };
@@ -139,8 +140,8 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   const places: (Place & { at?: Point })[] = [];
   const links: Link[] = [];
   const floors = new Map<string, Floor>();
-  const stops = new Map<string, { code: string; level: number; at?: Point }[]>(); // E1 -> its stops
-  const flights = new Map<string, { code: string; level: number; at?: Point }[]>(); // tower + SA -> its landings
+  const stops = new Map<string, { code: string; level: number; at?: Point; number: string }[]>(); // E1 -> its stops
+  const flights = new Map<string, { code: string; level: number; at?: Point; number: string }[]>(); // tower + SA -> its landings
   const rooms: { name: string; code: string; level: number; number: string; use: string; at?: Point }[] = [];
   // Every positioned room in the inventory, for the plan drawing (closets and shafts included).
   const drawn: { code: string; level: number; number: string; use: string; at: Point; area: number }[] = [];
@@ -164,10 +165,10 @@ export function interior(ref: string, csv: string, located: Located = new Map())
       if (at) here.corridors.push({ name: `${number} ${title(use)}`, at });
     } else if (use === "ELEVATOR") {
       const id = /E\d+$/.exec(number)?.[0];
-      if (id) (stops.get(id) ?? stops.set(id, []).get(id)!).push({ code, level: floor.level, at });
+      if (id) (stops.get(id) ?? stops.set(id, []).get(id)!).push({ code, level: floor.level, at, number });
     } else if (use === "STAIRWAY" && local.startsWith(`${floor.digits}00`)) {
       const id = floor.tower + local.slice(floor.digits.length + 2);
-      (flights.get(id) ?? flights.set(id, []).get(id)!).push({ code, level: floor.level, at });
+      (flights.get(id) ?? flights.set(id, []).get(id)!).push({ code, level: floor.level, at, number });
     } else if (DESTINATIONS.has(use)) {
       rooms.push({ name: `${number} ${title(use)}`, code, level: floor.level, number, use, at });
     }
@@ -221,33 +222,34 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   };
   const walkTo = (m: number | undefined, what: string) => (m === undefined ? `Go to ${what}` : `Walk about ${m} m to ${what}`);
 
+  // Each stop and landing is a place of its own, reached from its corridor by a walk, so a route changes floor there.
+  const landing = (what: string, id: string, stop: { code: string; at?: Point; number: string }) => {
+    const name = `${stop.number} ${title(what)}`;
+    const { corridor, meters: m, at } = attach(stop.code, stop.at);
+    places.push({ name, kind: "TRANSIT", floor: floors.get(stop.code)!.level, latitude: 0, longitude: 0, at });
+    links.push([corridor.name, name, `${walkTo(m, `${what} ${id}`)}.`, `Leave ${what} ${id} for the corridor.`, true, 0, 0, "", m === undefined ? WALK : indoorWalk(m)]);
+    return name;
+  };
   for (const [id, list] of [...stops].sort()) {
     const served = list.sort((a, b) => a.level - b.level);
+    const names = served.map((stop) => landing("elevator", id, stop));
     for (let i = 0; i < served.length; i++) {
       for (let j = i + 1; j < served.length; j++) {
-        const lo = attach(served[i].code, served[i].at), hi = attach(served[j].code, served[j].at);
         links.push([
-          lo.corridor.name, hi.corridor.name,
-          `${walkTo(lo.meters, `elevator ${id}`)} and take it up to floor ${served[j].code}.`,
-          `${walkTo(hi.meters, `elevator ${id}`)} and take it down to floor ${served[i].code}.`,
-          true, 0, 0, `Building ${ref} elevator ${id}`,
-          elevatorRide(served[j].level - served[i].level) + ((lo.meters ?? 0) + (hi.meters ?? 0)) / 50,
+          names[i], names[j],
+          `Take elevator ${id} up to floor ${served[j].code}.`, `Take elevator ${id} down to floor ${served[i].code}.`,
+          true, 0, 0, `Building ${ref} elevator ${id}`, elevatorRide(served[j].level - served[i].level),
         ]);
       }
     }
   }
   for (const [id, list] of [...flights].sort()) {
     const landings = list.sort((a, b) => a.level - b.level);
+    const names = landings.map((l) => landing("stairway", id, l));
     for (let i = 0; i + 1 < landings.length; i++) {
       const [a, b] = [landings[i], landings[i + 1]];
       if (b.level - a.level > 1.5) continue; // a gap in the list, not a real flight
-      const lo = attach(a.code, a.at), hi = attach(b.code, b.at);
-      links.push([
-        lo.corridor.name, hi.corridor.name,
-        `${walkTo(lo.meters, `stairway ${id}`)} and take it up to floor ${b.code}.`,
-        `${walkTo(hi.meters, `stairway ${id}`)} and take it down to floor ${a.code}.`,
-        false, 0, 0, "", STAIRS_PER_FLOOR * (b.level - a.level) + ((lo.meters ?? 0) + (hi.meters ?? 0)) / 50,
-      ]);
+      links.push([names[i], names[i + 1], `Take stairway ${id} up to floor ${b.code}.`, `Take stairway ${id} down to floor ${a.code}.`, false, 0, 0, "", STAIRS_PER_FLOOR * (b.level - a.level)]);
     }
   }
   for (const r of rooms) {
@@ -581,7 +583,7 @@ function loadLocated(): Map<string, Located> {
   return byBuilding;
 }
 
-const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL)$/;
+const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/;
 const SNAP = 6; // metres: a corridor marked beside its traced floor is moved onto it
 const HALL_REACH = 15; // metres: a room without an outline is met at the open floor this near it
 const DOOR_REACH = 4; // metres: a traced room is joined through its door at the open floor this near it
@@ -607,26 +609,31 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
   const roomOf = (name: string, ref: string) => name.split(" ")[0].slice(ref.length + 1);
   const floorOf = (ref: string, level: number) => {
     const plan = planFiles.get(ref);
-    return plan && Object.values<any>(plan.floors).find((f) => f.level === level && (f.open?.length || f.rooms.some((r: any) => r.s)));
+    return plan && Object.values<any>(plan.floors).find((f) => f.level === level && f.rooms.length);
   };
+  const SERVICE = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
+  // Every room's shape on a floor, traced or approximate, as the page draws it; closets are left out as there.
+  const shapesOf = new Map<any, { room: any; shapes: LatLon[][] }[]>();
+  const shaped = (ref: string, f: any) => shapesOf.get(f) ?? shapesOf.set(f, roomShapes(f.rooms.filter((r: any) => !SERVICE.test(r.u)), planFiles.get(ref).outline)).get(f)!;
   const at = (p: Place): LatLon => [p.latitude, p.longitude];
+  // The floor's walkable space: the whole outline except the rooms (traced corridors, lobbies, bridges, lounges and open
+  // floor count as open even where a room's approximate shape covers them), and the connection's own two rooms.
   const spaces = (ref: string, level: number, own: string[]) => {
     const f = floorOf(ref, level);
     if (!f) return undefined;
     const preferred: LatLon[][] = [...(f.open ?? [])], other: LatLon[][] = [];
-    for (const r of f.rooms) {
-      if (!r.s) continue;
-      if (CIRCULATION.test(r.u) || r.u === "LOUNGE" || own.includes(r.n)) preferred.push(r.s);
-      else if (!r.f) other.push(r.s);
+    for (const { room: r, shapes } of shaped(ref, f)) {
+      if (CIRCULATION.test(r.u) || r.u === "LOUNGE" || own.includes(r.n)) { if (r.s) preferred.push(r.s); }
+      else if (!r.f) other.push(...shapes);
     }
-    return { preferred, other, traced: (n: string) => f.rooms.some((r: any) => r.n === n && r.s) };
+    return { preferred, other, base: planFiles.get(ref).outline as LatLon[][], traced: (n: string) => f.rooms.some((r: any) => r.n === n && r.s) };
   };
   // Corridors onto their floor.
   for (const p of places) {
     const ref = building(p.name);
     if (p.kind !== "TRANSIT" || !ref) continue;
     const s = spaces(ref, p.floor, []);
-    const moved = s && nearestOpen(s.preferred, at(p), SNAP);
+    const moved = s && s.preferred.length && nearestOpen(s.preferred, at(p), SNAP);
     if (moved) [p.latitude, p.longitude] = moved;
   }
   let traced = 0, straight = 0;
@@ -642,14 +649,16 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     let path: LatLon[] | undefined;
     if (ra === rb) {
       // Out of a hall the walk is found backwards, so it starts at the open floor the hall is met from.
-      const w = walkToward(sa!.preferred, at(b), at(a), sa!.other, reach(sa!, a));
+      const w = walkToward(sa!.preferred, at(b), at(a), sa!.other, reach(sa!, a), sa!.base);
       path = w && [at(a), ...w.path.reverse(), at(b)];
     } else {
-      const partA = sa ? walkToward(sa.preferred, at(a), at(b), sa.other, Infinity) : undefined;
+      // Each half ends on its own building's open floor: the first nearest the second place, the second (walked
+      // backwards from its place) nearest where the first ended, with the crossing between them.
+      const partA = sa ? walkToward(sa.preferred, at(a), at(b), sa.other, Infinity, sa.base) : undefined;
       const endA = partA ? partA.path[partA.path.length - 1] : at(a);
-      const entry = sb && nearestOpen(sb.preferred, endA, CROSSING);
-      const partB = sb && entry ? walkToward(sb.preferred, entry, at(b), sb.other, reach(sb, b)) : undefined;
-      if ((!sa || partA) && (!sb || partB) && (sb || latLonMeters(endA, at(b)) <= CROSSING)) path = [at(a), ...(partA?.path ?? []), ...(entry ? [entry] : []), ...(partB?.path ?? []), at(b)];
+      const partB = sb ? walkToward(sb.preferred, at(b), endA, sb.other, CROSSING, sb.base) : undefined;
+      const endB = partB ? partB.path[partB.path.length - 1] : at(b);
+      if ((!sa || partA) && (!sb || partB) && latLonMeters(endA, endB) <= CROSSING) path = [at(a), ...(partA?.path ?? []), ...(partB?.path.slice().reverse() ?? []), at(b)];
     }
     if (!path) { straight++; continue; }
     traced++;

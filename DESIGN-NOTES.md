@@ -76,10 +76,20 @@ Built (design first, then code; `bun run check:design`, `bun run generate`, `bun
 - `web/app.ts`: `routeGeometry` is now 15 lines — each step's path, then its place. Deleted: `computeWalk`, `indoorWalk`, `closestApproach`, `passesThrough`, `untraced`, `spaces`, `tracedFloor`, the `walks` cache, the plan-load redraw and the four constants. Plan files are now only for drawing. Floor badges and the per-floor filter are unchanged.
 - Verified with the four routes against a seeded copy of the new map (separate database): every step carries a path except the known islands, and the page draws them (checked in the browser for Simmons → 32-123 at Stata).
 
-What the prototype does **not** do yet, and needs a decision:
+### Second round (same branch)
 
-1. **The 787 straight links.** They are now counted, not hidden. Options: (a) bridge gaps under ~10 m with a straight segment inside the path (most are doorways and vestibules the tracing closes); (b) drop links the floor does not join, so routes never go through a wall — this needs (a) first or floors fall apart; (c) trace more. I'd do (a) then (b). All three are converter-only changes.
-2. **Stairs and elevators as places.** Still links between corridor labels, so a floor change is drawn label to label (hidden by the per-floor filter, badge at the label). Making landings TRANSIT places gives the walk-to-the-stairs a path and puts the badge at the stairs; it changes `interior()`'s link shapes and instruction text (one shown step would become walk + ride, re-merged in `web/steps.ts`), and the converter tests. Half a day.
-3. **Entrance links** ("Go inside … to floor 1") have no path: the walk from the door to the entry corridor is straight. Easy to add in `withPaths` once the building place's door position is handled like a hall.
+- **Walkable floor = outline minus rooms.** Tracing corridors from the drawings' ink leaves holes (787 unjoined links at first). Rooms are the reliable data (position + area, mostly rectangles), so `withPaths` now passes the building outline as a base tier to `walkToward`: everything inside it is walkable at cost 1 except the rooms (traced shape, or the schematic rectangle `roomShapes` draws, moved to `web/shapes.ts` so the converter shares it), fattened by one cell so the cracks between rectangles close. Traced corridors and open floor still override on top. Unjoined links: 787 → 316; traced: 11 822 → 15 189 (floors with positions but no tracing now count).
+- **Stairs and elevators are places.** Each stop/landing is a TRANSIT place at its inventory position, reached by a walk link with a path; rides and flights join landings (`accessible`, `service` unchanged). `web/steps.ts` shows walk + ride + step-off as one step with the old wording, flagged by the ride. Floor badges now sit on the stairs.
+- **Audit.** `bun scripts/audit-paths.ts [building…]` samples every traced path each half metre and reports those running more than 3 m through rooms, worst first and per building. It found three systemic bugs, all fixed:
+  1. Corner pruning allowed a shortcut through any cell no costlier than the walk's *endpoints*; an endpoint under a neighbour's rectangle licensed straight cuts through every room between. Now a shortcut may cross only open floor or cells the found path used.
+  2. Cross-building joins ended "at the reached floor nearest the other building", which with the outline walkable was a point on the party wall inside a room; the entry on the other side likewise. Now a walk may only end on open floor, and the second half is searched backwards from its place.
+  3. `PVT CIRCULATION` (a suite's private corridor) was costed as a room.
+- **What the audit still flags (3 908 of 15 189):** mostly tracing quality, not routing: a corridor label inside a room's traced shape (31-200LC in office 230), corridors swallowed into a room's trace, big labs that really are the way through (31-255), inner offices only reachable through a suite. The per-building table tells where retracing pays most (31, 13, E15, 45, 68).
+
+Still open:
+
+1. **Entrance links** ("Go inside … to floor 1") have no path: the walk from the door to the entry corridor is straight.
+2. **The 316 unjoined links** keep their straight line. Bridge short gaps, then drop what the floor does not join.
+3. **Corridor labels on untraced floors** are not snapped out of room rectangles (snapping needs traced open floor to snap to).
 4. **Off-course check** could now measure against the drawn line; left as is.
-5. **Wire size.** `path` rides on every `_route` step (a few KB per route). Fine today; if the map ever carries much longer paths, serve them per building like plans.
+5. **Wire size.** `path` rides on every `_route` step (a few KB per route). Fine today.
