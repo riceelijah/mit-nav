@@ -587,10 +587,18 @@ const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/;
 const SNAP = 6; // metres: a corridor marked beside its traced floor is moved onto it
 const HALL_REACH = 15; // metres: a room without an outline is met at the open floor this near it
 const DOOR_REACH = 4; // metres: a traced room is joined through its door at the open floor this near it
-const CROSSING = 20; // metres: the longest straight crossing between two buildings' open floors at a join
 type LatLon = [number, number];
 const encode = (path: LatLon[]) => path.map(([lat, lon]) => `${lat.toFixed(7)},${lon.toFixed(7)}`).join(" ");
 const latLonMeters = (a: LatLon, b: LatLon) => Math.hypot((b[1] - a[1]) * 111_320 * Math.cos((a[0] * Math.PI) / 180), (b[0] - a[0]) * 111_320);
+/** A rectangle STRIP_WIDTH metres wide around the segment from `p` to `q`. */
+const STRIP_WIDTH = 3;
+function strip(p: LatLon, q: LatLon): LatLon[] {
+  const k = Math.cos((p[0] * Math.PI) / 180);
+  const dx = (q[1] - p[1]) * 111_320 * k, dy = (q[0] - p[0]) * 111_320, len = Math.hypot(dx, dy) || 1;
+  const nx = (-dy / len) * (STRIP_WIDTH / 2), ny = (dx / len) * (STRIP_WIDTH / 2); // half the width, across the segment
+  const off = (r: LatLon, x: number, y: number): LatLon => [r[0] + y / 111_320, r[1] + x / (111_320 * k)];
+  return [off(p, nx, ny), off(q, nx, ny), off(q, -nx, -ny), off(p, -nx, -ny)];
+}
 const pathMeters = (path: LatLon[]) => path.reduce((t, p, i) => (i ? t + latLonMeters(path[i - 1], p) : 0), 0);
 
 /**
@@ -599,9 +607,9 @@ const pathMeters = (path: LatLon[]) => path.reduce((t, p, i) => (i ? t + latLonM
  * and the connection's own two rooms at normal cost, other traced rooms twenty times dearer, as web/indoor.ts does), and
  * its distance and metres become that path's length. A corridor marked beside its floor is first moved onto it (within
  * SNAP). A room without an outline (a seated hall) is met at the open floor nearest it, within HALL_REACH, and the path
- * then runs straight to its position. A connection between two buildings on one floor is walked in each building to
- * where the other's open floor comes within CROSSING metres. A connection the traced floor does not join keeps its
- * straight line; the count of those says how much tracing is still missing.
+ * then runs straight to its position. A connection between two buildings on one floor is one walk over both floors,
+ * with a strip between the two places making the gap between the outlines walkable. A connection the floor does not
+ * join keeps its straight line; the count of those says how much tracing is still missing.
  */
 export function withPaths(places: Place[], links: Link[], planFiles: Map<string, any>) {
   const byName = new Map(places.map((p) => [p.name, p]));
@@ -646,20 +654,12 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     const sa = spaces(ra, a.floor, own), sb = ra === rb ? sa : spaces(rb, b.floor, own);
     if (!sa && !sb) continue;
     const reach = (s: NonNullable<typeof sa>, p: Place) => (s.traced(roomOf(p.name, building(p.name)!)) || p.kind === "TRANSIT" ? DOOR_REACH : HALL_REACH);
-    let path: LatLon[] | undefined;
-    if (ra === rb) {
-      // Out of a hall the walk is found backwards, so it starts at the open floor the hall is met from.
-      const w = walkToward(sa!.preferred, at(b), at(a), sa!.other, reach(sa!, a), sa!.base);
-      path = w && [at(a), ...w.path.reverse(), at(b)];
-    } else {
-      // Each half ends on its own building's open floor: the first nearest the second place, the second (walked
-      // backwards from its place) nearest where the first ended, with the crossing between them.
-      const partA = sa ? walkToward(sa.preferred, at(a), at(b), sa.other, Infinity, sa.base) : undefined;
-      const endA = partA ? partA.path[partA.path.length - 1] : at(a);
-      const partB = sb ? walkToward(sb.preferred, at(b), endA, sb.other, CROSSING, sb.base) : undefined;
-      const endB = partB ? partB.path[partB.path.length - 1] : at(b);
-      if ((!sa || partA) && (!sb || partB) && latLonMeters(endA, endB) <= CROSSING) path = [at(a), ...(partA?.path ?? []), ...(partB?.path.slice().reverse() ?? []), at(b)];
-    }
+    // Out of a hall the walk is found backwards, so it starts at the open floor the hall is met from. A connection between
+    // two buildings is one walk over both floors, with a strip between the two places making the gap between the
+    // outlines (a door, bridge or passage) walkable; rooms in either building still cost as rooms.
+    const both = ra === rb ? sa! : { preferred: [...(sa?.preferred ?? []), ...(sb?.preferred ?? [])], other: [...(sa?.other ?? []), ...(sb?.other ?? [])], base: [...(sa?.base ?? []), ...(sb?.base ?? []), strip(at(a), at(b))] };
+    const w = walkToward(both.preferred, at(b), at(a), both.other, sa ? reach(sa, a) : DOOR_REACH, both.base);
+    const path = w && [at(a), ...w.path.reverse(), at(b)];
     if (!path) { straight++; continue; }
     traced++;
     const m = pathMeters(path);
