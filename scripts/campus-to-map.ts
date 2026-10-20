@@ -599,6 +599,30 @@ function strip(p: LatLon, q: LatLon): LatLon[] {
   const off = (r: LatLon, x: number, y: number): LatLon => [r[0] + y / 111_320, r[1] + x / (111_320 * k)];
   return [off(p, nx, ny), off(q, nx, ny), off(q, -nx, -ny), off(p, -nx, -ny)];
 }
+const TIDY = 0.4; // metres: a traced outline's corners closer than this to the line between their neighbours are dropped
+/** A traced ring with its tracing jitter and doorway notches smoothed away (Douglas-Peucker, TIDY metres). */
+export function tidy(ring: LatLon[]): LatLon[] {
+  const k = Math.cos((ring[0][0] * Math.PI) / 180);
+  const pts = ring.map(([lat, lon]) => [lon * 111_320 * k, lat * 111_320]);
+  const keep = new Uint8Array(pts.length);
+  const away = (p: number[], a: number[], b: number[]) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = dx * dx + dy * dy;
+    const t = l ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l)) : 0;
+    return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+  };
+  const split = (i: number, j: number) => {
+    let far = -1, d = TIDY;
+    for (let m = i + 1; m < j; m++) { const e = away(pts[m], pts[i], pts[j]); if (e >= d) [far, d] = [m, e]; }
+    if (far < 0) return;
+    keep[far] = 1;
+    split(i, far);
+    split(far, j);
+  };
+  keep[0] = keep[pts.length - 1] = 1;
+  split(0, pts.length - 1);
+  const out = ring.filter((_, i) => keep[i]);
+  return out.length >= 3 ? out : ring;
+}
 const pathMeters = (path: LatLon[]) => path.reduce((t, p, i) => (i ? t + latLonMeters(path[i - 1], p) : 0), 0);
 
 /**
@@ -801,18 +825,18 @@ async function buildCampus() {
     const floors: Record<string, { level: number; rooms: object[] }> = {};
     const traced = tracedOutlines(b.ref);
     for (const r of plan.drawn) {
-      const s = traced[r.code]?.[r.number];
+      const s = traced[r.code]?.[r.number] && tidy(traced[r.code][r.number]);
       // `f` marks an outline recovered from beyond the footprint: the route line only starts or ends in one.
       const f = s && traced[r.code]?.["!"]?.includes(r.number);
       // `d` is a corridor's outline smoothed for drawing (without its doorway notches); routes use `s`.
-      const d = s && traced[r.code]?.["~"]?.[r.number];
+      const d = s && traced[r.code]?.["~"]?.[r.number] && tidy(traced[r.code]["~"][r.number]);
       (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}), ...(d ? { d } : {}), ...(f ? { f: 1 } : {}) });
     }
     // Unlabelled open floor traced on each floor (key ""), for drawing route lines through corridors no room names.
     for (const [code, f] of Object.entries(floors)) {
       if (!traced[code]?.[""]?.length) continue;
-      (f as any).open = traced[code][""];
-      if (traced[code]["~open"]?.length === traced[code][""].length) (f as any).openD = traced[code]["~open"];
+      (f as any).open = traced[code][""].map(tidy);
+      if (traced[code]["~open"]?.length === traced[code][""].length) (f as any).openD = traced[code]["~open"].map(tidy);
     }
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }

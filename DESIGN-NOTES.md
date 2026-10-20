@@ -92,6 +92,11 @@ Built (design first, then code; `bun run check:design`, `bun run generate`, `bun
 - **Schematic rooms are squares** of their inventory area, turned to the building's axis (`web/shapes.ts`, shared by page and converter), instead of Voronoi regions clipped to 1.5× the area. Crisper, and routing sees the same shapes it draws.
 - **Newer tracing merged in:** the main checkout's re-traced outlines (`data/raw/drawings/outlines`, 16:19–17:03 on 2026-10-19, after the last commit on main) regenerated 37 plan files. Audit: 3 821 of 15 219 flagged; 286 unjoined.
 
+### Fourth round
+
+- **Every mapped entrance is a place.** A building was one node at its main door, joined to the paths at each door, so the line crossed the building to the main door (Walker Memorial from the Infinite Corridor). Other entrances are now pass-through places at the door, joined outside to the nearest path point and inside to the nearest ground-floor corridor (+70 places).
+- **Traced outlines are tidied** on the way into the plan files (Douglas–Peucker, 0.4 m): the doorway notches and tracing jitter go, plans drop 7.9 → 6.8 MB. The arrow-shaped slivers between rooms (Building 50 basement, 038D/030D) are tracer mis-assignments and need work in `scripts/fit-drawings.py`, a separate task.
+
 Still open:
 
 1. **Entrance links** ("Go inside … to floor 1") have no path: the walk from the door to the entry corridor is straight.
