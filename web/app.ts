@@ -51,6 +51,8 @@ const PLAN_FILL: [RegExp, string][] = [
 ];
 /** Service rooms (shafts and closets) are never drawn: most sit inside corridor walls and would cover the corridor. */
 const SERVICE = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
+/** Traced spaces drawn with their shape: the ways through a floor. */
+const CIRCULATION_DRAWN = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION|LOUNGE)$/;
 const planFill = (use: string) => PLAN_FILL.find(([re]) => re.test(use))?.[1] ?? "#ffffff";
 const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 
@@ -209,7 +211,7 @@ const app = createApp({
               <div class="chips">
                 <button v-for="b in routeBuildings" :key="b.ref" @click="seeBuilding(b.ref)">See building {{ b.ref }}</button>
               </div>
-              <p class="fine">Zoom in on a building on your route to see its plan. Plans are a schematic of every room at its real position and size, not MIT's walls; rooms traced from MIT's drawings show their real shape.</p>
+              <p class="fine">Zoom in on a building on your route to see its plan. Plans show corridors traced from MIT's drawings and every room's number at its position, not MIT's walls.</p>
             </div>
           </template>
         </section>
@@ -670,21 +672,27 @@ const app = createApp({
           if (room) L.circleMarker(room.at, { pane: "planLabels", radius: 9, color: "#a31f34", weight: 3, fill: false }).bindTooltip(`${ref}-${room.n}`).addTo(planLayer);
           continue;
         }
-        // Traced outlines last, so they sit over the approximate shapes of untraced neighbours.
-        const drawn = roomShapes(plan.floors[code].rooms.filter((r) => !SERVICE.test(r.u)), plan.outline).sort((a, b) => Number(!!a.room.s) - Number(!!b.room.s));
-        for (const { room, shapes } of drawn) {
+        // Only known shapes are drawn: traced circulation and open floor, elevators and stairs (small, fixed fittings),
+        // and the destination; every other room is its number at its position, since a guessed wall looks like a wrong one.
+        const rooms = plan.floors[code].rooms.filter((r) => !SERVICE.test(r.u));
+        for (const { room, shapes } of roomShapes(rooms, plan.outline)) {
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
-          for (const shape of shapes) {
-            L.polygon(shape, {
-              pane: "plans", color: isDestination ? "#a31f34" : "#9aa3ab", weight: isDestination ? 2 : 0.6,
-              fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: 1,
-            }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}`).addTo(planLayer);
+          const fitting = /^(ELEVATOR|STAIRWAY)$/.test(room.u);
+          if (room.s ? CIRCULATION_DRAWN.test(room.u) || isDestination : fitting) {
+            for (const shape of shapes) {
+              L.polygon(shape, {
+                pane: "plans", color: isDestination ? "#a31f34" : fitting ? "#8a93a0" : "#e3c89c", weight: isDestination ? 2 : fitting ? 1 : 0.6,
+                fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: 1,
+              }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}`).addTo(planLayer);
+            }
+          } else if (isDestination) {
+            L.circleMarker(room.at, { pane: "planLabels", radius: 10, color: "#a31f34", weight: 3, fill: false }).addTo(planLayer);
           }
-          L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: "room-label", html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
+          L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: `room-label${isDestination ? " destination" : ""}`, html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
         }
-        // Unlabelled open floor (corridor stretches no label names) is tinted like corridors, over approximate shapes.
+        // Unlabelled open floor (corridor stretches no label names) is tinted like corridors.
         for (const ring of plan.floors[code].openD ?? plan.floors[code].open ?? []) {
-          L.polygon(ring, { pane: "plans", color: "#9aa3ab", weight: 0.6, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
+          L.polygon(ring, { pane: "plans", color: "#e3c89c", weight: 0.6, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
         }
       }
     }
