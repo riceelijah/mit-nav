@@ -711,20 +711,25 @@ async function buildCampus() {
     links.push([pathName(e.from), pathName(e.to), text, text, e.stepFree, 0, 0, "", e.meters / 50, true]);
   }
   const unreached: number[] = [];
+  // The building's place is its main entrance; every other mapped entrance is a place of its own at the door, only
+  // passed through, so a route enters by the door it reaches instead of crossing the building to the main one.
+  const doorName = (b: Building, n: number) => `${buildingPlace(b)}, entrance ${n}`;
+  const entrances = (b: Building) => doorsOf.get(b.ref)!.map((d, n) => ({ at: d.at, name: n ? doorName(b, n + 1) : buildingPlace(b) }));
   buildings.forEach((b, i) => {
-    const doors = doorsOf.get(b.ref)!.map((d) => d.at);
-    const joins = new Map<string, number>();
-    for (const at of doors.length ? doors : [where(b)]) {
+    const doors = entrances(b);
+    const joins = new Map<string, [string, number]>(); // path point -> the door nearest it and the metres
+    for (const door of doors.length ? doors : [{ at: where(b), name: buildingPlace(b) }]) {
       let best: PathPoint | undefined;
-      for (const pt of paths.points) if (!best || meters(pt.at, at) < meters(best.at, at)) best = pt;
+      for (const pt of paths.points) if (!best || meters(pt.at, door.at) < meters(best.at, door.at)) best = pt;
       if (!best) continue;
-      const m = meters(best.at, at) + meters(at, where(b));
-      if (m <= PATH_REACH && !((joins.get(best.id) ?? Infinity) <= m)) joins.set(best.id, m);
+      const m = meters(best.at, door.at);
+      if (m <= PATH_REACH && !((joins.get(best.id)?.[1] ?? Infinity) <= m)) joins.set(best.id, [door.name, m]);
     }
     if (!joins.size) unreached.push(i);
-    for (const [id, m] of joins) {
+    for (const door of doors.slice(1)) places.push({ name: door.name, kind: "TRANSIT", floor: 1, ...toLatLon(door.at) });
+    for (const [id, [door, m]] of joins) {
       const r = Math.max(1, Math.round(m));
-      links.push([buildingPlace(b), pathName(id), `Walk about ${r} m outside.`, `Walk about ${r} m to the entrance of ${buildingPlace(b)}.`, true, 0, 0, "", outdoorWalk(m), true]);
+      links.push([door, pathName(id), `Walk about ${r} m outside.`, `Walk about ${r} m to the entrance of ${buildingPlace(b)}.`, true, 0, 0, "", outdoorWalk(m), true]);
     }
   });
   // ponytail: a building far from every mapped path gets straight walks to its nearest buildings; mapping its paths in OSM fixes it.
@@ -751,18 +756,15 @@ async function buildCampus() {
     places.push(...plan.places.map(({ at, ...p }) => ({ ...p, ...toLatLon(at ?? b.center) })));
     links.push(...plan.links);
     if (!plan.ground) continue;
-    // In from the corridor nearest each entrance close to the building, or from the one nearest its centre.
-    const doors = plan.ground.hub ? [] : doorsOf.get(b.ref)!.map((d) => d.at);
-    // Entering costs the walk from the building's place (its main entrance) to each entry corridor, so passing
-    // through the building's place is never a shortcut between two of its corridors.
-    const ways = new Map<string, Point | undefined>();
-    for (const at of doors.length ? doors : [b.center]) {
-      const { corridor } = plan.attach(plan.ground!.code, at);
-      ways.set(corridor.name, corridor.at);
+    // In from each entrance to the corridor nearest it (or from the building's place to the one nearest its centre).
+    const doors = plan.ground.hub ? [] : entrances(b);
+    const ways = new Map<string, [string, number]>(); // entrance -> entry corridor and the metres to it
+    for (const door of doors.length ? doors : [{ at: b.center, name: buildingPlace(b) }]) {
+      const { corridor, meters: m } = plan.attach(plan.ground!.code, door.at);
+      if (!((ways.get(door.name)?.[1] ?? Infinity) <= (m ?? 0))) ways.set(door.name, [corridor.name, m ?? 0]);
     }
-    for (const [corridor, at] of ways) {
-      const m = at ? meters(at, where(b)) : 0;
-      links.push([buildingPlace(b), corridor, `Go inside ${buildingPlace(b)} to floor ${plan.ground.code}.`, `Leave ${buildingPlace(b)}.`, true, 0, 0, "", ENTER + m / 50]);
+    for (const [door, [corridor, m]] of ways) {
+      links.push([door, corridor, `Go inside ${buildingPlace(b)} to floor ${plan.ground.code}.`, `Leave ${buildingPlace(b)}.`, true, 0, 0, "", ENTER + m / 50]);
     }
   }
   // Indoors between buildings: where corridors meet on a floor, or, without positions, where outlines touch.
