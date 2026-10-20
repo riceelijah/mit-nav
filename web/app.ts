@@ -676,15 +676,18 @@ const app = createApp({
         // Only known shapes are drawn: traced circulation and open floor, elevators and stairs (small, fixed fittings),
         // and the destination; every other room is its number at its position, since a guessed wall looks like a wrong one.
         const rooms = plan.floors[code].rooms.filter((r) => !SERVICE.test(r.u));
-        for (const { room, shapes } of roomShapes(rooms, plan.outline)) {
+        for (const { room, shapes, guessed } of roomShapes(rooms, plan.outline)) {
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
           const fitting = /^(ELEVATOR|STAIRWAY)$/.test(room.u);
-          if (room.s ? CIRCULATION_DRAWN.test(room.u) || isDestination : fitting) {
+          const corridor = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/.test(room.u);
+          // An untraced corridor is drawn as a guessed bar along the building, dashed, so it still reads as the way through.
+          if (room.s ? CIRCULATION_DRAWN.test(room.u) || isDestination : fitting || corridor) {
             for (const shape of isDestination ? shapes : room.b ?? shapes) {
               L.polygon(shape, {
                 pane: "plans", color: isDestination ? "#a31f34" : fitting ? "#8a93a0" : "#e3c89c", weight: isDestination ? 2 : fitting ? 1 : 0.6,
-                fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: 1,
-              }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}`).addTo(planLayer);
+                dashArray: guessed && corridor ? "4 4" : undefined,
+                fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: guessed && corridor ? 0.6 : 1,
+              }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}${guessed ? " (approximate)" : ""}`).addTo(planLayer);
             }
           } else if (isDestination) {
             L.circleMarker(room.at, { pane: "planLabels", radius: 10, color: "#a31f34", weight: 3, fill: false }).addTo(planLayer);
