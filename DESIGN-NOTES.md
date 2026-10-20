@@ -97,6 +97,12 @@ Built (design first, then code; `bun run check:design`, `bun run generate`, `bun
 - **Every mapped entrance is a place.** A building was one node at its main door, joined to the paths at each door, so the line crossed the building to the main door (Walker Memorial from the Infinite Corridor). Other entrances are now pass-through places at the door, joined outside to the nearest path point and inside to the nearest ground-floor corridor (+70 places).
 - **Traced outlines are tidied** on the way into the plan files (Douglas–Peucker, 0.4 m): the doorway notches and tracing jitter go, plans drop 7.9 → 6.8 MB. The arrow-shaped slivers between rooms (Building 50 basement, 038D/030D) are tracer mis-assignments and need work in `scripts/fit-drawings.py`, a separate task.
 
+### Fifth round: draw only what is known
+
+- **Plans draw** the outline, corridors, room numbers, stairs/elevators as small squares, and the destination; no guessed room shapes (they read as wrong walls). The converter still uses the squares for routing.
+- **Corridors are straight bars.** `bars()` in the converter rasterises each traced corridor piece in the building's frame and takes the largest rectangle repeatedly (90 % cover, ≥ 4 m²); L-shapes become two bars, notches and slivers drop out. Stored as `b` per room and `openB` per floor.
+- **Routes follow the bars.** The search's open floor is the bars plus the traced outline (for doorways), and a step beside a wall costs extra (`WALL_COST`), so the line runs down the middle of what is drawn.
+
 Still open:
 
 1. **Entrance links** ("Go inside … to floor 1") have no path: the walk from the door to the entry corridor is straight.

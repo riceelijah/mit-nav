@@ -1,6 +1,6 @@
 // Each room's drawn shape: its traced outline when it has one, else the part of the floor nearest its label (see roomShapes).
 // Shared by the page (drawing) and the converter (the floor's walkable space is the outline minus these).
-export type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][]; d?: [number, number][]; f?: 1 };
+export type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][]; d?: [number, number][]; b?: [number, number][][]; f?: 1 };
 type Flat = [number, number];
 /**
  * Each room's shape: its traced outline when it has one, else a square of its floor area around its label, turned to

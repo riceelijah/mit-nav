@@ -6,6 +6,7 @@ const CELL = 0.5; // metres per grid cell
 const REACH = 4; // metres an end may be from the walkable area and still join it
 const MARGIN = 40; // metres around the two ends searched for a path
 const ROOM_COST = 20; // a step through a room that is not on the way costs this many steps along a corridor
+const WALL_COST = 4; // extra for a step into open floor beside a wall or room, so the line keeps to the middle of a corridor
 
 /** Whether `p` is inside the polygon `ring` (even-odd rule). */
 function inside(p: [number, number], ring: [number, number][]) {
@@ -87,6 +88,13 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
       }
     return best;
   };
+  // Open cells beside a closed or room cell: a step into one costs WALL_COST more, so the path keeps off the walls.
+  const beside = new Uint8Array(w * h);
+  for (let c = 0; c < open.length; c++) {
+    if (open[c] !== 1) continue;
+    const i = c % w, j = (c - i) / w;
+    beside[c] = Number(i === 0 || j === 0 || i === w - 1 || j === h - 1 || open[c - 1] !== 1 || open[c + 1] !== 1 || open[c - w] !== 1 || open[c + w] !== 1);
+  }
   const start = snap([0, 0]), goal = snap(fb);
   if (start < 0 || (goal < 0 && !toward)) return undefined;
   // Dijkstra over the 8 neighbours (10 straight, 14 diagonal, times the cell's cost), with a binary heap.
@@ -129,7 +137,7 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
       const i = ci + di, j = cj + dj, n = j * w + i;
       if (i < 0 || j < 0 || i >= w || j >= h || !open[n]) continue;
       if (di && dj && !(open[cj * w + i] && open[j * w + ci])) continue; // no squeezing past a corner
-      const next = d + (di && dj ? 14 : 10) * open[n];
+      const next = d + (di && dj ? 14 : 10) * open[n] + (beside[n] ? WALL_COST : 0);
       if (next < cost[n]) {
         cost[n] = next;
         from[n] = c;

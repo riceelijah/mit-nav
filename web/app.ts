@@ -41,7 +41,8 @@ function metersFromLine(p: Point, line: Point[]) {
 // from beyond the building's footprint, which the route line only starts or ends in.
 // `open` is the floor's unlabelled open floor (corridor stretches no room names), traced like the rooms.
 // `d` and `openD` are corridors and open floor smoothed for drawing (without doorway notches); route lines use `s` and `open`.
-type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][] }> };
+// `openB` (and a room's `b`) are corridors cut into straight bars for drawing.
+type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][]; openB?: [number, number][][] }> };
 const PLAN_FILL: [RegExp, string][] = [
   [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#ffe0b5"],
   [/^ELEVATOR$/, "#cfe0f4"],
@@ -679,7 +680,7 @@ const app = createApp({
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
           const fitting = /^(ELEVATOR|STAIRWAY)$/.test(room.u);
           if (room.s ? CIRCULATION_DRAWN.test(room.u) || isDestination : fitting) {
-            for (const shape of shapes) {
+            for (const shape of isDestination ? shapes : room.b ?? shapes) {
               L.polygon(shape, {
                 pane: "plans", color: isDestination ? "#a31f34" : fitting ? "#8a93a0" : "#e3c89c", weight: isDestination ? 2 : fitting ? 1 : 0.6,
                 fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: 1,
@@ -691,7 +692,7 @@ const app = createApp({
           L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: `room-label${isDestination ? " destination" : ""}`, html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
         }
         // Unlabelled open floor (corridor stretches no label names) is tinted like corridors.
-        for (const ring of plan.floors[code].openD ?? plan.floors[code].open ?? []) {
+        for (const ring of plan.floors[code].openB ?? plan.floors[code].openD ?? plan.floors[code].open ?? []) {
           L.polygon(ring, { pane: "plans", color: "#e3c89c", weight: 0.6, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
         }
       }

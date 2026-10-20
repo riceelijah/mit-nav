@@ -599,6 +599,18 @@ function strip(p: LatLon, q: LatLon): LatLon[] {
   const off = (r: LatLon, x: number, y: number): LatLon => [r[0] + y / 111_320, r[1] + x / (111_320 * k)];
   return [off(p, nx, ny), off(q, nx, ny), off(q, -nx, -ny), off(p, -nx, -ny)];
 }
+/** The direction of the outline's longest edge, in radians. */
+function buildingAxis(rings: LatLon[][]) {
+  let axis = 0, longest = 0;
+  for (const ring of rings) {
+    const k = Math.cos((ring[0][0] * Math.PI) / 180);
+    for (let i = 0; i + 1 < ring.length; i++) {
+      const dx = (ring[i + 1][1] - ring[i][1]) * 111_320 * k, dy = (ring[i + 1][0] - ring[i][0]) * 111_320;
+      if (Math.hypot(dx, dy) > longest) [longest, axis] = [Math.hypot(dx, dy), Math.atan2(dy, dx)];
+    }
+  }
+  return axis;
+}
 const TIDY = 0.4; // metres: a traced outline's corners closer than this to the line between their neighbours are dropped
 /** A traced ring with its tracing jitter and doorway notches smoothed away (Douglas-Peucker, TIDY metres). */
 export function tidy(ring: LatLon[]): LatLon[] {
@@ -622,6 +634,65 @@ export function tidy(ring: LatLon[]): LatLon[] {
   split(0, pts.length - 1);
   const out = ring.filter((_, i) => keep[i]);
   return out.length >= 3 ? out : ring;
+}
+
+const BAR_CELL = 0.5; // metres: the grid a traced corridor is cut into bars on
+const BAR_COVER = 0.9; // bars are taken until this share of the piece is covered
+const BAR_MIN = 4; // square metres: a smaller bar is not worth drawing
+/**
+ * A traced corridor piece as straight bars for drawing: the piece is rasterised in a frame turned to `axis` (the
+ * building's longest edge) and the largest rectangle it holds is taken repeatedly until BAR_COVER of it is covered or
+ * the next bar is under BAR_MIN. Doorway notches, jitter and odd slivers are what the bars leave out.
+ */
+export function bars(ring: LatLon[], axis: number): LatLon[][] {
+  const k = Math.cos((ring[0][0] * Math.PI) / 180);
+  const c = Math.cos(axis), sn = Math.sin(axis);
+  const [lat0, lon0] = ring[0];
+  const turn = ([lat, lon]: LatLon) => { const x = (lon - lon0) * 111_320 * k, y = (lat - lat0) * 111_320; return [x * c + y * sn, -x * sn + y * c]; };
+  const back = ([u, v]: number[]): LatLon => { const x = u * c - v * sn, y = u * sn + v * c; return [lat0 + y / 111_320, lon0 + x / (111_320 * k)]; };
+  const pts = ring.map(turn);
+  const us = pts.map((p) => p[0]), vs = pts.map((p) => p[1]);
+  const u0 = Math.min(...us), v0 = Math.min(...vs);
+  const w = Math.ceil((Math.max(...us) - u0) / BAR_CELL), h = Math.ceil((Math.max(...vs) - v0) / BAR_CELL);
+  if (w < 1 || h < 1) return [];
+  const open = new Uint8Array(w * h);
+  let total = 0;
+  for (let j = 0; j < h; j++) {
+    const v = v0 + (j + 0.5) * BAR_CELL, xs: number[] = [];
+    for (let m = 0, n = pts.length - 1; m < pts.length; n = m++) {
+      const [ui, vi] = pts[m], [uj, vj] = pts[n];
+      if (vi > v !== vj > v) xs.push(((uj - ui) * (v - vi)) / (vj - vi) + ui);
+    }
+    xs.sort((p, q) => p - q);
+    for (let e = 0; e + 1 < xs.length; e += 2)
+      for (let i = Math.max(0, Math.ceil((xs[e] - u0) / BAR_CELL - 0.5)); i <= Math.min(w - 1, Math.ceil((xs[e + 1] - u0) / BAR_CELL - 0.5) - 1); i++) { open[j * w + i] = 1; total++; }
+  }
+  const out: LatLon[][] = [];
+  let covered = 0;
+  // Largest rectangle of open cells, by the histogram-of-heights method row by row.
+  for (;;) {
+    const heights = new Int32Array(w);
+    let best = { area: 0, i0: 0, i1: 0, j0: 0, j1: 0 };
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) heights[i] = open[j * w + i] ? heights[i] + 1 : 0;
+      const stack: number[] = [];
+      for (let i = 0; i <= w; i++) {
+        const hgt = i < w ? heights[i] : 0;
+        while (stack.length && heights[stack[stack.length - 1]] >= hgt) {
+          const top = stack.pop()!, left = stack.length ? stack[stack.length - 1] + 1 : 0;
+          const area = heights[top] * (i - left);
+          if (area > best.area) best = { area, i0: left, i1: i - 1, j0: j - heights[top] + 1, j1: j };
+        }
+        stack.push(i);
+      }
+    }
+    if (best.area * BAR_CELL * BAR_CELL < BAR_MIN || covered >= BAR_COVER * total) break;
+    for (let j = best.j0; j <= best.j1; j++) for (let i = best.i0; i <= best.i1; i++) open[j * w + i] = 0;
+    covered += best.area;
+    const [a, b, cc, d] = [u0 + best.i0 * BAR_CELL, v0 + best.j0 * BAR_CELL, u0 + (best.i1 + 1) * BAR_CELL, v0 + (best.j1 + 1) * BAR_CELL];
+    out.push([back([a, b]), back([cc, b]), back([cc, d]), back([a, d])]);
+  }
+  return out;
 }
 const pathMeters = (path: LatLon[]) => path.reduce((t, p, i) => (i ? t + latLonMeters(path[i - 1], p) : 0), 0);
 
@@ -653,9 +724,11 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
   const spaces = (ref: string, level: number, own: string[]) => {
     const f = floorOf(ref, level);
     if (!f) return undefined;
-    const preferred: LatLon[][] = [...(f.open ?? [])], other: LatLon[][] = [];
+    // Corridors count as the bars the page draws of them plus their traced outline (the slivers the bars leave out,
+    // mostly doorways), so the line runs where a corridor is shown and still gets through its doors.
+    const preferred: LatLon[][] = [...(f.openB ?? []), ...(f.open ?? [])], other: LatLon[][] = [];
     for (const { room: r, shapes } of shaped(ref, f)) {
-      if (CIRCULATION.test(r.u) || r.u === "LOUNGE" || own.includes(r.n)) { if (r.s) preferred.push(r.s); }
+      if (CIRCULATION.test(r.u) || r.u === "LOUNGE" || own.includes(r.n)) { if (r.b) preferred.push(...r.b); if (r.s) preferred.push(r.s); }
       else if (!r.f) other.push(...shapes);
     }
     return { preferred, other, base: planFiles.get(ref).outline as LatLon[][], traced: (n: string) => f.rooms.some((r: any) => r.n === n && r.s) };
@@ -824,19 +897,24 @@ async function buildCampus() {
     if (!plan) continue;
     const floors: Record<string, { level: number; rooms: object[] }> = {};
     const traced = tracedOutlines(b.ref);
+    const axis = buildingAxis(b.rings.map((ring) => ring.map(latLon) as LatLon[]));
+    const CIRC = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/;
     for (const r of plan.drawn) {
       const s = traced[r.code]?.[r.number] && tidy(traced[r.code][r.number]);
       // `f` marks an outline recovered from beyond the footprint: the route line only starts or ends in one.
       const f = s && traced[r.code]?.["!"]?.includes(r.number);
       // `d` is a corridor's outline smoothed for drawing (without its doorway notches); routes use `s`.
       const d = s && traced[r.code]?.["~"]?.[r.number] && tidy(traced[r.code]["~"][r.number]);
-      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}), ...(d ? { d } : {}), ...(f ? { f: 1 } : {}) });
+      // `b` is a corridor as straight bars, for drawing.
+      const bb = s && CIRC.test(r.use) ? bars(d ?? s, axis) : undefined;
+      (floors[r.code] ??= { level: r.level, rooms: [] }).rooms.push({ n: r.number, u: r.use, at: latLon(r.at), a: r.area, ...(s ? { s } : {}), ...(d ? { d } : {}), ...(bb?.length ? { b: bb } : {}), ...(f ? { f: 1 } : {}) });
     }
     // Unlabelled open floor traced on each floor (key ""), for drawing route lines through corridors no room names.
     for (const [code, f] of Object.entries(floors)) {
       if (!traced[code]?.[""]?.length) continue;
       (f as any).open = traced[code][""].map(tidy);
       if (traced[code]["~open"]?.length === traced[code][""].length) (f as any).openD = traced[code]["~open"].map(tidy);
+      (f as any).openB = ((f as any).openD ?? (f as any).open).flatMap((ring: LatLon[]) => bars(ring, axis));
     }
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }
