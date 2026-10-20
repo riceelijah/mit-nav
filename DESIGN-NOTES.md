@@ -100,8 +100,7 @@ Built (design first, then code; `bun run check:design`, `bun run generate`, `bun
 ### Fifth round: draw only what is known
 
 - **Plans draw** the outline, corridors, room numbers, stairs/elevators as small squares, and the destination; no guessed room shapes (they read as wrong walls). The converter still uses the squares for routing.
-- **Corridors are straight bars.** `bars()` in the converter rasterises each traced corridor piece in the building's frame and takes the largest rectangle repeatedly (90 % cover, ≥ 4 m²); L-shapes become two bars, notches and slivers drop out. Stored as `b` per room and `openB` per floor.
-- **Routes follow the bars.** The search's open floor is the bars plus the traced outline (for doorways), and a step beside a wall costs extra (`WALL_COST`), so the line runs down the middle of what is drawn.
+- **Corridors are the graph's own paths.** Cutting traced pieces into rectangles was tried and dropped: where tracing is sparse (35–39) it drew almost nothing. Instead each floor's `ways` are the paths of every connection between pass-through places on it (corridor–corridor, corridor–landing, entrance–corridor, building joins), written into the plan files by the converter, and the page strokes them 2.5 m wide with round ends. Every floor with positions gets a connected corridor network, and the route line lies on it by construction, since it is the same geometry. A step beside a wall costs extra in the search (`WALL_COST`), so paths run down the middle of traced corridors.
 
 Still open:
 

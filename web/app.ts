@@ -41,8 +41,8 @@ function metersFromLine(p: Point, line: Point[]) {
 // from beyond the building's footprint, which the route line only starts or ends in.
 // `open` is the floor's unlabelled open floor (corridor stretches no room names), traced like the rooms.
 // `d` and `openD` are corridors and open floor smoothed for drawing (without doorway notches); route lines use `s` and `open`.
-// `openB` (and a room's `b`) are corridors cut into straight bars for drawing.
-type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][]; openB?: [number, number][][] }> };
+// `ways` are the floor's corridor network: the paths of the connections between its pass-through places.
+type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][]; ways?: [number, number][][] }> };
 const PLAN_FILL: [RegExp, string][] = [
   [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#ffe0b5"],
   [/^ELEVATOR$/, "#cfe0f4"],
@@ -52,8 +52,7 @@ const PLAN_FILL: [RegExp, string][] = [
 ];
 /** Service rooms (shafts and closets) are never drawn: most sit inside corridor walls and would cover the corridor. */
 const SERVICE = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
-/** Traced spaces drawn with their shape: the ways through a floor. */
-const CIRCULATION_DRAWN = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION|LOUNGE)$/;
+const CORRIDOR_WIDTH = 2.5; // metres: how wide the corridor network is drawn
 const planFill = (use: string) => PLAN_FILL.find(([re]) => re.test(use))?.[1] ?? "#ffffff";
 const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 
@@ -212,7 +211,7 @@ const app = createApp({
               <div class="chips">
                 <button v-for="b in routeBuildings" :key="b.ref" @click="seeBuilding(b.ref)">See building {{ b.ref }}</button>
               </div>
-              <p class="fine">Zoom in on a building on your route to see its plan. Plans show corridors traced from MIT's drawings and every room's number at its position, not MIT's walls.</p>
+              <p class="fine">Zoom in on a building on your route to see its plan. Plans show the ways through each floor and every room's number at its position, not MIT's walls.</p>
             </div>
           </template>
         </section>
@@ -673,30 +672,27 @@ const app = createApp({
           if (room) L.circleMarker(room.at, { pane: "planLabels", radius: 9, color: "#a31f34", weight: 3, fill: false }).bindTooltip(`${ref}-${room.n}`).addTo(planLayer);
           continue;
         }
-        // Only known shapes are drawn: traced circulation and open floor, elevators and stairs (small, fixed fittings),
-        // and the destination; every other room is its number at its position, since a guessed wall looks like a wrong one.
+        // The corridor network as strokes a corridor's width, the fittings (stairs and elevators) as small squares, the
+        // destination in its traced shape or ringed, and every room as its number: nothing whose shape is a guess.
+        const px = CORRIDOR_WIDTH / (40_075_016 * Math.cos((map.getCenter().lat * Math.PI) / 180) / 256 / 2 ** map.getZoom());
+        for (const way of plan.floors[code].ways ?? []) {
+          L.polyline(way, { pane: "plans", color: planFill("CORRIDOR"), weight: px, lineCap: "round", lineJoin: "round", interactive: false }).addTo(planLayer);
+        }
         const rooms = plan.floors[code].rooms.filter((r) => !SERVICE.test(r.u));
-        for (const { room, shapes, guessed } of roomShapes(rooms, plan.outline)) {
+        for (const { room, shapes } of roomShapes(rooms, plan.outline)) {
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
           const fitting = /^(ELEVATOR|STAIRWAY)$/.test(room.u);
-          const corridor = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/.test(room.u);
-          // An untraced corridor is drawn as a guessed bar along the building, dashed, so it still reads as the way through.
-          if (room.s ? CIRCULATION_DRAWN.test(room.u) || isDestination : fitting || corridor) {
-            for (const shape of isDestination ? shapes : room.b ?? shapes) {
+          if ((isDestination && room.s) || fitting) {
+            for (const shape of shapes) {
               L.polygon(shape, {
-                pane: "plans", color: isDestination ? "#a31f34" : fitting ? "#8a93a0" : "#e3c89c", weight: isDestination ? 2 : fitting ? 1 : 0.6,
-                dashArray: guessed && corridor ? "4 4" : undefined,
-                fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: guessed && corridor ? 0.6 : 1,
-              }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}${guessed ? " (approximate)" : ""}`).addTo(planLayer);
+                pane: "plans", color: isDestination ? "#a31f34" : "#8a93a0", weight: isDestination ? 2 : 1,
+                fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: 1,
+              }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}`).addTo(planLayer);
             }
           } else if (isDestination) {
             L.circleMarker(room.at, { pane: "planLabels", radius: 10, color: "#a31f34", weight: 3, fill: false }).addTo(planLayer);
           }
           L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: `room-label${isDestination ? " destination" : ""}`, html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
-        }
-        // Unlabelled open floor (corridor stretches no label names) is tinted like corridors.
-        for (const ring of plan.floors[code].openB ?? plan.floors[code].openD ?? plan.floors[code].open ?? []) {
-          L.polygon(ring, { pane: "plans", color: "#e3c89c", weight: 0.6, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
         }
       }
     }
