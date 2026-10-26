@@ -275,9 +275,12 @@ export class WayfindingConcept {
     const q = text.trim().toLowerCase();
     // ponytail: scans every place per keystroke (~10k, a few ms); a text index if the map grows much larger.
     const rows = await this.places.find({}).toArray();
+    // A bare building number ("7", "e14") puts that building's entrance first, then its rooms ("7-121").
+    const building = /^[a-z]*\d+[a-z]*$/.test(q) ? new RegExp(`\\bbuilding ${q}(?![\\w-])`, "i") : undefined;
+    const tier = (p: PlaceDoc) => (!building ? 2 : p.kind === "ENTRANCE" && building.test(p.name) ? 0 : p.name.toLowerCase().startsWith(`${q}-`) ? 1 : 2);
     return rows
       .filter((p) => p.kind !== "TRANSIT" && p.name.toLowerCase().includes(q))
-      .sort((a, b) => Number(b.kind === "ENTRANCE") - Number(a.kind === "ENTRANCE") || byName(a.name, b.name))
+      .sort((a, b) => tier(a) - tier(b) || Number(b.kind === "ENTRANCE") - Number(a.kind === "ENTRANCE") || byName(a.name, b.name))
       .slice(0, SEARCH_LIMIT)
       .map(({ _id, name, kind, floor, latitude, longitude }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0 }));
   }

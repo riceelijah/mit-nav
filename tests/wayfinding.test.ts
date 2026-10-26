@@ -120,3 +120,19 @@ test("preferring indoors takes a corridor up to three times as costly as the wal
   expect((await route(false)).map((s) => s.instruction)).toEqual(["outside"]);
   expect((await route(true)).map((s) => [s.instruction, s.distance])).toEqual([["corridor", 2.5], ["corridor on", 2.5]]);
 });
+
+test("a bare building number answers that building's entrance, then its rooms, then other matches", async () => {
+  const add = (name: string, kind: "ENTRANCE" | "ROOM") => w.addPlace({ name, kind, floor: 1, latitude: 0, longitude: 0 });
+  for (const [name, kind] of [
+    ["70 Amherst (Building E2)", "ENTRANCE"], ["500 Technology Square (Building NE47)", "ENTRANCE"], ["Building 7A", "ENTRANCE"],
+    ["Rogers Building (Building 7)", "ENTRANCE"], ["17-100 Office", "ROOM"], ["7-121 Office", "ROOM"], ["7-103 Lab", "ROOM"],
+    ["Media Lab (Building E14)", "ENTRANCE"], ["E14-140 Studio", "ROOM"], ["E15-070 Lab", "ROOM"],
+  ] as const) await add(name, kind);
+  const names = async (text: string) => (await w._search({ text })).map((p) => p.name);
+  expect(await names("7")).toEqual([
+    "Rogers Building (Building 7)", "7-103 Lab", "7-121 Office",
+    "70 Amherst (Building E2)", "500 Technology Square (Building NE47)", "Building 7A", "17-100 Office", "E15-070 Lab",
+  ]);
+  expect(await names("e14")).toEqual(["Media Lab (Building E14)", "E14-140 Studio"]);
+  expect(await names("7-1")).toEqual(["7-103 Lab", "7-121 Office", "17-100 Office"]);
+});
