@@ -1,8 +1,9 @@
 import { createApp, ref, computed, watch, onMounted, nextTick } from "vue/dist/vue.esm-bundler.js";
 import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
-import { nearestOpen, walkToward } from "./indoor.ts";
+import { inside as insideRing, nearestOpen, walkToward } from "./indoor.ts";
 import { mergeSteps } from "./steps.ts";
+import { tidyOnce } from "./shapes.ts";
 
 const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
@@ -61,8 +62,8 @@ function clip(poly: Flat[], p: Flat, n: Flat): Flat[] {
 }
 /**
  * Each room's shape: the part of the building outline nearer its label than any other room's on the floor,
- * cut to a square of 1.5 times its area around the label, turned to the outline's longest edge. With every
- * room present, these regions approximate the rooms; a room with no area keeps its whole region.
+ * cut to a square of 1.5 times its area (the floor's median area when it has none) around the label, turned to the outline's longest edge. With every
+ * room present, these regions approximate the rooms. Traced outlines are tidied for drawing (web/shapes.ts).
  */
 export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
   const lat0 = outline[0]?.[0]?.[0] ?? 0;
@@ -78,9 +79,12 @@ export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
     }
   const along: Flat = [Math.cos(axis), Math.sin(axis)], across: Flat = [-Math.sin(axis), Math.cos(axis)];
   const points = rooms.map((r) => flat(r.at));
+  // A room with no recorded area is cut to the floor's typical room, rather than keeping a whole region of the floor.
+  const areas = rooms.map((r) => r.a).filter((a) => a > 0).sort((a, b) => a - b);
+  const typical = areas[areas.length >> 1] ?? 20;
   // ponytail: n² half-plane cuts per floor (a few hundred rooms); a Delaunay library if floors get much larger.
   return rooms.map((room, i) => {
-    if (room.s) return { room, shapes: [room.d ?? room.s] };
+    if (room.s) return { room, shapes: [room.d ?? tidyOnce(room.s)] };
     const p = points[i];
     const shapes = rings.map((ring) => {
       let poly = ring.slice(0, -1);
@@ -89,8 +93,8 @@ export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
         if (j === i || (q[0] === p[0] && q[1] === p[1])) continue;
         poly = clip(poly, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], [q[0] - p[0], q[1] - p[1]]);
       }
-      if (room.a > 0 && poly.length) {
-        const half = Math.sqrt(1.5 * room.a) / 2;
+      if (poly.length) {
+        const half = Math.sqrt(1.5 * (room.a > 0 ? room.a : typical)) / 2;
         for (const [d, sign] of [[along, 1], [along, -1], [across, 1], [across, -1]] as const) {
           poly = clip(poly, [p[0] + sign * half * d[0], p[1] + sign * half * d[1]], [sign * d[0], sign * d[1]]);
         }
@@ -100,11 +104,14 @@ export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
     return { room, shapes: shapes.filter((r) => r.length >= 3) };
   });
 }
+// Rooms are white; the building's outline shows through between them in wall grey, so the gaps read as walls.
+const WALL = "#dde0e4";
+const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/;
 const PLAN_FILL: [RegExp, string][] = [
-  [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#ffe0b5"],
+  [CIRCULATION, "#fbedd6"],
   [/^ELEVATOR$/, "#cfe0f4"],
-  [/^STAIRWAY$/, "#dde2e8"],
-  [/^LOUNGE$/, "#fff0dc"], // open public space, often walked through (Stata's Student Street)
+  [/^STAIRWAY$/, "#dfe3e8"],
+  [/^LOUNGE$/, "#fdf4e6"], // open public space, often walked through (Stata's Student Street)
   [/SHAFT|UTILITY|MECH|ELECTRIC|TELECOM|CUSTODIAL|STORAGE/, "#eceeec"],
 ];
 /** Service rooms (shafts and closets) are never drawn: most sit inside corridor walls and would cover the corridor. */
@@ -855,7 +862,7 @@ const app = createApp({
         const plan = planFiles.value[ref];
         const code = shownFloor.value[ref];
         if (!plan || !code || !plan.floors[code]) continue;
-        L.polygon(plan.outline, { pane: "plans", color: "#56626d", weight: 2, fillColor: "#f6f6f2", fillOpacity: 0.95 }).addTo(planLayer);
+        L.polygon(plan.outline, { pane: "plans", color: "#56626d", weight: 2, fillColor: WALL, fillOpacity: 0.95 }).addTo(planLayer);
         const drawing = planStyle.value === "drawing" ? drawings.value[ref]?.[code] : undefined;
         if (drawing) {
           drawingLayer(drawing).addTo(planLayer);
@@ -863,23 +870,47 @@ const app = createApp({
           if (room) L.circleMarker(room.at, { pane: "planLabels", radius: 9, color: "#a31f34", weight: 3, fill: false }).bindTooltip(`${ref}-${room.n}`).addTo(planLayer);
           continue;
         }
-        // Traced outlines last, so they sit over the approximate shapes of untraced neighbours.
+        // Traced outlines last, so they sit over the approximate shapes of untraced neighbours; untraced rooms are
+        // outlined dashed, as a guess at the room rather than its walls.
         const drawn = roomShapes(plan.floors[code].rooms.filter((r) => !SERVICE.test(r.u)), plan.outline).sort((a, b) => Number(!!a.room.s) - Number(!!b.room.s));
+        // The destination last of all, so no neighbour's outline covers it.
+        const target = drawn.findIndex(({ room }) => destination?.[1] === ref && destination[2] === room.n);
+        if (target >= 0) drawn.push(...drawn.splice(target, 1));
+        const labels: { at: [number, number]; text: string; destination: boolean }[] = [];
         for (const { room, shapes } of drawn) {
           const isDestination = destination?.[1] === ref && destination[2] === room.n;
           for (const shape of shapes) {
             L.polygon(shape, {
-              pane: "plans", color: isDestination ? "#a31f34" : "#9aa3ab", weight: isDestination ? 2 : 0.6,
+              pane: "plans", color: isDestination ? "#a31f34" : "#a9b0b8", weight: isDestination ? 2 : room.s ? 0.5 : 0.8, dashArray: room.s || isDestination ? undefined : "3 3",
               fillColor: isDestination ? "#f4c3ca" : planFill(room.u), fillOpacity: 1,
             }).bindTooltip(`${ref}-${room.n} ${room.u.toLowerCase()}`).addTo(planLayer);
           }
-          L.marker(room.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: "room-label", html: room.n, iconSize: [60, 14] }) }).addTo(planLayer);
+          // Corridors and lobbies go unlabelled: their numbers say nothing a person looks for.
+          const label = shapes.length && !CIRCULATION.test(room.u) ? labelPlace(shapes[0], room.at, room.n) : undefined;
+          if (label || isDestination) labels.push({ at: label ?? room.at, text: room.n, destination: isDestination });
         }
         // Unlabelled open floor (corridor stretches no label names) is tinted like corridors, over approximate shapes.
-        for (const ring of plan.floors[code].openD ?? plan.floors[code].open ?? []) {
-          L.polygon(ring, { pane: "plans", color: "#9aa3ab", weight: 0.6, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
+        for (const ring of plan.floors[code].openD ?? plan.floors[code].open?.map(tidyOnce) ?? []) {
+          L.polygon(ring, { pane: "plans", stroke: false, fillColor: planFill("CORRIDOR"), fillOpacity: 1 }).bindTooltip("Corridor or open floor").addTo(planLayer);
+        }
+        for (const l of labels) {
+          L.marker(l.at, { pane: "planLabels", interactive: false, icon: L.divIcon({ className: l.destination ? "room-label destination" : "room-label", html: l.text, iconSize: [60, 14] }) }).addTo(planLayer);
         }
       }
+    }
+    /**
+     * Where a room's number goes: its point in the room if the shape holds it, else the shape's centre; undefined when
+     * the number would not fit inside the room at the current zoom, so small rooms are not buried under labels.
+     */
+    function labelPlace(shape: [number, number][], at: [number, number], text: string): [number, number] | undefined {
+      const zoom = map.getZoom();
+      if (zoom < 19) return undefined;
+      const px = shape.map((p) => map.project(p, zoom));
+      const xs = px.map((p: any) => p.x), ys = px.map((p: any) => p.y);
+      if (Math.max(...xs) - Math.min(...xs) < text.length * 6.5 + 6 || Math.max(...ys) - Math.min(...ys) < 15) return undefined;
+      if (insideRing(at, shape)) return at;
+      const centre: [number, number] = [shape.reduce((s, p) => s + p[0], 0) / shape.length, shape.reduce((s, p) => s + p[1], 0) / shape.length];
+      return insideRing(centre, shape) ? centre : undefined;
     }
     /** At zoom 18 and closer, draw the plans of the route's buildings in view; the switcher follows the one nearest the centre. */
     async function updatePlans() {
@@ -1100,7 +1131,6 @@ const app = createApp({
       planLayer = L.layerGroup().addTo(map);
       map.on("moveend", updatePlans);
       routeLayer = L.layerGroup().addTo(map);
-      map.on("zoomend", () => map.getContainer().classList.toggle("labels", map.getZoom() >= 20));
       // Fitted drawings exist only where scripts/fit-drawings.py ran; elsewhere this is a 404 and no choice is offered.
       fetch("/drawings/index.json").then((r) => (r.ok ? r.json() : {}), () => ({})).then((index) => { drawings.value = index; drawPlans(); });
       if (window.location.pathname === "/auth/commons/callback") await finishCommons();

@@ -8,7 +8,7 @@ const MARGIN = 40; // metres around the two ends searched for a path
 const ROOM_COST = 20; // a step through a room that is not on the way costs this many steps along a corridor
 
 /** Whether `p` is inside the polygon `ring` (even-odd rule). */
-function inside(p: [number, number], ring: [number, number][]) {
+export function inside(p: [number, number], ring: [number, number][]) {
   let hit = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i], [xj, yj] = ring[j];
