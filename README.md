@@ -2,6 +2,15 @@
 
 Step-by-step directions across MIT, from building to building and floor to floor, with a step-free option. It grew out of a Simmons Hall navigator; every building, Simmons included, is now generated from MIT's room inventory. Sign in with your MIT class account (Commons) or a username and password to report problems and to keep favorites, saved trips, preferences, and a trip journal. Anyone can flag a passage (for example an elevator) as blocked, and everyone's directions avoid it until someone marks it clear. See `design/` for the concept and composition specs.
 
+## Project materials
+
+- **Deployed app:** TODO: add the URL
+- **Demo video (3 min):** TODO: add the YouTube link
+- [Design document](design/design-doc.md): how the final app differs from P1 and P3, and the main decisions
+- [Core user journey](design/journey.md)
+- Specs: [concepts](design/concepts/), [compositions](design/compositions/), [types](design/types.md), and the [generated read-back](generated/mit-campus-navigation.md) (`bun run generate`)
+- [Latest test results](tests/output.txt) (`bun test`)
+
 ## Run it
 
 ```sh
@@ -9,6 +18,8 @@ bun install
 bun run dev        # starts MongoDB (podman), backend :3000, frontend :8080
 bun run seed       # in a second terminal, with the backend stopped, to load or update the map (`bun run start` seeds itself first)
 ```
+
+Open http://127.0.0.1:8080. `bun test` runs the tests on an in-memory MongoDB (no setup needed; the first run downloads a MongoDB binary); `bun run test:real` runs them against the container database after `bun run db:up`. `bun run db:reset` empties the database, accounts included. After changing `design/`, run `bun run check:design`, then `bun run generate` and `bun run check` to regenerate the read-back and check the code against the specs.
 
 ## Updating the campus map
 
@@ -21,9 +32,3 @@ bun run seed       # in a second terminal, with the backend stopped, to load or 
 - `data/raw/pdfs/<building>_<floor>.pdf` (optional): MIT's floor-plan drawings from floorplans.mit.edu. `python3 scripts/fit-drawings.py [building ...]` (needs tesseract and the Python packages pypdfium2, numpy, pillow, opencv-python and shapely) fits each to the map and writes `data/raw/drawings/`: the page then offers "MIT drawing" for those floors on this machine only. It also traces each room's outline and the floor's unlabelled corridors from the drawing; `bun run campus` adds those shapes (never the drawing) to the plan files, where they shape the schematic and let indoor route lines follow corridors instead of crossing walls.
 
 Each building becomes a place at its main entrance, joined to OpenStreetMap's footpaths, sidewalks and crosswalks, so outdoor walks follow real paths. A building with a room list also gets each floor's corridors at their real positions, its elevators and stairs, and its rooms, with walking distances. Touching buildings are joined on a floor where both have a corridor reaching the shared wall, and corridors within 15 m (bridges) are joined too. After regenerating, stop the backend and run `bun run seed` again: it updates the map in place, so accounts, favorites, saved trips, history and blocked passages are kept (favorites and trips of rooms that left the map are removed).
-
-Open http://127.0.0.1:8080. `bun test` runs the tests on an in-memory MongoDB (no setup needed; the first run downloads a MongoDB binary); `bun run test:real` runs them against the container database after `bun run db:up`. `bun run db:reset` empties the database, accounts included.
-
-## Core user journey
-
-See `design/journey.md`.
