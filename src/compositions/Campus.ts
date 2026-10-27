@@ -7,9 +7,9 @@ const { Wayfinding, Reporting, Registering, Sessioning } = concepts;
 
 const PlaceSearch = former(
   "the places matching (text)",
-  ({ text }, { place, name, kind, floor, latitude, longitude }) =>
+  ({ text }, { place, name, kind, floor, latitude, longitude, aliases }) =>
     form({
-      places: each(Wayfinding._search({ text }).is({ place, name, kind, floor, latitude, longitude })).form({ place, name, kind, floor, latitude, longitude }),
+      places: each(Wayfinding._search({ text }).is({ place, name, kind, floor, latitude, longitude, aliases })).form({ place, name, kind, floor, latitude, longitude, aliases }),
     }),
 );
 
@@ -44,10 +44,10 @@ const BlockedList = former(
 
 const Route = former(
   "the route from (source) to (destination)",
-  ({ source, destination, accessibleOnly, indoorsPreferred, hour }, { step, link, instruction, placeName, kind, floor, distance, latitude, longitude, path }) =>
+  ({ source, destination, accessibleOnly, indoorsPreferred, hour, keyless, day }, { step, link, instruction, placeName, kind, floor, distance, latitude, longitude, path }) =>
     form({
       steps: each(
-        Wayfinding._route({ source, destination, accessibleOnly, indoorsPreferred, hour }).is({
+        Wayfinding._route({ source, destination, accessibleOnly, indoorsPreferred, hour, keyless, day }).is({
           step,
           link,
           instruction,
@@ -95,24 +95,24 @@ const NearestPlace = endpoint(
 
 const Closest = former(
   "the places matching (text) nearest (source)",
-  ({ source, text, accessibleOnly, indoorsPreferred, hour }, { place, name, floor, cost }) =>
+  ({ source, text, accessibleOnly, indoorsPreferred, hour, keyless, day }, { place, name, floor, cost }) =>
     form({
-      places: each(Wayfinding._closest({ source, text, accessibleOnly, indoorsPreferred, hour }).is({ place, name, floor, cost })).form({ place, name, floor, cost }),
+      places: each(Wayfinding._closest({ source, text, accessibleOnly, indoorsPreferred, hour, keyless, day }).is({ place, name, floor, cost })).form({ place, name, floor, cost }),
     }),
 );
 
 const FindClosest = endpoint(
   "/route/closest",
-  ({ source, text, accessibleOnly, indoorsPreferred, hour }) =>
-    receive({ source, text, accessibleOnly, indoorsPreferred, hour }).then(respond({ closest: Closest({ source, text, accessibleOnly, indoorsPreferred, hour }) })),
+  ({ source, text, accessibleOnly, indoorsPreferred, hour, keyless, day }) =>
+    receive({ source, text, accessibleOnly, indoorsPreferred, hour, keyless, day }).then(respond({ closest: Closest({ source, text, accessibleOnly, indoorsPreferred, hour, keyless, day }) })),
   { validators: { input: closestInput } },
 );
 
 const FindRoute = endpoint(
   "/route/find",
-  ({ source, destination, accessibleOnly, indoorsPreferred, hour }) =>
-    receive({ source, destination, accessibleOnly, indoorsPreferred, hour }).then(
-      respond({ route: Route({ source, destination, accessibleOnly, indoorsPreferred, hour }) }),
+  ({ source, destination, accessibleOnly, indoorsPreferred, hour, keyless, day }) =>
+    receive({ source, destination, accessibleOnly, indoorsPreferred, hour, keyless, day }).then(
+      respond({ route: Route({ source, destination, accessibleOnly, indoorsPreferred, hour, keyless, day }) }),
     ),
   { validators: { input: routeInput } },
 );

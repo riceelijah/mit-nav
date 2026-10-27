@@ -68,6 +68,7 @@ Defined in [Federating](../design/concepts/Federating.md), line 1.
 
 - `_user(attempt: Attempt) : optional (user: User)`
 - `_linkable(attempt: Attempt) : one (linkable: Flag)`
+- `_linked(user: User) : one (linked: Flag)`
 
 #### Instances
 
@@ -197,7 +198,9 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 
 - `addPlace(name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number) : returns (place: Place)`
   - Refuses `DUPLICATE_PLACE`: A place with that name already exists.
-- `connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, outdoor: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number, path: String) : returns (link: Link)`
+- `alias(place: Place, aliases: String) : returns (place: Place)`
+  - Refuses `NO_SUCH_PLACE`: There is no such place.
+- `connect(source: Place, destination: Place, forward: String, backward: String, accessible: Flag, outdoor: Flag, closedFrom: Number, closedUntil: Number, service: String, distance: Number, path: String, keyed: Flag) : returns (link: Link)`
   - Refuses `NO_SUCH_PLACE`: Both places must exist before they can be connected.
 - `block(link: Link) : returns (link: Link)`
   - Refuses `NO_SUCH_LINK`: There is no such connection.
@@ -212,12 +215,12 @@ Defined in [Wayfinding](../design/concepts/Wayfinding.md), line 1.
 - `_links() : many (link: Link, sourceName: String, destinationName: String, forward: String, accessible: Flag, blocked: Flag, closedFrom: Number, closedUntil: Number, service: String)`
 - `_place(place: Place) : optional (name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)`
 - `_nearest(latitude: Number, longitude: Number) : optional (place: Place, name: String, latitude: Number, longitude: Number)`
-- `_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number)`
-- `_closest(source: Place, text: String, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (place: Place, name: String, floor: Number, cost: Number)`
+- `_search(text: String) : many (place: Place, name: String, kind: Kind, floor: Number, latitude: Number, longitude: Number, aliases: String)`
+- `_closest(source: Place, text: String, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number, keyless: Flag, day: Number) : many (place: Place, name: String, floor: Number, cost: Number)`
 - `_link(link: Link) : optional (sourceName: String, destinationName: String, forward: String, service: String)`
 - `_blocked() : many (link: Link, sourceName: String, destinationName: String, forward: String, service: String)`
 - `_sameService(link: Link) : many (other: Link)`
-- `_route(source: Place, destination: Place, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number, path: String)`
+- `_route(source: Place, destination: Place, accessibleOnly: Flag, indoorsPreferred: Flag, hour: Number, keyless: Flag, day: Number) : many (step: Number, link: Link, instruction: String, placeName: String, kind: Kind, floor: Number, distance: Number, latitude: Number, longitude: Number, path: String)`
 
 #### Instances
 
@@ -305,10 +308,11 @@ Authored path: `Campus.Browsing.PlaceSearch`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 9.
 
 ```former
-Former "the places matching (text)" — inputs (text); bindings (place, name, kind, floor, latitude, longitude); promises exactly one record — forms:
+Former "the places matching (text)" — inputs (text); bindings (place, name, kind, floor, latitude, longitude, aliases); promises exactly one record — forms:
   a record of
-    places: each Wayfinding._search (text) has (floor, kind, latitude, longitude, name, place)
+    places: each Wayfinding._search (text) has (aliases, floor, kind, latitude, longitude, name, place)
       form a record of
+        aliases
         floor
         kind
         latitude
@@ -323,9 +327,9 @@ Authored path: `Campus.Routing.Closest`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 24.
 
 ```former
-Former "the places matching (text) nearest (source)" — inputs (source, text, accessibleOnly, indoorsPreferred, hour); bindings (place, name, floor, cost); promises exactly one record — forms:
+Former "the places matching (text) nearest (source)" — inputs (source, text, accessibleOnly, indoorsPreferred, hour, keyless, day); bindings (place, name, floor, cost); promises exactly one record — forms:
   a record of
-    places: each Wayfinding._closest (accessibleOnly, hour, indoorsPreferred, source, text) has (cost, floor, name, place)
+    places: each Wayfinding._closest (accessibleOnly, day, hour, indoorsPreferred, keyless, source, text) has (cost, floor, name, place)
       form a record of
         cost
         floor
@@ -375,9 +379,9 @@ Authored path: `Campus.Routing.Route`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 18.
 
 ```former
-Former "the route from (source) to (destination)" — inputs (source, destination, accessibleOnly, indoorsPreferred, hour); bindings (step, link, instruction, placeName, kind, floor, distance, latitude, longitude, path); promises exactly one record — forms:
+Former "the route from (source) to (destination)" — inputs (source, destination, accessibleOnly, indoorsPreferred, hour, keyless, day); bindings (step, link, instruction, placeName, kind, floor, distance, latitude, longitude, path); promises exactly one record — forms:
   a record of
-    steps: each Wayfinding._route (accessibleOnly, destination, hour, indoorsPreferred, source) has (distance, floor, instruction, kind, latitude, link, longitude, path, placeName, step)
+    steps: each Wayfinding._route (accessibleOnly, day, destination, hour, indoorsPreferred, keyless, source) has (distance, floor, instruction, kind, latitude, link, longitude, path, placeName, step)
       form a record of
         distance
         floor
@@ -631,9 +635,9 @@ Authored path: `Campus.Routing.FindClosest`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 27.
 
 ```reaction
-when RequestBoundary.request (accessibleOnly, hour, indoorsPreferred, path: "/route/closest", requestId, source, text)
+when RequestBoundary.request (accessibleOnly, day, hour, indoorsPreferred, keyless, path: "/route/closest", requestId, source, text)
 then
-  RequestBoundary.respond (closest: former "the places matching (text) nearest (source)" with (accessibleOnly, hour, indoorsPreferred, source, text), requestId)
+  RequestBoundary.respond (closest: former "the places matching (text) nearest (source)" with (accessibleOnly, day, hour, indoorsPreferred, keyless, source, text), requestId)
 ```
 
 ### Campus.Routing.FindRoute
@@ -643,9 +647,9 @@ Authored path: `Campus.Routing.FindRoute`.
 - Covered by [MIT campus navigation](../design/compositions/Campus.md), line 21.
 
 ```reaction
-when RequestBoundary.request (accessibleOnly, destination, hour, indoorsPreferred, path: "/route/find", requestId, source)
+when RequestBoundary.request (accessibleOnly, day, destination, hour, indoorsPreferred, keyless, path: "/route/find", requestId, source)
 then
-  RequestBoundary.respond (requestId, route: former "the route from (source) to (destination)" with (accessibleOnly, destination, hour, indoorsPreferred, source))
+  RequestBoundary.respond (requestId, route: former "the route from (source) to (destination)" with (accessibleOnly, day, destination, hour, indoorsPreferred, keyless, source))
 ```
 
 ### Campus.Routing.NearestPlace
@@ -820,6 +824,33 @@ where
   earlier, RequestBoundary.request (attempt, code, path: "/auth/commons/finish", requestId, state)
 then
   RequestBoundary.respond (expiresAt, requestId, session, user)
+```
+
+### Commons.identifying.Linked
+
+Authored path: `Commons.identifying.Linked`.
+- Covered by [Signing in with Commons](../design/compositions/Commons.md), line 31.
+- Covered by [Signing in with Commons](../design/compositions/Commons.md), line 34.
+
+```reaction
+when RequestBoundary.request (path: "/auth/commons/linked", requestId, session)
+then
+  Sessioning.use (session)
+```
+
+### Commons.identifying.Linked#2
+
+Authored path: `Commons.identifying.Linked`.
+- Covered by [Signing in with Commons](../design/compositions/Commons.md), line 31.
+- Covered by [Signing in with Commons](../design/compositions/Commons.md), line 34.
+
+```reaction
+when Sessioning.use (session, subject: user), asked by Commons.identifying.Linked
+where
+  CommonsFederating._linked (user) has (linked)
+  earlier, RequestBoundary.request (path: "/auth/commons/linked", requestId, session)
+then
+  RequestBoundary.respond (linked, requestId)
 ```
 
 ### Commons.starting.StartCommons
@@ -1345,6 +1376,7 @@ not listed here have no explicit input contract.
 
 - `/auth/commons/choose` — requires `attempt`, `username`
 - `/auth/commons/finish` — requires `attempt`, `code`, `state`
+- `/auth/commons/linked` — requires `session`
 - `/auth/login` — requires `password`, `username`
 - `/auth/logout` — requires `session`
 - `/auth/me` — requires `session`
@@ -1359,6 +1391,6 @@ not listed here have no explicit input contract.
 - `/me/trips/save` — requires `accessibleOnly`, `destination`, `name`, `session`, `source`
 - `/problems/block` — requires `link`, `reason`, `session`
 - `/problems/unblock` — requires `link`, `session`
-- `/route/closest` — requires `accessibleOnly`, `hour`, `indoorsPreferred`, `source`, `text`
-- `/route/find` — requires `accessibleOnly`, `destination`, `hour`, `indoorsPreferred`, `source`
+- `/route/closest` — requires `accessibleOnly`, `day`, `hour`, `indoorsPreferred`, `keyless`, `source`, `text`
+- `/route/find` — requires `accessibleOnly`, `day`, `destination`, `hour`, `indoorsPreferred`, `keyless`, `source`
 - `/route/nearest` — requires `latitude`, `longitude`

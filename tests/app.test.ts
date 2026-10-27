@@ -7,8 +7,8 @@ const open = { outdoor: false, closedFrom: 0, closedUntil: 0, service: "", dista
 async function smallMap(map: WayfindingConcept) {
   const lobby = (await map.addPlace({ name: "Lobby", kind: "ENTRANCE", floor: 1, latitude: 0, longitude: 0 })).place;
   const room = (await map.addPlace({ name: "Room 215", kind: "ROOM", floor: 2, latitude: 0, longitude: 0 })).place;
-  const elevator = (await map.connect({ source: lobby, destination: room, forward: "Elevator up", backward: "Elevator down", accessible: true, outdoor: false, ...open, path: "" })).link;
-  await map.connect({ source: lobby, destination: room, forward: "Stairs up", backward: "Stairs down", accessible: false, outdoor: false, ...open, path: "" });
+  const elevator = (await map.connect({ source: lobby, destination: room, forward: "Elevator up", backward: "Elevator down", accessible: true, outdoor: false, ...open, path: "", keyed: false })).link;
+  await map.connect({ source: lobby, destination: room, forward: "Stairs up", backward: "Stairs down", accessible: false, outdoor: false, ...open, path: "", keyed: false });
   return { lobby, room, elevator };
 }
 
@@ -18,7 +18,7 @@ test("journey: route without an account, sign up, flag the elevator, reroute, so
   const visitor = browser();
   const { lobby, room, elevator } = await smallMap(map);
 
-  const route = (acc: boolean) => visitor("/route/find", { source: lobby, destination: room, accessibleOnly: acc, indoorsPreferred: false, hour: 12 });
+  const route = (acc: boolean) => visitor("/route/find", { source: lobby, destination: room, accessibleOnly: acc, indoorsPreferred: false, hour: 12, keyless: false, day: 1 });
   const steps = (await route(true)).route.steps;
   expect(steps.map((s: any) => [s.instruction, s.distance])).toEqual([["Elevator up", 1]]);
 

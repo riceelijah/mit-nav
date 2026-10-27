@@ -46,8 +46,10 @@ describe("Federating", () => {
     const first = await approved(SAM);
     expect(await federating.finish(first)).toEqual({ username: "sam" });
     expect(await federating._user(first)).toEqual([]);
+    expect(await federating._linked({ user: "sam-user" })).toEqual({ linked: false });
     expect(await federating.link({ attempt: first.attempt, user: "sam-user" })).toEqual({ user: "sam-user" });
     expect(await federating._user(first)).toEqual([{ user: "sam-user" }]);
+    expect(await federating._linked({ user: "sam-user" })).toEqual({ linked: true });
 
     const again = await approved({ subject: SAM.subject, username: "samuel" });
     expect(await federating.finish(again)).toEqual({ username: "samuel" });

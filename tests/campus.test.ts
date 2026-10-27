@@ -62,7 +62,7 @@ test("clearing one ride of an elevator resolves the reports on its other rides",
   const floor = async (n: number) => (await map.addPlace({ name: `Floor ${n}`, kind: "HALLWAY", floor: n, latitude: 0, longitude: 0 })).place;
   const [one, two, three] = [await floor(1), await floor(2), await floor(3)];
   const ride = async (source: string, destination: string) =>
-    (await map.connect({ source, destination, forward: "up", backward: "down", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "E1", distance: 1, path: "" })).link;
+    (await map.connect({ source, destination, forward: "up", backward: "down", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "E1", distance: 1, path: "", keyed: false })).link;
   const low = await ride(one, two);
   const high = await ride(two, three);
 
@@ -84,11 +84,11 @@ test("campus map: Simmons Hall to a Stata 9th-floor lab walks along outdoor path
   const maps = ["campus.json"].map((f) => JSON.parse(readFileSync(new URL(`../data/${f}`, import.meta.url), "utf8")));
   const ids = new Map<string, string>();
   for (const p of maps.flatMap((m) => m.places)) ids.set(p.name, (await w.addPlace({ latitude: 0, longitude: 0, ...p })).place);
-  for (const [s, d, forward, backward, accessible, closedFrom, closedUntil, service, distance] of maps.flatMap((m) => m.links)) {
-    await w.connect({ source: ids.get(s)!, destination: ids.get(d)!, forward, backward, accessible, outdoor: false, closedFrom, closedUntil, service, distance, path: "" });
+  for (const [s, d, forward, backward, accessible, closedFrom, closedUntil, service, distance, , , keyed] of maps.flatMap((m) => m.links)) {
+    await w.connect({ source: ids.get(s)!, destination: ids.get(d)!, forward, backward, accessible, outdoor: false, closedFrom, closedUntil, service, distance, path: "", keyed: !!keyed });
   }
 
-  const route = () => w._route({ source: ids.get("Simmons Hall (Building W79)")!, destination: ids.get("32-G904 Research Lab")!, accessibleOnly: true, indoorsPreferred: false, hour: 12 });
+  const route = (keyless = false, day = 1) => w._route({ source: ids.get("Simmons Hall (Building W79)")!, destination: ids.get("32-G904 Research Lab")!, accessibleOnly: true, indoorsPreferred: false, hour: 12, keyless, day });
   const started = performance.now();
   const steps = await route();
   expect(performance.now() - started).toBeLessThan(2000);
@@ -97,6 +97,9 @@ test("campus map: Simmons Hall to a Stata 9th-floor lab walks along outdoor path
   expect(said.some((s) => /stair/i.test(s))).toBe(false);
   const lift = steps.find((s) => /^Take elevator E\d+/.test(s.instruction))!;
   expect(lift).toBeTruthy();
+  // Without an MIT ID: in on a weekday at noon, but no way into Stata on a Sunday.
+  expect((await route(true, 1)).length).toBeGreaterThan(0);
+  expect(await route(true, 0)).toEqual([]);
 
   await w.block({ link: lift.link });
   const around = await route();
@@ -174,8 +177,8 @@ test("route steps carry the kind and position of the place they reach; nearest e
   const at = { latitude: 42.36, longitude: -71.09 };
   const out = (await map.addPlace({ name: "Building A", kind: "ENTRANCE", floor: 1, ...at })).place;
   const hall = (await map.addPlace({ name: "Building A, floor 1", kind: "TRANSIT", floor: 1, ...at })).place;
-  await map.connect({ source: out, destination: hall, forward: "Go in", backward: "Out", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1, path: "" });
-  const steps = (await post("/route/find", { source: hall, destination: out, accessibleOnly: false, indoorsPreferred: false, hour: 12 })).route.steps;
+  await map.connect({ source: out, destination: hall, forward: "Go in", backward: "Out", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1, path: "", keyed: false });
+  const steps = (await post("/route/find", { source: hall, destination: out, accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1 })).route.steps;
   expect(steps.map((s: any) => [s.kind, s.latitude, s.longitude])).toEqual([["ENTRANCE", 42.36, -71.09]]);
   expect((await post("/map/search", { text: "Building A" })).places.places[0].latitude).toBe(42.36);
   expect((await post("/route/nearest", { latitude: 42.3601, longitude: -71.0901 })).nearest.places.map((p: any) => p.name)).toEqual(["Building A"]);
@@ -196,17 +199,17 @@ test("_closest: nearest matches by route cost, step-free respected, never the st
   const corridor = await add("1-100CA Lavatory corridor", "TRANSIT");
   const up = await add("Up", "HALLWAY");
   const link = (a: string, b: string, distance: number, accessible = true) =>
-    w.connect({ source: a, destination: b, forward: "go", backward: "back", accessible, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance, path: "" });
+    w.connect({ source: a, destination: b, forward: "go", backward: "back", accessible, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance, path: "", keyed: false });
   await link(hall, near, 1);
   await link(hall, corridor, 0.5);
   await link(hall, up, 1, false); // stairs
   await link(up, far, 1);
-  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12 })).map((c) => [c.name, c.cost])).toEqual([["1-101 Male Lavatory", 1], ["1-301 Female Lavatory", 2]]);
-  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: true, indoorsPreferred: false, hour: 12 })).map((c) => c.name)).toEqual(["1-101 Male Lavatory"]);
-  expect(await w._closest({ source: near, text: "male lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12 }).then((r) => r.map((c) => c.name))).toEqual(["1-301 Female Lavatory"]);
-  expect(await w._closest({ source: "nowhere", text: "lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12 })).toEqual([]);
+  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1 })).map((c) => [c.name, c.cost])).toEqual([["1-101 Male Lavatory", 1], ["1-301 Female Lavatory", 2]]);
+  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: true, indoorsPreferred: false, hour: 12, keyless: false, day: 1 })).map((c) => c.name)).toEqual(["1-101 Male Lavatory"]);
+  expect(await w._closest({ source: near, text: "male lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1 }).then((r) => r.map((c) => c.name))).toEqual(["1-301 Female Lavatory"]);
+  expect(await w._closest({ source: "nowhere", text: "lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1 })).toEqual([]);
   for (let i = 0; i < 7; i++) await link(hall, await add(`2-10${i} Public Lavatory`), 3 + i);
-  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12 })).length).toBe(5);
+  expect((await w._closest({ source: hall, text: "lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1 })).length).toBe(5);
 });
 
 test("closest endpoint answers matches and refuses a missing flag", async () => {
@@ -215,9 +218,9 @@ test("closest endpoint answers matches and refuses a missing flag", async () => 
   const at = { latitude: 0, longitude: 0, floor: 1 };
   const a = (await map.addPlace({ name: "A", kind: "HALLWAY", ...at })).place;
   const b = (await map.addPlace({ name: "1-101 Male Lavatory", kind: "ROOM", ...at })).place;
-  await map.connect({ source: a, destination: b, forward: "go", backward: "back", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1, path: "" });
-  expect((await post("/route/closest", { source: a, text: "Lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12 })).closest.places.map((p: any) => p.name)).toEqual(["1-101 Male Lavatory"]);
-  expect((await post("/route/closest", { source: a, text: "Lavatory", hour: 12 })).error).toBe("INVALID_REQUEST");
+  await map.connect({ source: a, destination: b, forward: "go", backward: "back", accessible: true, outdoor: false, closedFrom: 0, closedUntil: 0, service: "", distance: 1, path: "", keyed: false });
+  expect((await post("/route/closest", { source: a, text: "Lavatory", accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1 })).closest.places.map((p: any) => p.name)).toEqual(["1-101 Male Lavatory"]);
+  expect((await post("/route/closest", { source: a, text: "Lavatory", hour: 12, keyless: false, day: 1 })).error).toBe("INVALID_REQUEST");
   await close();
 });
 
@@ -265,10 +268,10 @@ test("the map cannot be edited over the API, and route and closest requests are 
   expect((await post("/map/add-place", { name: "Evil", kind: "ROOM", floor: 1, latitude: 0, longitude: 0 })).error).toBeTruthy();
   expect((await post("/map/search", { text: "Evil" })).places.places).toEqual([]);
   const a = (await map.addPlace({ name: "A", kind: "ENTRANCE", floor: 1, latitude: 0, longitude: 0 })).place;
-  for (const bad of [{ hour: "noon" }, { hour: 99 }, { hour: -1 }, { accessibleOnly: "yes" }, { indoorsPreferred: undefined }, { source: 5 }]) {
-    expect((await post("/route/find", { source: a, destination: a, accessibleOnly: false, indoorsPreferred: false, hour: 12, ...bad })).error).toBe("INVALID_REQUEST");
-    expect((await post("/route/closest", { source: a, text: "x", accessibleOnly: false, indoorsPreferred: false, hour: 12, ...bad })).error).toBe("INVALID_REQUEST");
+  for (const bad of [{ hour: "noon" }, { hour: 99, keyless: false, day: 1 }, { hour: -1 }, { accessibleOnly: "yes" }, { indoorsPreferred: undefined }, { source: 5 }, { keyless: "no" }, { day: 7 }, { day: 1.5 }]) {
+    expect((await post("/route/find", { source: a, destination: a, accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1, ...bad })).error).toBe("INVALID_REQUEST");
+    expect((await post("/route/closest", { source: a, text: "x", accessibleOnly: false, indoorsPreferred: false, hour: 12, keyless: false, day: 1, ...bad })).error).toBe("INVALID_REQUEST");
   }
-  expect((await post("/route/find", { source: a, destination: a, accessibleOnly: false, indoorsPreferred: false, hour: 24 })).route).toBeTruthy();
+  expect((await post("/route/find", { source: a, destination: a, accessibleOnly: false, indoorsPreferred: false, hour: 24, keyless: false, day: 1 })).route).toBeTruthy();
   await close();
 });

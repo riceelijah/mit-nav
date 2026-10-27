@@ -193,3 +193,44 @@ export function nearestOpen(rings: LatLon[][], p: LatLon, reach: number): LatLon
     }
   return best && [p[0] + best[1] / 111_320, p[1] + best[0] / (111_320 * k)];
 }
+
+const SPUR_GAP = 1.5; // metres: a line that comes back this close to a stretch it already walked has gone out and back
+const SPUR_SLACK = 4; // metres: ... when the excursion is this much longer than three times the gap
+
+/**
+ * The route line without its out-and-back spurs, as when a walk overshoots to a corridor's label and comes back to
+ * the room beside where it passed: where a later corner comes back within SPUR_GAP of an earlier stretch of the line in
+ * the same `group` (one floor of one building, say), the excursion between is cut and the line turns at the nearest
+ * point of that stretch. `reached` (indices into `points`) is mapped to the trimmed line, an index inside a cut spur to
+ * where the spur began.
+ */
+export function trimSpurs(points: LatLon[], group: number[], reached: number[]): { points: LatLon[]; reached: number[] } {
+  const k = Math.cos(((points[0]?.[0] ?? 0) * Math.PI) / 180);
+  const flat = points.map(([lat, lon]): [number, number] => [lon * 111_320 * k, lat * 111_320]);
+  const along = [0], run = [0]; // distance along the line; where each point's run of one group starts
+  for (let i = 1; i < points.length; i++) {
+    along.push(along[i - 1] + Math.hypot(flat[i][0] - flat[i - 1][0], flat[i][1] - flat[i - 1][1]));
+    run.push(group[i] === group[i - 1] ? run[i - 1] : i);
+  }
+  const out: LatLon[] = [], to = new Array<number>(points.length);
+  for (let i = 0; i < points.length; i++) {
+    to[i] = out.length;
+    out.push(points[i]);
+    if (i + 1 >= points.length || run[i + 1] > i) continue;
+    // ponytail: O(n²) over the route's corners, fine for a few hundred
+    const [ax, ay] = flat[i], dx = flat[i + 1][0] - ax, dy = flat[i + 1][1] - ay, len2 = dx * dx + dy * dy;
+    for (let j = points.length - 1; j > i + 1; j--) {
+      if (run[j] > i) continue;
+      const t = len2 ? Math.max(0, Math.min(1, ((flat[j][0] - ax) * dx + (flat[j][1] - ay) * dy) / len2)) : 0;
+      const gap = Math.hypot(ax + t * dx - flat[j][0], ay + t * dy - flat[j][1]);
+      if (gap < SPUR_GAP && along[j] - (along[i] + t * Math.sqrt(len2)) > 3 * gap + SPUR_SLACK) {
+        const [lat, lon] = points[i], [lat1, lon1] = points[i + 1];
+        if (t > 0) out.push([lat + t * (lat1 - lat), lon + t * (lon1 - lon)]);
+        for (let m = i + 1; m < j; m++) to[m] = out.length - 1;
+        i = j - 1;
+        break;
+      }
+    }
+  }
+  return { points: out, reached: reached.map((r) => to[r]) };
+}

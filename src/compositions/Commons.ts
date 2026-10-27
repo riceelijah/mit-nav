@@ -52,6 +52,15 @@ const ChooseUsername = endpoint(
   { validators: { input: textInput } },
 );
 
+const Linked = endpoint(
+  "/auth/commons/linked",
+  ({ session, user, linked }) =>
+    receive({ session })
+      .then(Sessioning.use({ session }).responds({ subject: user }))
+      .then(where(CommonsFederating._linked({ user }).is({ linked })).then(respond({ linked }))),
+  { validators: { input: textInput } },
+);
+
 /**
  * The HTTP settings for these endpoints: the category for each refusal, the endpoints that
  * start a session, and the sign-in cookie, which holds the attempt. Every refusal from CommonsFederating
@@ -76,4 +85,5 @@ export const commonsHttp = {
 export const composition = {
   starting: { StartCommons },
   finishing: { FinishCommons, ChooseUsername },
+  identifying: { Linked },
 };

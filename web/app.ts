@@ -3,12 +3,14 @@ import { createHttpClient } from "@mit-sdg/sync-engine-http/client";
 import type { CampusWireHttp } from "../generated/wire.ts";
 import { mergeSteps } from "./steps.ts";
 import { roomShapes, type PlanRoom } from "./shapes.ts";
+import { trimSpurs } from "./indoor.ts";
+import { routeDay } from "./days.ts";
 
 const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
-type Place = { place: string; name: string; kind: string; floor: number };
+type Place = { place: string; name: string; kind: string; floor: number; aliases?: string };
 const floorLabel = (floor: number) => (floor === 0 ? "Basement" : floor < 0 ? "Sub-basement" : `Floor ${floor}`);
-// Within this many metres of a building's centre counts as reaching it; further than OFF_COURSE from the route, twice in a row, reroutes.
+// Within this many metres of where an outdoor step ends counts as reaching it; further than OFF_COURSE from the route, twice in a row, reroutes.
 const REACHED = 40;
 const OFF_COURSE = 75;
 const MIT: [number, number] = [42.3601, -71.0942];
@@ -42,7 +44,8 @@ function metersFromLine(p: Point, line: Point[]) {
 // `open` is the floor's unlabelled open floor (corridor stretches no room names), traced like the rooms.
 // `d` and `openD` are corridors and open floor smoothed for drawing (without doorway notches); route lines use `s` and `open`.
 // `ways` are the floor's corridor network: the paths of the connections between its pass-through places.
-type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][]; ways?: [number, number][][] }> };
+// `hall` and `hallD` (experiment) are the floor's hallways flooded from its corridors, grown into doorways and as drawn.
+type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][]; ways?: [number, number][][]; hall?: [number, number][][]; hallD?: [number, number][][]; doors?: [number, number][] }> };
 const PLAN_FILL: [RegExp, string][] = [
   [/^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/, "#ffe0b5"],
   [/^ELEVATOR$/, "#cfe0f4"],
@@ -83,7 +86,8 @@ function drawingLayer(d: Drawing) {
 }
 
 // Outdoor path points have generated names that mean nothing to a person.
-const arrivalLabel = (s: any) => (/^Path \d+$/.test(s.placeName) ? "" : `${s.placeName}, floor ${s.floor}`);
+// A building's floor hub is already named "Building 32, floor 1".
+const arrivalLabel = (s: any) => (/^Path \d+$/.test(s.placeName) ? "" : /, floor \S+$/.test(s.placeName) ? s.placeName : `${s.placeName}, floor ${s.floor}`);
 
 type Units = "METERS" | "FEET" | "MINUTES";
 const units = ref<Units>("METERS");
@@ -145,6 +149,7 @@ const app = createApp({
         <div class="options">
           <label class="toggle" :class="{ on: accessibleOnly }"><input type="checkbox" v-model="accessibleOnly" /> Step-free</label>
           <label class="toggle" :class="{ on: indoorsPreferred }" title="Stay inside where a building route is not much longer"><input type="checkbox" v-model="indoorsPreferred" /> Indoors</label>
+          <label class="toggle" :class="{ on: keyless }" title="Without an MIT ID, buildings let you in only on weekdays from 6 a.m. to 7 p.m., not on holidays"><input type="checkbox" v-model="keyless" /> No MIT ID</label>
           <label class="time">Leaving at <input type="time" v-model="time" /></label>
         </div>
       </section>
@@ -177,6 +182,7 @@ const app = createApp({
           <p v-else-if="searched && steps.length === 0" class="empty">
             No route{{ accessibleOnly ? ' without stairs' : '' }} avoids the blocked or closed passages right now.
             <template v-if="accessibleOnly">Turn off step-free to allow stairs.</template>
+            <template v-if="keyless">Without an MIT ID, buildings let you in only on weekdays from 6 a.m. to 7 p.m.</template>
           </p>
           <template v-if="steps.length">
             <div class="summary">
@@ -271,10 +277,14 @@ const app = createApp({
     </aside>
 
     <div id="map" aria-label="Map"></div>
+    <div class="plan-scope" role="radiogroup" aria-label="Floor plans to show">
+      <button role="radio" :aria-checked="planScope === 'route'" @click="choosePlanScope('route')">On route</button>
+      <button role="radio" :aria-checked="planScope === 'all'" @click="choosePlanScope('all')">All buildings</button>
+    </div>
     <div v-if="switcher" class="floor-switcher" role="group" :aria-label="'Floors of building ' + switcher.ref">
       <span class="which">{{ switcher.ref }}</span>
       <div v-if="switcher.drawing" class="plan-style" role="radiogroup" aria-label="Plan style">
-        <button role="radio" :aria-checked="planStyle === 'schematic'" @click="choosePlanStyle('schematic')">Schematic</button>
+        <button role="radio" :aria-checked="planStyle === 'schematic'" @click="choosePlanStyle('schematic')">Simplified</button>
         <button role="radio" :aria-checked="planStyle === 'drawing'" @click="choosePlanStyle('drawing')" title="MIT's own drawing, on this computer only">MIT drawing</button>
       </div>
       <button v-for="f in switcher.floors" :key="f.code" :aria-pressed="f.code === switcher.shown" :class="{ route: f.route }" @click="chooseFloor(switcher.ref, f.code)" :title="f.route ? 'Your route uses this floor' : ''">{{ f.code }}</button>
@@ -331,6 +341,8 @@ const app = createApp({
     const accessibleOnly = ref(false);
     const prefStepFree = ref(false);
     const indoorsPreferred = ref(false);
+    const keyless = ref(remembered("keyless") === "on"); // kept on this device: a visitor is one all day
+    watch(keyless, (on) => remember("keyless", on ? "on" : "off"));
     const prefIndoors = ref(false);
     const prefLocation = ref(false);
     const tripName = ref("");
@@ -404,6 +416,9 @@ const app = createApp({
     async function loadMe() {
       const result = await client.auth.me({});
       me.value = "error" in result ? null : result.username;
+      // Fitted drawings exist only where scripts/fit-drawings.py ran, and are served only to someone signed in with
+      // Commons; otherwise this is refused and no choice is offered.
+      fetch("/drawings/index.json").then((r) => (r.ok ? r.json() : {}), () => ({})).then((index) => { if (me.value) drawings.value = index; drawPlans(); }); // a reply after signing out is dropped
       if (me.value) await loadMine();
       else mine.value = null;
     }
@@ -470,7 +485,7 @@ const app = createApp({
       });
     async function signOut() {
       await client.auth.logout({});
-      me.value = null; mine.value = null;
+      me.value = null; mine.value = null; drawings.value = {}; drawPlans();
     }
 
     async function load() {
@@ -486,7 +501,7 @@ const app = createApp({
       const asked = ++latestRoute;
       finished.value = false;
       if (!from.value || !to.value || from.value.place === to.value.place) { steps.value = []; searched.value = false; return; }
-      const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value });
+      const result = await client.route.find({ source: from.value.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value, keyless: keyless.value, day: routeDay(new Date()) });
       if (asked !== latestRoute) return; // an answer to an older choice of places
       if ("error" in result) return say(`Could not find a route: ${result.error}`, "bad");
       pathSteps = result.route.steps; // every point, for drawing; the list shows merged steps
@@ -505,18 +520,24 @@ const app = createApp({
     const routeGeometry = () => {
       const points: Point[] = [];
       const reached: number[] = [];
+      const group: number[] = []; // each point's run of walks on one floor of one building (or outdoors)
+      let key = "", run = 0;
       const push = (q: Point) => {
         const last = points[points.length - 1];
-        if (!last || last[0] !== q[0] || last[1] !== q[1]) points.push(q);
+        if (!last || last[0] !== q[0] || last[1] !== q[1]) { points.push(q); group.push(run); }
       };
       const start: any = from.value;
       if (known(start)) push([start.latitude, start.longitude]);
-      for (const s of pathSteps) {
+      pathSteps.forEach((s, k) => {
+        const before = pathSteps[k - 1], ref = buildingOf(s);
+        const next = `${ref}:${before && buildingOf(before) === ref ? before.floor : s.floor}`;
+        if (next !== key) [key, run] = [next, run + 1];
         for (const corner of s.path ? s.path.split(" ") : []) push(corner.split(",").map(Number) as Point);
         if (known(s)) push([s.latitude, s.longitude]);
         reached.push(points.length - 1);
-      }
-      return { points, reached };
+      });
+      // A walk that overshoots to a corridor's label and comes back to the room beside where it passed is cut short.
+      return trimSpurs(points, group, reached);
     };
     const routeLine = (): Point[] => routeGeometry().points;
     const buildingOf = (p: any) => BUILDING_PREFIX.exec(p?.placeName ?? "")?.[1];
@@ -615,6 +636,15 @@ const app = createApp({
       remember("planStyle", style);
       drawPlans();
     }
+    // Plans of the route's buildings only, or of every building in view.
+    const planScope = ref(remembered("planScope") === "all" ? "all" : "route");
+    const planIndex = ref<Record<string, [number, number][][]>>({});
+    fetch("/plans/index.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : {})).then((i) => { planIndex.value = i; updatePlans(); }).catch(() => {});
+    function choosePlanScope(scope: string) {
+      planScope.value = scope;
+      remember("planScope", scope);
+      updatePlans();
+    }
     /** The route's buildings, in order, with the floor numbers its steps use in each. */
     const routeBuildings = computed(() => {
       const seen = new Map<string, Set<number>>();
@@ -628,7 +658,8 @@ const app = createApp({
       if (ref in planFiles.value) return planFiles.value[ref];
       // Checked with the server every time, so a regenerated map's plans replace any copy the browser kept.
       const response = await fetch(`/plans/${ref}.json`, { cache: "no-cache" }).catch(() => undefined);
-      planFiles.value = { ...planFiles.value, [ref]: response?.ok ? await response.json() : null };
+      const plan = response?.ok ? await response.json() : null; // read before copying the cache, which other loads change meanwhile
+      planFiles.value = { ...planFiles.value, [ref]: plan };
       return planFiles.value[ref];
     }
     const floorsOf = (plan: PlanFile) => Object.entries(plan.floors).sort((a, b) => b[1].level - a[1].level);
@@ -666,17 +697,23 @@ const app = createApp({
         if (!plan || !code || !plan.floors[code]) continue;
         L.polygon(plan.outline, { pane: "plans", color: "#56626d", weight: 2, fillColor: "#f6f6f2", fillOpacity: 0.95 }).addTo(planLayer);
         const drawing = planStyle.value === "drawing" ? drawings.value[ref]?.[code] : undefined;
+        // The corridor network as strokes a corridor's width, the fittings (stairs and elevators) as small squares, the
+        // destination in its traced shape or ringed, and every room as its number: nothing whose shape is a guess.
+        const px = CORRIDOR_WIDTH / (40_075_016 * Math.cos((map.getCenter().lat * Math.PI) / 180) / 256 / 2 ** map.getZoom());
+        // The hallways flooded from the drawing (experiment), under the network; over MIT's drawing, see-through.
+        const [pane, opacity] = drawing ? ["overDrawing", 0.45] : ["plans", 1];
+        for (const ring of plan.floors[code].hallD ?? plan.floors[code].hall ?? []) {
+          L.polygon(ring, { pane, color: "#e3b878", weight: 1, opacity, fillColor: planFill("CORRIDOR"), fillOpacity: opacity, interactive: false }).addTo(planLayer);
+        }
+        // The network in the same colour, only on a floor the flood found no hallways on (its paths are guesses where it did).
+        for (const way of plan.floors[code].hall ? [] : plan.floors[code].ways ?? []) {
+          L.polyline(way, { pane, color: planFill("CORRIDOR"), weight: px, opacity, lineCap: "round", lineJoin: "round", interactive: false }).addTo(planLayer);
+        }
         if (drawing) {
           drawingLayer(drawing).addTo(planLayer);
           const room = destination?.[1] === ref ? plan.floors[code].rooms.find((r) => r.n === destination[2]) : undefined;
           if (room) L.circleMarker(room.at, { pane: "planLabels", radius: 9, color: "#a31f34", weight: 3, fill: false }).bindTooltip(`${ref}-${room.n}`).addTo(planLayer);
           continue;
-        }
-        // The corridor network as strokes a corridor's width, the fittings (stairs and elevators) as small squares, the
-        // destination in its traced shape or ringed, and every room as its number: nothing whose shape is a guess.
-        const px = CORRIDOR_WIDTH / (40_075_016 * Math.cos((map.getCenter().lat * Math.PI) / 180) / 256 / 2 ** map.getZoom());
-        for (const way of plan.floors[code].ways ?? []) {
-          L.polyline(way, { pane: "plans", color: planFill("CORRIDOR"), weight: px, lineCap: "round", lineJoin: "round", interactive: false }).addTo(planLayer);
         }
         const rooms = plan.floors[code].rooms.filter((r) => !SERVICE.test(r.u));
         for (const { room, shapes } of roomShapes(rooms, plan.outline)) {
@@ -696,14 +733,20 @@ const app = createApp({
         }
       }
     }
-    /** At zoom 18 and closer, draw the plans of the route's buildings in view; the switcher follows the one nearest the centre. */
+    /** At zoom 18 and closer, draw the plans in view (the route's buildings, or all); the switcher follows the one nearest the centre. */
+    let planUpdate = 0; // a later update supersedes one still fetching plans for an older view
     async function updatePlans() {
       if (!map) return;
+      const update = ++planUpdate;
       if (map.getZoom() < 18) { visiblePlans.value = []; focus.value = ""; drawPlans(); return; }
       const view = map.getBounds(), centre = map.getCenter();
-      const plans = await Promise.all(routeBuildings.value.map((b) => loadPlan(b.ref)));
-      const inView = routeBuildings.value
-        .map((b, i) => ({ ref: b.ref, plan: plans[i] }))
+      const refs = planScope.value === "all"
+        ? Object.keys(planIndex.value).filter((ref) => view.intersects(L.latLngBounds(planIndex.value[ref].flat())))
+        : routeBuildings.value.map((b) => b.ref);
+      const plans = await Promise.all(refs.map(loadPlan));
+      if (update !== planUpdate) return;
+      const inView = refs
+        .map((ref, i) => ({ ref, plan: plans[i] }))
         .filter((b): b is { ref: string; plan: PlanFile } => !!b.plan && view.intersects(L.latLngBounds(b.plan.outline.flat())));
       const next = { ...shownFloor.value };
       for (const { ref, plan } of inView) next[ref] ??= openingFloor(ref, plan)!;
@@ -748,12 +791,12 @@ const app = createApp({
       sheetOpen.value = true;
       closest.value = [];
       if (!from.value) return;
-      const result = await client.route.closest({ source: from.value.place, text: kind.text, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value });
+      const result = await client.route.closest({ source: from.value.place, text: kind.text, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value, keyless: keyless.value, day: routeDay(new Date()) });
       if ("error" in result) return;
       closest.value = result.closest.places;
       // How far each is: the metres written in its route, as for any route (the cost is not a length).
       const metres = await Promise.all(closest.value.map(async (c: any) => {
-        const route = await client.route.find({ source: from.value!.place, destination: c.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value });
+        const route = await client.route.find({ source: from.value!.place, destination: c.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: hour.value, keyless: keyless.value, day: routeDay(new Date()) });
         return "error" in route ? undefined : route.route.steps.reduce((sum: number, st: any) => sum + Number(/about (\d+) m/.exec(st.instruction)?.[1] ?? 0), 0);
       }));
       closest.value = closest.value.map((c: any, i: number) => ({ ...c, meters: metres[i] }));
@@ -805,9 +848,10 @@ const app = createApp({
         meMarker ??= L.circleMarker(here, { radius: 8, color: "#00a6a6", fillColor: "#00a6a6", fillOpacity: 0.9 }).bindTooltip("You").addTo(map);
         meMarker.setLatLng(here);
       }
-      // Only a step that arrives at a building can be checked from outside; reaching it finishes every step before it.
+      // Only outdoor steps can be checked (a walk along a street, or one that arrives at a building's door); reaching
+      // where one ends finishes every step before it.
       steps.value.forEach((s, i) => {
-        if (i >= doneCount.value && s.kind === "ENTRANCE" && known(s) && groundMeters(here, [s.latitude, s.longitude]) <= REACHED) doneCount.value = i + 1;
+        if (i >= doneCount.value && (s.kind === "ENTRANCE" || s.entrance || "street" in s) && known(s) && groundMeters(here, [s.latitude, s.longitude]) <= REACHED) doneCount.value = i + 1;
       });
       const line = routeLine();
       if (!line.length || doneCount.value >= steps.value.length || rerouting) return;
@@ -821,7 +865,7 @@ const app = createApp({
         const answer = await client.route.nearest({ latitude: here[0], longitude: here[1] });
         const nearest = "error" in answer ? undefined : answer.nearest.places[0];
         if (!nearest || !to.value) return say("You seem to be off the route, and no nearby building was found. Keep to the line on the map.", "bad");
-        const result = await client.route.find({ source: nearest.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: nowHour() });
+        const result = await client.route.find({ source: nearest.place, destination: to.value.place, accessibleOnly: accessibleOnly.value, indoorsPreferred: indoorsPreferred.value, hour: nowHour(), keyless: keyless.value, day: routeDay(new Date()) });
         if ("error" in result || !result.route.steps.length) return say(`You seem to be off the route, and there is no route from ${nearest.name}. Keep to the old route.`, "bad");
         skipNextRoute = true;
         from.value = { ...nearest, kind: "ENTRANCE", floor: 1 };
@@ -893,7 +937,7 @@ const app = createApp({
       await loadMine();
     }
 
-    watch([from, to, accessibleOnly, indoorsPreferred, time], () => {
+    watch([from, to, accessibleOnly, indoorsPreferred, keyless, time], () => {
       if (skipNextRoute) { skipNextRoute = false; return; } // the reroute already found this route
       message.value = "";
       findRoute();
@@ -911,13 +955,12 @@ const app = createApp({
       // Plans have their own panes below the overlay pane (400), so the route line is always drawn over them.
       map.createPane("plans").style.zIndex = "350";
       map.createPane("drawings").style.zIndex = "355"; // MIT's drawings, over the plan's outline fill
+      Object.assign(map.createPane("overDrawing").style, { zIndex: "357", pointerEvents: "none" }); // hallways over a drawing
       map.createPane("planLabels").style.zIndex = "360";
       planLayer = L.layerGroup().addTo(map);
       map.on("moveend", updatePlans);
       routeLayer = L.layerGroup().addTo(map);
       map.on("zoomend", () => map.getContainer().classList.toggle("labels", map.getZoom() >= 20));
-      // Fitted drawings exist only where scripts/fit-drawings.py ran; elsewhere this is a 404 and no choice is offered.
-      fetch("/drawings/index.json").then((r) => (r.ok ? r.json() : {}), () => ({})).then((index) => { drawings.value = index; drawPlans(); });
       if (window.location.pathname === "/auth/commons/callback") await finishCommons();
       else await loadMe();
       if (me.value) { accessibleOnly.value = prefStepFree.value; indoorsPreferred.value = prefIndoors.value; tracking.value = prefLocation.value; }
@@ -928,8 +971,8 @@ const app = createApp({
 
     return {
       me, mine, showSignIn, creating, choosing, username, password, authError, submitPassword, startCommons, chooseUsername, signOut,
-      reports, unreported, steps, from, to, accessibleOnly, indoorsPreferred, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
-      planStyle, choosePlanStyle, startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, sheetStyle, grab, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefIndoors, prefLocation, savePreferences, finished, finishTrip,
+      reports, unreported, steps, from, to, accessibleOnly, indoorsPreferred, keyless, time, searched, flagging, reason, message, messageKind, routeMeters, distanceLabel,
+      planStyle, choosePlanStyle, planScope, choosePlanScope, startFlag, block, unblock, tracking, arrivalLabel, tab, sheetOpen, sheetStyle, grab, plaque, swap, kinds, nearestKind, closest, findNearest, chooseClosest, units, unitChoices, chooseUnits, inUnits, routeBuildings, seeBuilding, switcher, chooseFloor, doneCount, isFavorite, toggleFavorite, tripName, saveTrip, useTrip, removeTrip, prefStepFree, prefIndoors, prefLocation, savePreferences, finished, finishTrip,
     };
   },
 });
@@ -944,11 +987,11 @@ app.component("PlacePicker", {
         @focus="onFocus" @input="onInput" @blur="close" @keydown.esc="close" @keydown.enter.prevent="pickFirst" />
       <ul v-if="open" class="options">
         <li v-for="p in pinned" :key="p.place" :class="{ chosen: p.place === modelValue?.place }" @mousedown.prevent="choose(p)">
-          <span class="name">{{ p.name }}</span> <span class="floor">{{ floorLabel(p.floor) }}</span>
+          <span class="name">{{ p.name }}<small v-if="matchedAlias(p)" class="aka">{{ matchedAlias(p) }}</small></span> <span class="floor">{{ floorLabel(p.floor) }}</span>
         </li>
         <li v-if="pinned.length && others.length" class="divider" role="separator"></li>
         <li v-for="p in others" :key="p.place" :class="{ chosen: p.place === modelValue?.place }" @mousedown.prevent="choose(p)">
-          <span class="name">{{ p.name }}</span> <span class="floor">{{ floorLabel(p.floor) }}</span>
+          <span class="name">{{ p.name }}<small v-if="matchedAlias(p)" class="aka">{{ matchedAlias(p) }}</small></span> <span class="floor">{{ floorLabel(p.floor) }}</span>
         </li>
         <li v-if="!results.length" class="none">No matching places</li>
         <li v-else-if="results.length >= 40" class="none">Type more to narrow the list.</li>
@@ -961,6 +1004,11 @@ app.component("PlacePicker", {
     // Entrances (buildings and the Simmons lobby) come first from the server, set apart by a divider.
     const pinned = computed(() => results.value.filter((p) => p.kind === "ENTRANCE"));
     const others = computed(() => results.value.filter((p) => p.kind !== "ENTRANCE"));
+    // The alias the typed text matched, when the name itself doesn't contain it ("MIT Museum" for "Building E28").
+    const matchedAlias = (p: Place) => {
+      const q = text.value.trim().toLowerCase();
+      return q && !p.name.toLowerCase().includes(q) ? p.aliases?.split(", ").find((a) => a.toLowerCase().includes(q)) ?? "" : "";
+    };
     watch(() => props.modelValue, (p) => { text.value = p?.name ?? text.value; }, { immediate: true });
 
     let latest = 0;
@@ -981,7 +1029,7 @@ app.component("PlacePicker", {
     const choose = (p: Place) => { emit("update:modelValue", p); text.value = p.name; open.value = false; };
     const pickFirst = () => { const first = pinned.value[0] ?? others.value[0]; if (first) choose(first); };
     const close = () => { open.value = false; text.value = props.modelValue?.name ?? ""; };
-    return { text, open, results, pinned, others, floorLabel, onFocus, onInput, choose, pickFirst, close };
+    return { text, open, results, pinned, others, matchedAlias, floorLabel, onFocus, onInput, choose, pickFirst, close };
   },
 });
 

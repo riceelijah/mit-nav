@@ -26,6 +26,14 @@ Commons.finishing.FinishCommons at /auth/commons/finish
 Commons.finishing.ChooseUsername at /auth/commons/choose
 ```
 
+## Signed in with Commons
+
+The [linked endpoint](reaction:Commons.identifying.Linked) passes the session to `Sessioning.use` and responds with whether the user is linked to a Commons account, from `CommonsFederating._linked`. An account is linked only when it was registered by signing in with Commons, and such an account has no password, so every session of a linked user was started by signing in with Commons, with MIT's own login behind it.
+
+```endpoints
+Commons.identifying.Linked at /auth/commons/linked
+```
+
 ## Refusals and the two cookies
 
 The HTTP server clears a cookie only when its endpoint succeeds, or when the answer is `UNAUTHORIZED`. Every refusal from CommonsFederating maps to `FORBIDDEN` instead, as `commonsHttp` beside the endpoints declares with the sign-in cookie, so a stale tab or Leo's link leaves Sam's sign-in cookie in place, and the page shows the username form only for `CONFLICT` and `INVALID_REQUEST`.

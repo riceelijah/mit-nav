@@ -15,6 +15,7 @@ interface PlaceDoc {
   floor: number;
   latitude: number;
   longitude: number;
+  aliases?: string; // absent on a place stored before aliases existed
   order: number;
 }
 
@@ -33,6 +34,7 @@ interface LinkDoc {
   service: string;
   distance: number;
   path?: string; // "lat,lon lat,lon ..." from source to destination; empty or missing draws a straight line
+  keyed?: boolean; // a door locked to anyone without a key outside public hours, going from source to destination
 }
 
 const SEARCH_LIMIT = 40;
@@ -41,6 +43,9 @@ const CLOSEST = 5;
 const OUTDOOR_FACTOR = 3;
 // Building and room numbers sort the way people read them: 2 before 10, 32-123 before 32-G904.
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+
+/** Public hours, when a keyed door lets anyone in: weekdays (1 Monday to 5 Friday) from 6 up to 19 o'clock. */
+const isPublic = (day: number, hour: number) => day >= 1 && day <= 5 && hour >= 6 && hour < 19;
 
 /** Closed from `from` up to `until`, wrapping past midnight; equal values mean never closed. */
 function isClosed(from: number, until: number, hour: number) {
@@ -66,16 +71,18 @@ async function describe(places: Collection<PlaceDoc>, l: LinkDoc) {
  * Dijkstra from `source` until `stop` says to: the cheapest cost to each place reached, how it was reached,
  * and the places in the order they were settled (cheapest first, earliest discovered on a tie).
  */
-function cheapest(links: LinkDoc[], source: string, accessibleOnly: boolean, indoorsPreferred: boolean, hour: number, stop: (place: string) => boolean) {
+function cheapest(links: LinkDoc[], source: string, accessibleOnly: boolean, indoorsPreferred: boolean, hour: number, keyless: boolean, day: number, stop: (place: string) => boolean) {
   const settled: string[] = [];
   // Dijkstra finds the cheapest route. Each connection costs the distance it was given when it was made.
   // Blocked connections and ones closed at this hour are never used, and neither are inaccessible ones when asked to avoid them.
   const usable = links.filter(
     (l) => !l.blocked && !isClosed(l.closedFrom ?? 0, l.closedUntil ?? 0, hour) && (!accessibleOnly || l.accessible),
   );
+  // Without a key, a keyed door is only gone in by in public hours; leaving by it is always allowed.
+  const locked = keyless && !isPublic(day, hour);
   const next = new Map<string, { link: LinkDoc; to: string; instruction: string }[]>();
   for (const l of usable) {
-    (next.get(l.source) ?? next.set(l.source, []).get(l.source)!).push({ link: l, to: l.destination, instruction: l.forward });
+    if (!(locked && l.keyed)) (next.get(l.source) ?? next.set(l.source, []).get(l.source)!).push({ link: l, to: l.destination, instruction: l.forward });
     (next.get(l.destination) ?? next.set(l.destination, []).get(l.destination)!).push({ link: l, to: l.source, instruction: l.backward });
   }
   const dist = new Map<string, number>([[source, 0]]);
@@ -151,13 +158,19 @@ export class WayfindingConcept {
     const place = crypto.randomUUID();
     try {
       const order = await this.places.countDocuments({});
-      await this.places.insertOne({ _id: place, name, kind, floor, latitude, longitude, order });
+      await this.places.insertOne({ _id: place, name, kind, floor, latitude, longitude, aliases: "", order });
     } catch (error) {
       if (error instanceof MongoServerError && error.code === 11000) {
         throw new DuplicatePlace("A place with that name already exists.");
       }
       throw error;
     }
+    return { place };
+  }
+
+  async alias({ place, aliases }: { place: string; aliases: string }) {
+    const { matchedCount } = await this.places.updateOne({ _id: place }, { $set: { aliases } });
+    if (!matchedCount) throw new NoSuchPlace("There is no such place.");
     return { place };
   }
 
@@ -173,6 +186,7 @@ export class WayfindingConcept {
     service,
     distance,
     path,
+    keyed,
   }: {
     source: string;
     destination: string;
@@ -185,6 +199,7 @@ export class WayfindingConcept {
     service: string;
     distance: number;
     path: string;
+    keyed: boolean;
   }) {
     const found = await this.places.countDocuments({ _id: { $in: [source, destination] } });
     const needed = source === destination ? 1 : 2;
@@ -208,6 +223,7 @@ export class WayfindingConcept {
       service,
       distance,
       path,
+      keyed,
     });
     return { link };
   }
@@ -280,13 +296,13 @@ export class WayfindingConcept {
     // ponytail: scans every place per keystroke (~10k, a few ms); a text index if the map grows much larger.
     const rows = await this.places.find({}).toArray();
     return rows
-      .filter((p) => p.kind !== "TRANSIT" && p.name.toLowerCase().includes(q))
+      .filter((p) => p.kind !== "TRANSIT" && (p.name.toLowerCase().includes(q) || (p.aliases ?? "").toLowerCase().includes(q)))
       .sort((a, b) => Number(b.kind === "ENTRANCE") - Number(a.kind === "ENTRANCE") || byName(a.name, b.name))
       .slice(0, SEARCH_LIMIT)
-      .map(({ _id, name, kind, floor, latitude, longitude }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0 }));
+      .map(({ _id, name, kind, floor, latitude, longitude, aliases }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0, aliases: aliases ?? "" }));
   }
 
-  async _closest({ source, text, accessibleOnly, indoorsPreferred, hour }: { source: string; text: string; accessibleOnly: boolean; indoorsPreferred: boolean; hour: number }) {
+  async _closest({ source, text, accessibleOnly, indoorsPreferred, hour, keyless, day }: { source: string; text: string; accessibleOnly: boolean; indoorsPreferred: boolean; hour: number; keyless: boolean; day: number }) {
     const places = new Map((await this.places.find({}).toArray()).map((p) => [p._id, p]));
     if (!places.has(source)) return [];
     const q = text.trim().toLowerCase();
@@ -297,7 +313,7 @@ export class WayfindingConcept {
     const links = (await this.links.find({}).toArray()).sort((a, b) => a.order - b.order);
     let found = 0;
     // Settled order is cheapest first, so the search can stop at the fifth match.
-    const { dist, settled } = cheapest(links, source, accessibleOnly, indoorsPreferred, hour, (id) => matches(id) && ++found >= CLOSEST);
+    const { dist, settled } = cheapest(links, source, accessibleOnly, indoorsPreferred, hour, keyless, day, (id) => matches(id) && ++found >= CLOSEST);
     return settled
       .filter(matches)
       .slice(0, CLOSEST)
@@ -330,18 +346,22 @@ export class WayfindingConcept {
     accessibleOnly,
     indoorsPreferred,
     hour,
+    keyless,
+    day,
   }: {
     source: string;
     destination: string;
     accessibleOnly: boolean;
     indoorsPreferred: boolean;
     hour: number;
+    keyless: boolean;
+    day: number;
   }) {
     const places = new Map((await this.places.find({}).toArray()).map((p) => [p._id, p]));
     if (!places.has(source) || !places.has(destination) || source === destination) return [];
     const links = (await this.links.find({}).toArray()).sort((a, b) => a.order - b.order);
 
-    const { came } = cheapest(links, source, accessibleOnly, indoorsPreferred, hour, (place) => place === destination);
+    const { came } = cheapest(links, source, accessibleOnly, indoorsPreferred, hour, keyless, day, (place) => place === destination);
     if (!came.has(destination)) return [];
 
     const path: { link: LinkDoc; instruction: string; place: PlaceDoc }[] = [];

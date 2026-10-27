@@ -112,6 +112,10 @@ export class FederatingConcept<User extends string> {
     return { linkable: link === null };
   }
 
+  async _linked({ user }: { user: User }) {
+    return { linked: (await this.links.findOne({ user })) !== null };
+  }
+
   #confirmed(attempt: Attempt) {
     return this.attempts.findOne<ConfirmedAttempt>({ _id: attempt, ...CONFIRMED });
   }

@@ -92,6 +92,8 @@ test("path network: keeps ends, junctions and sharp bends; steps are not step-fr
     way(11, [4, 5], { highway: "steps" }),
     way(12, [8, 9], { highway: "footway" }),
     way(13, [5, 1], { highway: "primary" }), // busy road: never walked
+    way(14, [5, 1], { highway: "corridor", name: "Infinite Corridor" }), // indoors: the building's floors are the way
+    way(15, [5, 1], { highway: "footway", indoor: "yes" }),
   ];
   const { points, edges } = pathNetwork(elements);
   expect(points.map((p) => p.id).sort()).toEqual(["1", "3", "4", "5"]);

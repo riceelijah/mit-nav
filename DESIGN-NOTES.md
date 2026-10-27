@@ -113,3 +113,16 @@ Still open:
 1. **The 303 unjoined links** keep their straight line (mostly label positions outside the outline, and floors whose outline is a point: buildings 12, 46, E15 have no OSM footprint). Dropping them would strand floors; bridging needs per-case tracing.
 2. **Wire size.** `path` rides on every `_route` step (a few KB per route). Fine today.
 3. **What the audit still flags** is tracing quality (labels inside traced rooms, corridors swallowed into room traces, labs as thoroughfares); `bun scripts/audit-paths.ts <building>` says where.
+
+### Seventh round: hallways merged, footprints, cleanup
+
+The hallway-first experiment (`fit-drawings.py --hallways`, branch `claude/hungry-shaw-595ef8`, with its uncommitted work) is merged in, and origin/main with it. Its audit counts two things: metres through rooms, and metres off any traced hallway, open floor or circulation. Baseline after the merge: 1 891 through rooms, 3 775 off, 239 unjoined.
+
+- **Footprints for six buildings.** E15, E25, E62 and 12 have OSM footprints whose number is only in their name ("E15 Wiesner Building"). W4 and 46 are relations that Overpass sent without member geometry. All six came in as a single point, so their floors had no walkable base and routes cut through rooms (the 88 m E15 offenders). The converter now takes a number from the name when MapIT's centre for that number lies within the footprint's bounds, and fetches relation outlines from OpenStreetMap's API into `data/raw/osm-relations.json`. The six were re-fitted and retraced with their footprints. New joins: 12↔13/16/26, 45↔46, E14↔E15, all real.
+- **Hallway rings kept their holes only on paper.** `slit()` cut each hole open with a one-pixel line, and a diagonal one-pixel line leaves 8-connected pixels joined, so `findContours` walked round the outside and the stored ring covered the central block (13 floor 4: routes ran straight through the labs). The cut is two pixels now, and all floors were retraced. Only 5 traced rooms on 2 floors (W4 1, 45 1) still sit under a hallway ring.
+- **Plans.** Hallways are filled in the corridor colour; the lounge tint was nearly invisible. The corridor network is drawn on every floor in that colour, but only its strokes the flood missed: a stroke at least 70% inside a flooded hallway is left out, so the two never both show (36 floor 4 keeps its strokes). The Ways toggle is gone. A stroke whose midway point lies inside a traced room (not circulation, not open to the hallway) is also left out. 1 365 strokes remain of 3 328.
+- **Spurs trimmed.** A route that goes to a corridor's label past the room and comes back (13-4027) is drawn without the excursion (`trimSpurs` in web/indoor.ts, one floor of one building at a time). The step texts still give the walked distances ("46 m along the corridor, then 17 m").
+
+Now: **1 492** through rooms (worst 29 m), 4 329 off, 125 unjoined. "Off" rose because central blocks are excluded from the hallway now, so walks to rooms inside them cross untraced floor. Plans 9.7 MB, campus.json 8.5 MB.
+
+Still open: what remains is untraced corridors (36 floor 4, 48 floor 1, the basement of 3), where the line keeps to untraced floor. Unlabelled open floor can be an atrium void (E15 floor 4), which the tracer cannot tell from floor.

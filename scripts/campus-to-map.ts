@@ -8,6 +8,7 @@
 //                         downloaded on the first run.
 //   centers.json          MapIT's public building centres, downloaded on the first run, for
 //                         buildings OpenStreetMap has no outline for.
+//   osm-relations.json    Outer ways of footprints Overpass sent without geometry, from OpenStreetMap's API.
 //   whereis.json          Building names from whereis.mit.edu for buildings OpenStreetMap leaves unnamed.
 //   entrances.json        OpenStreetMap entrance nodes, downloaded on the first run.
 //   paths.json            OpenStreetMap footpaths, sidewalks, crossings and small streets, downloaded on the first run.
@@ -32,10 +33,21 @@ import { nearestOpen, walkToward } from "../web/indoor.ts";
 import { roomShapes } from "../web/shapes.ts";
 
 type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
-export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number };
+export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number; aliases?: string };
+
+// Everyday names for landmarks, on the building that holds them or, for one outdoors, the building in front of it.
+const LANDMARKS: Record<string, string> = {
+  "7": "Lobby 7, Little Dome, 77 Massachusetts Avenue, 77 Mass Ave, Information Center",
+  "10": "Lobby 10, Great Dome, Infinite Corridor, Killian Court",
+  "13": "Outfinite, Reif Innovation Corridor",
+  E28: "MIT Museum, Gambrill Center",
+  E38: "Admissions, Welcome Center",
+};
+const LAVATORY = "bathroom, restroom, toilet, washroom";
 // source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance, outdoor (only outdoor walks carry
-// it), and the path walked, "lat,lon lat,lon ..." (only links traced over a floor's outlines carry it; see withPaths)
-export type Link = [string, string, string, string, boolean, number, number, string, number, boolean?, string?];
+// it), the path walked, "lat,lon lat,lon ..." (only links traced over a floor's outlines carry it; see withPaths), and
+// keyed (the ways in from outside: locked to anyone without an MIT ID outside public hours)
+export type Link = [string, string, string, string, boolean, number, number, string, number, boolean?, string?, boolean?];
 export type Point = [number, number];
 type Building = { ref: string; name: string; rings: Point[][]; center: Point };
 
@@ -254,7 +266,7 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   }
   for (const r of rooms) {
     const { corridor, meters: m, at } = attach(r.code, r.at);
-    places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0, at });
+    places.push({ name: r.name, kind: "ROOM", floor: r.level, latitude: 0, longitude: 0, at, ...(/Lavatory$/.test(r.name) && { aliases: LAVATORY }) });
     const door = (from: Spot, m: number | undefined): Link => [
       from.name, r.name,
       `${walkTo(m, `${r.number} (${title(r.use).toLowerCase()})`)}.`, `Leave ${r.number} for the corridor.`,
@@ -314,12 +326,37 @@ async function loadBuildings(): Promise<Building[]> {
     if (!response.ok) throw new Error(`Overpass answered ${response.status}`);
     writeFileSync(file, await response.text());
   }
+  const centersFile = new URL("centers.json", raw);
+  if (!existsSync(centersFile)) {
+    const response = await fetch("https://mitmapit.org/api/building-centers");
+    if (!response.ok) throw new Error(`MapIT answered ${response.status}`);
+    writeFileSync(centersFile, await response.text());
+  }
+  const centers = JSON.parse(readFileSync(centersFile, "utf8"));
+  const centerOf = new Map<string, any>(centers.map((c: any) => [c.building, c]));
+  const holds = (e: any, n: string) => {
+    const c = centerOf.get(n), b = e.bounds;
+    return c && b && b.minlat <= Number(c.lat) && Number(c.lat) <= b.maxlat && b.minlon <= Number(c.long) && Number(c.long) <= b.maxlon;
+  };
+  // Relations Overpass answered without their members' geometry (W4, 46): their outer ways from OpenStreetMap's API.
+  const relationsFile = new URL("osm-relations.json", raw);
+  const relations: Record<string, { lat: number; lon: number }[][]> = existsSync(relationsFile) ? JSON.parse(readFileSync(relationsFile, "utf8")) : {};
   const byRef = new Map<string, Building>();
   for (const e of JSON.parse(readFileSync(file, "utf8")).elements) {
-    const ref: string | undefined = e.tags?.ref;
+    // Some footprints carry the number only in their name ("E15 Wiesner Building"): taken when MapIT's centre for
+    // that number lies within the footprint's bounds.
+    const ref: string | undefined = e.tags?.ref ?? [/^(\S+)(?: |$)/.exec(e.tags?.name ?? "")?.[1]].find((n) => n && holds(e, n));
     // MIT building numbers: 32, 6C, E14, NW86, W85ABC. Leaves out street addresses such as 181MA.
     if (!ref || !/^(?:[NESW]{1,2}|WW)?\d+[A-Z]*$/.test(ref) || /MA$/.test(ref)) continue;
-    const outlines = e.type === "way" ? [e.geometry] : (e.members ?? []).filter((m: any) => m.role !== "inner" && m.geometry).map((m: any) => m.geometry);
+    if (e.type === "relation" && !e.members && !(e.id in relations)) {
+      const response = await fetch(`https://api.openstreetmap.org/api/0.6/relation/${e.id}/full.json`, { headers: { "user-agent": "mit-nav (6.1040 class project)" } });
+      const full = response.ok ? (await response.json()).elements : [];
+      const nodes = new Map(full.filter((n: any) => n.type === "node").map((n: any) => [n.id, { lat: n.lat, lon: n.lon }]));
+      const outer = new Set(full.find((r: any) => r.type === "relation")?.members.filter((m: any) => m.role !== "inner").map((m: any) => m.ref));
+      relations[e.id] = full.filter((w: any) => w.type === "way" && outer.has(w.id)).map((w: any) => w.nodes.map((n: number) => nodes.get(n)));
+      writeFileSync(relationsFile, JSON.stringify(relations));
+    }
+    const outlines = e.type === "way" ? [e.geometry] : e.members ? e.members.filter((m: any) => m.role !== "inner" && m.geometry).map((m: any) => m.geometry) : relations[e.id] ?? [];
     const rings: Point[][] = outlines.filter((g: any[]) => g?.length >= 3).map((g: any[]) => g.map((p) => toMeters(p.lon, p.lat)));
     if (!rings.length) continue;
     // OSM names often repeat the number ("32 Stata Center"), and some are only the number.
@@ -328,15 +365,9 @@ async function loadBuildings(): Promise<Building[]> {
     b.rings.push(...rings);
     b.name ||= name;
   }
-  // Buildings OpenStreetMap has no outline for (such as 12, 46 and E15) come in as a single point at
+  // Buildings OpenStreetMap has no outline for come in as a single point at
   // the centre MapIT publishes, which is enough for outdoor walks; they just never count as touching.
-  const centersFile = new URL("centers.json", raw);
-  if (!existsSync(centersFile)) {
-    const response = await fetch("https://mitmapit.org/api/building-centers");
-    if (!response.ok) throw new Error(`MapIT answered ${response.status}`);
-    writeFileSync(centersFile, await response.text());
-  }
-  for (const c of JSON.parse(readFileSync(centersFile, "utf8"))) {
+  for (const c of centers) {
     if (byRef.has(c.building)) continue;
     const p = toMeters(Number(c.long), Number(c.lat));
     byRef.set(c.building, { ref: c.building, name: "", rings: [[p, p]], center: p });
@@ -495,7 +526,9 @@ export type PathEdge = { from: string; to: string; meters: number; stepFree: boo
 export function pathNetwork(elements: any[], streets: Street[] = []) {
   const nodes = new Map<number, Point>();
   for (const e of elements) if (e.type === "node") nodes.set(e.id, toMeters(e.lon, e.lat));
-  const ways = elements.filter((e) => e.type === "way" && WALKABLE.test(e.tags?.highway ?? "") && e.nodes.every((n: number) => nodes.has(n)));
+  // An indoor way (the Infinite Corridor) is left out: the building's own floors are the way through it.
+  const indoor = (t: any) => t?.highway === "corridor" || t?.indoor === "yes";
+  const ways = elements.filter((e) => e.type === "way" && WALKABLE.test(e.tags?.highway ?? "") && !indoor(e.tags) && e.nodes.every((n: number) => nodes.has(n)));
   const uses = new Map<number, number>();
   for (const w of ways) for (const n of w.nodes) uses.set(n, (uses.get(n) ?? 0) + 1);
   const turn = (a: Point, b: Point, c: Point) => {
@@ -566,6 +599,10 @@ export function tracedOutlines(ref: string): Record<string, Record<string, any>>
     if (recovered.length) (kept[code] ??= {})["!"] = recovered;
     if (floor.open) (kept[code] ??= {})[""] = floor.open;
     if (floor.openD) (kept[code] ??= {})["~open"] = floor.openD;
+    if (floor.hall) (kept[code] ??= {})["hall"] = floor.hall;
+    if (floor.hallD) (kept[code] ??= {})["~hall"] = floor.hallD;
+    if (floor.hallOpen) (kept[code] ??= {})["hall-open"] = floor.hallOpen;
+    if (floor.doors) (kept[code] ??= {})["hall-doors"] = floor.doors;
   }
   return kept;
 }
@@ -584,9 +621,11 @@ function loadLocated(): Map<string, Located> {
 }
 
 const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/;
+const HALL_COVERED = 0.7; // a corridor-network path this much inside the flooded hallway is not drawn as a stroke
 const SNAP = 6; // metres: a corridor marked beside its traced floor is moved onto it
 const HALL_REACH = 15; // metres: a room without an outline is met at the open floor this near it
 const DOOR_REACH = 4; // metres: a traced room is joined through its door at the open floor this near it
+const DOOR_NEAR = 25; // metres: a room without an outline is met at the hallway doorway this near its position, when the floor has them
 type LatLon = [number, number];
 const encode = (path: LatLon[]) => path.map(([lat, lon]) => `${lat.toFixed(7)},${lon.toFixed(7)}`).join(" ");
 const latLonMeters = (a: LatLon, b: LatLon) => Math.hypot((b[1] - a[1]) * 111_320 * Math.cos((a[0] * Math.PI) / 180), (b[0] - a[0]) * 111_320);
@@ -663,15 +702,24 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
   const at = (p: Place): LatLon => [p.latitude, p.longitude];
   // The floor's walkable space: the whole outline except the rooms (traced corridors, lobbies, bridges, lounges and open
   // floor count as open even where a room's approximate shape covers them), and the connection's own two rooms.
+  // The floor's hallways flooded from its corridors (`hall`, experiment) are open floor too, where they were traced.
   const spaces = (ref: string, level: number, own: string[]) => {
     const f = floorOf(ref, level);
     if (!f) return undefined;
-    const preferred: LatLon[][] = [...(f.open ?? [])], other: LatLon[][] = [];
+    const preferred: LatLon[][] = [...(f.hall ?? []), ...(f.open ?? [])], other: LatLon[][] = [];
     for (const { room: r, shapes } of shaped(ref, f)) {
       if (CIRCULATION.test(r.u) || r.u === "LOUNGE" || own.includes(r.n)) { if (r.s) preferred.push(r.s); }
       else if (!r.f) other.push(...shapes);
     }
-    return { preferred, other, base: planFiles.get(ref).outline as LatLon[][], traced: (n: string) => f.rooms.some((r: any) => r.n === n && r.s) };
+    return { preferred, other, base: planFiles.get(ref).outline as LatLon[][], traced: (n: string) => f.rooms.some((r: any) => r.n === n && r.s), doors: (f.doors ?? []) as LatLon[] };
+  };
+  /** The hallway doorway nearest an untraced room's position, within DOOR_NEAR; undefined for a traced room or place. */
+  const doorOf = (s: { traced: (n: string) => boolean; doors: LatLon[] } | undefined, p: Place): LatLon | undefined => {
+    const ref = building(p.name);
+    if (!s || !ref || p.kind === "TRANSIT" || s.traced(roomOf(p.name, ref))) return undefined;
+    let best: LatLon | undefined, d = DOOR_NEAR;
+    for (const q of s.doors) { const m = latLonMeters(at(p), q); if (m < d) [best, d] = [q, m]; }
+    return best;
   };
   // Corridors onto their floor: the nearest traced open floor, or, on a floor without tracing, the nearest point of the
   // outline that no room's square covers (labels often sit under a neighbour's square).
@@ -713,12 +761,14 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     const sa = ra ? spaces(ra, a.floor, own) : undefined, sb = ra === rb ? sa : rb ? spaces(rb, b.floor, own) : undefined;
     if (!sa && !sb) continue;
     const reach = (s: NonNullable<typeof sa>, p: Place) => (!building(p.name) || s.traced(roomOf(p.name, building(p.name)!)) || p.kind === "TRANSIT" ? DOOR_REACH : HALL_REACH);
+    // An untraced room with a hallway doorway near it is entered by that door: the walk ends there and runs straight in.
+    const doorA = doorOf(sa, a), doorB = doorOf(sb, b);
     // Out of a hall the walk is found backwards, so it starts at the open floor the hall is met from. A connection between
     // two buildings, or in from a door, is one walk with a strip between the two places making the gap between the
     // outlines (a door, bridge or passage) walkable; rooms in either building still cost as rooms.
     const both = ra === rb ? sa! : { preferred: [...(sa?.preferred ?? []), ...(sb?.preferred ?? [])], other: [...(sa?.other ?? []), ...(sb?.other ?? [])], base: [...(sa?.base ?? []), ...(sb?.base ?? []), strip(at(a), at(b))] };
-    const w = walkToward(both.preferred, at(b), at(a), both.other, sa ? reach(sa, a) : DOOR_REACH, both.base);
-    const path = w && [at(a), ...w.path.reverse(), at(b)];
+    const w = walkToward(both.preferred, doorB ?? at(b), doorA ?? at(a), both.other, doorA ? DOOR_REACH : sa ? reach(sa, a) : DOOR_REACH, both.base);
+    const path = w && [at(a), ...(doorA ? [doorA] : []), ...w.path.reverse(), ...(doorB ? [doorB] : []), at(b)];
     if (!path) { straight++; continue; }
     traced++;
     const m = pathMeters(path);
@@ -751,7 +801,7 @@ async function buildCampus() {
     doorsOf.set(b.ref, doors);
   }
   const where = (b: Building) => doorsOf.get(b.ref)![0]?.at ?? b.center;
-  for (const b of buildings) places.push({ name: buildingPlace(b), kind: "ENTRANCE", floor: 1, ...toLatLon(where(b)) });
+  for (const b of buildings) places.push({ name: buildingPlace(b), kind: "ENTRANCE", floor: 1, ...toLatLon(where(b)), ...(LANDMARKS[b.ref] && { aliases: LANDMARKS[b.ref] }) });
 
   const gaps = new Map<string, number>();
   const gap = (i: number, j: number) => {
@@ -823,7 +873,7 @@ async function buildCampus() {
       if (!((ways.get(door.name)?.[1] ?? Infinity) <= (m ?? 0))) ways.set(door.name, [corridor.name, m ?? 0]);
     }
     for (const [door, [corridor, m]] of ways) {
-      links.push([door, corridor, `Go inside ${buildingPlace(b)} to floor ${plan.ground.code}.`, `Leave ${buildingPlace(b)}.`, true, 0, 0, "", ENTER + m / 50]);
+      links.push([door, corridor, `Go inside ${buildingPlace(b)} to floor ${plan.ground.code}.`, `Leave ${buildingPlace(b)}.`, true, 0, 0, "", ENTER + m / 50, false, "", true]);
     }
   }
   // Indoors between buildings: where corridors meet on a floor, or, without positions, where outlines touch.
@@ -873,19 +923,52 @@ async function buildCampus() {
       (f as any).open = traced[code][""].map(tidy);
       if (traced[code]["~open"]?.length === traced[code][""].length) (f as any).openD = traced[code]["~open"].map(tidy);
     }
+    // Experiment (fit-drawings.py --hallways): the floor's hallways flooded from its corridors, `hall` grown into
+    // doorways (withPaths routes through them as well as `open`) and `hallD` as drawn.
+    for (const [code, f] of Object.entries(floors)) {
+      if (!traced[code]?.hall?.length) continue;
+      (f as any).hall = traced[code].hall;
+      if (traced[code]["~hall"]?.length) (f as any).hallD = traced[code]["~hall"];
+      if (traced[code]["hall-open"]?.length) (f as any).hallOpen = traced[code]["hall-open"];
+      if (traced[code]["hall-doors"]?.length) (f as any).doors = traced[code]["hall-doors"];
+    }
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }
   const lines = withPaths(places, links, planFiles);
   // The corridor network each plan draws: the paths of every connection between two pass-through places (corridors,
-  // landings, entrances) on a floor, so the plan shows the ways through, and the route line lies on them.
+  // landings) on a building's floor, so the plan shows the ways through, and the route line lies on them. A path whose
+  // midway point is inside a traced room (not circulation, not open to the hallway) crosses that room and is not drawn;
+  // nor is one that runs mostly (HALL_COVERED) inside the floor's flooded hallway, which already shows that way.
   const kinds = new Map(places.map((p) => [p.name, p.kind]));
+  const within = ([y, x]: number[], ring: number[][]) => {
+    let hit = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [yi, xi] = ring[i], [yj, xj] = ring[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  const along = (way: LatLon[], step: number) => { // points every `step` metres along a path
+    const out: LatLon[] = [];
+    for (let i = 1; i < way.length; i++) {
+      const n = Math.max(1, Math.ceil(latLonMeters(way[i - 1], way[i]) / step));
+      for (let s = 0; s < n; s++) out.push([way[i - 1][0] + ((way[i][0] - way[i - 1][0]) * s) / n, way[i - 1][1] + ((way[i][1] - way[i - 1][1]) * s) / n]);
+    }
+    return out.length ? out : way;
+  };
+  const midway = (way: LatLon[]) => { const pts = along(way, 0.5); return pts[Math.floor(pts.length / 2)]; };
   for (const l of links) {
     if (!l[10] || kinds.get(l[0]) === "ROOM" || kinds.get(l[1]) === "ROOM") continue;
     const level = places.find((p) => p.name === l[0] && BUILDING_PREFIX.test(p.name))?.floor ?? places.find((p) => p.name === l[1])!.floor;
-    const way = l[10].split(" ").map((c) => c.split(",").map(Number));
-    for (const ref of new Set([l[0], l[1]].map((n) => BUILDING_PREFIX.exec(n)?.[1]).filter((r): r is string => !!r))) {
+    const way = l[10].split(" ").map((c) => c.split(",").map(Number) as LatLon), mid = midway(way);
+    // Only a way within one building: an entrance walk or a join between buildings crosses ground the plan doesn't show.
+    const [ra, rb] = [l[0], l[1]].map((n) => BUILDING_PREFIX.exec(n)?.[1]);
+    for (const ref of ra && ra === rb ? [ra] : []) {
       const floor = Object.values<any>((planFiles.get(ref) as any)?.floors ?? {}).find((f) => f.level === level);
-      if (floor) (floor.ways ??= []).push(way);
+      const crosses = floor?.rooms.some((r: any) => r.s && !CIRCULATION.test(r.u) && r.u !== "LOUNGE" && !floor.hallOpen?.includes(r.n) && within(mid, r.s));
+      const pts = floor?.hall ? along(way, 1) : [];
+      const covered = pts.filter((q) => floor.hall.some((h: number[][]) => within(q, h))).length >= HALL_COVERED * pts.length && pts.length > 0;
+      if (floor && !crosses && !covered) (floor.ways ??= []).push(way);
     }
   }
   return { places, links, planFiles, buildings: buildings.length, interiors: [...inside.keys()], paths: lines };
@@ -896,6 +979,9 @@ if (import.meta.main) {
   const plans = new URL("../web/plans/", import.meta.url);
   mkdirSync(plans, { recursive: true });
   for (const [ref, plan] of planFiles) writeFileSync(new URL(`${ref}.json`, plans), JSON.stringify(plan) + "\n");
+  // Which buildings have floors to show, and where, so the page can show every plan in view without fetching them all.
+  const index = Object.fromEntries([...planFiles].filter(([, p]) => Object.keys(p.floors).length).map(([ref, p]) => [ref, p.outline]));
+  writeFileSync(new URL("index.json", plans), JSON.stringify(index) + "\n");
   writeFileSync(
     new URL("../data/campus.json", import.meta.url),
     JSON.stringify({ note: "Generated by scripts/campus-to-map.ts. Do not edit by hand.", places, links }) + "\n",

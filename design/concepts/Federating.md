@@ -79,4 +79,7 @@ _user(attempt: Attempt) : optional (user: User)
 
 _linkable(attempt: Attempt) : one (linkable: Flag)
   Returns true when the attempt is confirmed, unexpired, and its subject unlinked, and false otherwise.
+
+_linked(user: User) : one (linked: Flag)
+  Returns true when a link has user, and false otherwise.
 ```

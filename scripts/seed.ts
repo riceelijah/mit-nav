@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import type { Db } from "mongodb";
 
 type Link = [string, string, string, string, boolean, number?, number?, string?, number?, boolean?, string?];
-export type CampusMap = { places: { name: string; kind: string; floor: number; latitude: number; longitude: number }[]; links: Link[] };
+export type CampusMap = { places: { name: string; kind: string; floor: number; latitude: number; longitude: number; aliases?: string }[]; links: Link[] };
 
 export async function seed(database: Db, map: CampusMap) {
   const places = database.collection<any>("wayfinding.places");
@@ -22,8 +22,8 @@ export async function seed(database: Db, map: CampusMap) {
   const placeWrites = map.places.map((p, order) => {
     const _id = known.get(p.name) ?? crypto.randomUUID();
     ids.set(p.name, _id);
-    const { name, kind, floor, latitude, longitude } = p;
-    return { updateOne: { filter: { _id }, update: { $set: { name, kind, floor, latitude, longitude, order } }, upsert: true } };
+    const { name, kind, floor, latitude, longitude, aliases = "" } = p;
+    return { updateOne: { filter: { _id }, update: { $set: { name, kind, floor, latitude, longitude, aliases, order } }, upsert: true } };
   });
   if (placeWrites.length) await places.bulkWrite(placeWrites, { ordered: false });
 
@@ -35,13 +35,13 @@ export async function seed(database: Db, map: CampusMap) {
   }
   const outServices = new Set((await links.find({ blocked: true, service: { $ne: "" } }).toArray()).map((l) => l.service));
   const kept = new Set<string>();
-  const linkWrites = map.links.map(([from, to, forward, backward, accessible, closedFrom = 0, closedUntil = 0, service = "", distance = 1, outdoor = false, path = ""], order) => {
+  const linkWrites = map.links.map(([from, to, forward, backward, accessible, closedFrom = 0, closedUntil = 0, service = "", distance = 1, outdoor = false, path = "", keyed = false], order) => {
     const source = ids.get(from)!, destination = ids.get(to)!;
     const old = existing.get(key(source, destination, forward))?.shift(); // each old connection is matched at most once
     const _id = old?._id ?? crypto.randomUUID();
     kept.add(_id);
     const blocked = old ? old.blocked : outServices.has(service);
-    const fields = { order, source, destination, forward, backward, accessible, outdoor, blocked, closedFrom, closedUntil, service, distance, path };
+    const fields = { order, source, destination, forward, backward, accessible, outdoor, blocked, closedFrom, closedUntil, service, distance, path, keyed };
     return { updateOne: { filter: { _id }, update: { $set: fields }, upsert: true } };
   });
   if (linkWrites.length) await links.bulkWrite(linkWrites, { ordered: false });

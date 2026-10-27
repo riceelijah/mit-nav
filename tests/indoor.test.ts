@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { corridorPath, walkToward } from "../web/indoor.ts";
+import { corridorPath, trimSpurs, walkToward } from "../web/indoor.ts";
 
 test("indoor line follows an L-shaped corridor round its corner instead of cutting across", () => {
   // An L of two 3 m wide corridors, in metres around (42.36, -71.09): along x from 0 to 30, then up y from 0 to 30.
@@ -51,4 +51,26 @@ test("a walk to an unreachable place ends at the reachable open floor nearest it
   // Without allowance it finds nothing; and the open floor must be within the distance given.
   expect(walkToward([corridor, pocket], ll([1, 1.5]), hall, [], 0)).toBeUndefined();
   expect(walkToward([corridor, pocket], ll([1, 1.5]), hall, [], 5)).toBeUndefined();
+});
+
+test("route line loses an overshoot that comes back along itself, but not across a change of floor", () => {
+  const k = Math.cos((42.36 * Math.PI) / 180);
+  const ll = (x: number, y = 0): [number, number] => [42.36 + y / 111_320, -71.09 + x / (111_320 * k)];
+  // East from 0 to 20 m (a corridor's label), back west to a room at 10.5 m, 0.5 m off the way.
+  const points = [ll(0), ll(10), ll(20), ll(10.5, 0.5)];
+  const trimmed = trimSpurs(points, [0, 0, 0, 0], [0, 2, 3]);
+  expect(trimmed.points).toEqual([ll(0), ll(10), ll(10.5, 0.5)]);
+  expect(trimmed.reached).toEqual([0, 1, 2]); // the label's step now ends where the spur began
+  // The same corners split across two floors (a lift at 20 m): nothing is cut.
+  expect(trimSpurs(points, [0, 0, 1, 1], [0, 2, 3]).points).toEqual(points);
+  // Building 13, floor 4: along a slanting corridor past the room to the label, back along it, then off to the room
+  // 4 m beside it. The line now turns off the corridor where the walk back left it.
+  const slant = [ll(-4.2, 5.4), ll(13.4, 13), ll(13.6, 13.2), ll(7.1, 9.2), ll(-2.2, 10.5)];
+  const cut = trimSpurs(slant, [0, 0, 0, 0, 0], [1, 4]);
+  expect(cut.points.length).toBe(4);
+  expect(cut.points.slice(2)).toEqual([ll(7.1, 9.2), ll(-2.2, 10.5)]);
+  expect(cut.reached).toEqual([1, 3]);
+  // A real detour round a block is not a spur: it never comes back near itself.
+  const round = [ll(0), ll(0, 10), ll(10, 10), ll(10)];
+  expect(trimSpurs(round, [0, 0, 0, 0], [3]).points).toEqual(round);
 });

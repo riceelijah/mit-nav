@@ -40,18 +40,19 @@ export const numbers =
 type Body = Record<string, unknown>;
 const isBody = (v: unknown): v is Body => typeof v === "object" && v !== null && !Array.isArray(v);
 const isHour = (h: unknown) => typeof h === "number" && h >= 0 && h <= 24;
+const isDay = (d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6;
 
-/** Two places (text), step-free and indoors flags (true or false) and an hour from 0 to 24, for a route. */
+/** Two places (text), step-free, indoors and no-MIT-ID flags (true or false), an hour from 0 to 24 and a day from 0 (Sunday) to 6, for a route. */
 export const routeInput: EndpointValidator = (b) =>
-  isBody(b) && typeof b.source === "string" && typeof b.destination === "string" && typeof b.accessibleOnly === "boolean" && typeof b.indoorsPreferred === "boolean" && isHour(b.hour)
+  isBody(b) && typeof b.source === "string" && typeof b.destination === "string" && typeof b.accessibleOnly === "boolean" && typeof b.indoorsPreferred === "boolean" && isHour(b.hour) && typeof b.keyless === "boolean" && isDay(b.day)
     ? { ok: true }
-    : { ok: false, detail: "expected source, destination (text), accessibleOnly and indoorsPreferred (true or false) and hour (0 to 24)" };
+    : { ok: false, detail: "expected source, destination (text), accessibleOnly, indoorsPreferred and keyless (true or false), hour (0 to 24) and day (0 to 6)" };
 
-/** A start, the text naming a kind of place, step-free and indoors flags and an hour from 0 to 24, for the nearest-of-a-kind search. */
+/** A start, the text naming a kind of place, the three flags, an hour and a day as for a route, for the nearest-of-a-kind search. */
 export const closestInput: EndpointValidator = (b) =>
-  isBody(b) && typeof b.source === "string" && typeof b.text === "string" && typeof b.accessibleOnly === "boolean" && typeof b.indoorsPreferred === "boolean" && isHour(b.hour)
+  isBody(b) && typeof b.source === "string" && typeof b.text === "string" && typeof b.accessibleOnly === "boolean" && typeof b.indoorsPreferred === "boolean" && isHour(b.hour) && typeof b.keyless === "boolean" && isDay(b.day)
     ? { ok: true }
-    : { ok: false, detail: "expected source, text, accessibleOnly and indoorsPreferred (true or false) and hour (0 to 24)" };
+    : { ok: false, detail: "expected source, text, accessibleOnly, indoorsPreferred and keyless (true or false), hour (0 to 24) and day (0 to 6)" };
 
 /** signedIn(...) plus a text name and places and a true-or-false step-free flag, for saving a trip. */
 export const tripInput: EndpointValidator = (value) => {
