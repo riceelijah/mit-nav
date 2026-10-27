@@ -1,11 +1,11 @@
-// Each room's drawn shape: its traced outline when it has one, else the part of the floor nearest its label (see roomShapes).
-// Shared by the page (drawing) and the converter (the floor's walkable space is the outline minus these).
+// Each room's drawn shape is its traced outline when it has one, else a stand-in around its label (see roomShapes).
+// The page uses them to draw rooms, and the converter takes them out of the outline to leave the floor's walkable space.
 export type PlanRoom = { n: string; u: string; at: [number, number]; a: number; s?: [number, number][]; d?: [number, number][]; f?: 1 };
 type Flat = [number, number];
 /**
- * Each room's shape: its traced outline when it has one, else a square of its floor area around its label, turned to
- * the building outline's longest edge (a room with no area gets 3 m by 3 m). Squares can overlap and leave gaps, which
- * is honest about what the inventory knows: a position and a size, not walls.
+ * Each room with its shapes and whether they were guessed. A traced room keeps its outline, and any other gets a square
+ * of its floor area around its label, turned to the outline's longest edge (3 m by 3 m with no area). The squares can
+ * overlap and leave gaps, which is honest about what the inventory knows, a position and a size but not walls.
  */
 export function roomShapes(rooms: PlanRoom[], outline: [number, number][][]) {
   const lat0 = outline[0]?.[0]?.[0] ?? 0;

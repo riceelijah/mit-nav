@@ -60,7 +60,7 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
       }
     }
   };
-  // `base` is the whole floor (the building outline), walkable wherever no room is: rooms over it are fattened by a
+  // `base` is the whole floor (the building outline), walkable wherever no room is. Rooms over it are fattened by a
   // cell, so the cracks between approximate room shapes close while corridors stay open.
   for (const r of floor) fill(r, 1);
   for (const r of rest) fill(r, ROOM_COST);
@@ -88,7 +88,7 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
       }
     return best;
   };
-  // Open cells beside a closed or room cell: a step into one costs WALL_COST more, so the path keeps off the walls.
+  // a step into an open cell beside a closed or room cell costs WALL_COST more, so the path keeps off the walls
   const beside = new Uint8Array(w * h);
   for (let c = 0; c < open.length; c++) {
     if (open[c] !== 1) continue;
@@ -147,7 +147,7 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
   }
   let end = goal >= 0 && from[goal] >= 0 ? goal : -1, gap = 0;
   if (end < 0) {
-    // Not reachable: the reached open floor (never a room) nearest b, within `toward`.
+    // when b can't be reached, end at the reached open floor (never a room) nearest it, within `toward`
     if (!toward) return undefined;
     let bestD = toward * toward;
     for (let c = 0; c < from.length; c++) {
@@ -168,7 +168,7 @@ export function walkToward(preferred: LatLon[][], a: LatLon, b: LatLon, other: L
   const clear = (p: number, q: number) => {
     const [pi, pj] = [p % w, Math.floor(p / w)], [qi, qj] = [q % w, Math.floor(q / w)];
     const n = Math.max(Math.abs(qi - pi), Math.abs(qj - pj)) * 2;
-    // A shortcut may not leave the open floor, nor cross a room except where the path itself went through it.
+    // a shortcut may not leave the open floor, nor cross a room except where the path itself went through it
     for (let s = 0; s <= n; s++) {
       const c = Math.round(pj + ((qj - pj) * s) / n) * w + Math.round(pi + ((qi - pi) * s) / n);
       if (!open[c] || (open[c] > 1 && !walked.has(c))) return false;
@@ -194,20 +194,20 @@ export function nearestOpen(rings: LatLon[][], p: LatLon, reach: number): LatLon
   return best && [p[0] + best[1] / 111_320, p[1] + best[0] / (111_320 * k)];
 }
 
-const SPUR_GAP = 1.5; // metres: a line that comes back this close to a stretch it already walked has gone out and back
-const SPUR_SLACK = 4; // metres: ... when the excursion is this much longer than three times the gap
+const SPUR_GAP = 1.5; // metres within which a line that comes back to a stretch it already walked has gone out and back
+const SPUR_SLACK = 4; // metres the excursion must run beyond three times that gap to count as a spur
 
 /**
- * The route line without its out-and-back spurs, as when a walk overshoots to a corridor's label and comes back to
- * the room beside where it passed: where a later corner comes back within SPUR_GAP of an earlier stretch of the line in
- * the same `group` (one floor of one building, say), the excursion between is cut and the line turns at the nearest
- * point of that stretch. `reached` (indices into `points`) is mapped to the trimmed line, an index inside a cut spur to
- * where the spur began.
+ * The route line without its out-and-back spurs, as when a walk overshoots to a corridor's label and returns to the room
+ * beside where it passed. Where a later corner comes back within SPUR_GAP of an earlier stretch in the same `group` (one
+ * floor of one building, say), the excursion is cut and the line turns at the nearest point of that stretch.
+ * `reached` (indices into `points`) is mapped onto the trimmed line, and an index inside a cut spur moves to its start.
  */
 export function trimSpurs(points: LatLon[], group: number[], reached: number[]): { points: LatLon[]; reached: number[] } {
   const k = Math.cos(((points[0]?.[0] ?? 0) * Math.PI) / 180);
   const flat = points.map(([lat, lon]): [number, number] => [lon * 111_320 * k, lat * 111_320]);
-  const along = [0], run = [0]; // distance along the line; where each point's run of one group starts
+  // each point's distance along the line, and where its run of one group starts
+  const along = [0], run = [0];
   for (let i = 1; i < points.length; i++) {
     along.push(along[i - 1] + Math.hypot(flat[i][0] - flat[i - 1][0], flat[i][1] - flat[i - 1][1]));
     run.push(group[i] === group[i - 1] ? run[i - 1] : i);

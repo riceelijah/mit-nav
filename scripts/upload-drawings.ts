@@ -6,7 +6,7 @@ import { join } from "node:path";
 const [dir, server] = process.argv.slice(2);
 const token = process.env.DRAWINGS_UPLOAD_TOKEN;
 if (!dir || !server || !token) throw new Error("Usage: DRAWINGS_UPLOAD_TOKEN=… bun scripts/upload-drawings.ts <dir> <server>");
-// The index last, so the page offers a drawing only once it is there.
+// the index goes last, so the page offers a drawing only once it is there
 const files = readdirSync(dir).filter((f) => f.endsWith(".png")).sort().concat("index.json");
 let sent = 0;
 for (const file of files) {

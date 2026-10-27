@@ -112,6 +112,7 @@ export class FederatingConcept<User extends string> {
     return { linkable: link === null };
   }
 
+  /** Whether `user` has signed in through the provider, as `{ linked }`. */
   async _linked({ user }: { user: User }) {
     return { linked: (await this.links.findOne({ user })) !== null };
   }

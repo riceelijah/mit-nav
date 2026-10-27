@@ -1,9 +1,9 @@
-// Audits the route lines in data/campus.json: every traced path is sampled each half metre, and samples that fall inside
-// a room the walk should not cross (any room but corridors, lobbies, bridges, lounges, rooms open to the floor's flooded
-// hallway, the connection's own two places and the rooms of their suites (same number, another letter), by its traced
-// or schematic shape) are counted; so are samples off the floor's traced hallways, open floor and circulation (and the
-// two places' own shapes), where the line is not on any space the drawing showed. Prints the worst connections and a
-// total per building.
+// Audits the route lines in data/campus.json. Every traced path is sampled each half metre, and the samples that fall
+// inside a room the walk should not cross, by its traced or schematic shape, are counted. Those are all rooms except
+// corridors, lobbies, bridges, lounges, rooms open to the floor's flooded hallway, the connection's own two places and
+// the rooms of their suites (same number, another letter). Samples off the floor's traced hallways, open floor and
+// circulation (and the two places' own shapes) are counted too, since there the line is on no space the drawing showed.
+// Prints the worst connections and a total per building.
 // Usage: bun scripts/audit-paths.ts [building ...]
 import { readFileSync } from "node:fs";
 import { roomShapes } from "../web/shapes.ts";
@@ -11,10 +11,14 @@ import { roomShapes } from "../web/shapes.ts";
 const only = new Set(process.argv.slice(2));
 const campus = JSON.parse(readFileSync(new URL("../data/campus.json", import.meta.url), "utf8"));
 const places = new Map<string, any>(campus.places.map((p: any) => [p.name, p]));
+// the building number at the start of a place's name
 const BUILDING = /^([A-Z]*\d+[A-Z]*)-/;
+// room uses a walk may cross
 const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION|LOUNGE)$/;
+// service rooms, left out of the rooms a walk should not cross
 const SERVICE = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
 const plans = new Map<string, any>();
+/** The building's plan from web/plans, read once; null when it has none. */
 const plan = (ref: string) => {
   if (!plans.has(ref)) {
     try { plans.set(ref, JSON.parse(readFileSync(new URL(`../web/plans/${ref}.json`, import.meta.url), "utf8"))); } catch { plans.set(ref, null); }
@@ -22,8 +26,10 @@ const plan = (ref: string) => {
   return plans.get(ref);
 };
 const shapes = new Map<any, { room: any; flat: [number, number][][] }[]>();
+// metres per degree of longitude shrink by this much at MIT's latitude
 const k = Math.cos((42.36 * Math.PI) / 180);
 const flat = ([lat, lon]: [number, number]): [number, number] => [lon * 111_320 * k, lat * 111_320];
+/** Whether point `p` is inside `ring`, by counting the edges a ray from it crosses. */
 function inside(p: [number, number], ring: [number, number][]) {
   let hit = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -32,6 +38,7 @@ function inside(p: [number, number], ring: [number, number][]) {
   }
   return hit;
 }
+/** The rooms on that floor a walk should not cross, with their shapes flat in metres; none when the floor has no plan. */
 const roomsOn = (ref: string, level: number) => {
   const pl = plan(ref);
   const f = pl && Object.values<any>(pl.floors).find((f) => f.level === level);
@@ -67,7 +74,8 @@ for (const l of campus.links) {
   const spaces = [...new Set(refs)].map((ref) => spacesOn(ref, a.floor));
   const floor = spaces.every((s) => s) ? spaces.flat() as [number, number][][] : undefined;
   const corners = path.split(" ").map((c) => flat(c.split(",").map(Number) as [number, number]));
-  const indoors = a.kind !== "ENTRANCE" && b.kind !== "ENTRANCE"; // an entrance walk crosses the gap outside by design
+  // an entrance walk crosses the gap outside by design
+  const indoors = a.kind !== "ENTRANCE" && b.kind !== "ENTRANCE";
   let hits = 0, total = 0, away = 0;
   const crossed = new Set<string>();
   for (let i = 1; i < corners.length; i++) {

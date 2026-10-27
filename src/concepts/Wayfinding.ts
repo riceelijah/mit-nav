@@ -44,7 +44,7 @@ const OUTDOOR_FACTOR = 3;
 // Building and room numbers sort the way people read them: 2 before 10, 32-123 before 32-G904.
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
-/** Public hours, when a keyed door lets anyone in: weekdays (1 Monday to 5 Friday) from 6 up to 19 o'clock. */
+/** Whether `hour` on `day` is in public hours, when a keyed door lets anyone in. Those run on weekdays (1 Monday to 5 Friday) from 6 up to 19 o'clock. */
 const isPublic = (day: number, hour: number) => day >= 1 && day <= 5 && hour >= 6 && hour < 19;
 
 /** Closed from `from` up to `until`, wrapping past midnight; equal values mean never closed. */
@@ -78,7 +78,7 @@ function cheapest(links: LinkDoc[], source: string, accessibleOnly: boolean, ind
   const usable = links.filter(
     (l) => !l.blocked && !isClosed(l.closedFrom ?? 0, l.closedUntil ?? 0, hour) && (!accessibleOnly || l.accessible),
   );
-  // Without a key, a keyed door is only gone in by in public hours; leaving by it is always allowed.
+  // without a key, a keyed door can be entered only in public hours, but leaving by it is always allowed
   const locked = keyless && !isPublic(day, hour);
   const next = new Map<string, { link: LinkDoc; to: string; instruction: string }[]>();
   for (const l of usable) {
@@ -149,6 +149,7 @@ export class WayfindingConcept {
     this.links = db.collection<LinkDoc>("wayfinding.links");
   }
 
+  /** Adds a place and returns it. Throws DuplicatePlace when another place has the same name. */
   async addPlace({ name, kind, floor, latitude, longitude }: { name: string; kind: Kind; floor: number; latitude: number; longitude: number }) {
     if (!this.indexed) {
       // The unique index is what stops two places from sharing a name, even in a race.
@@ -168,12 +169,14 @@ export class WayfindingConcept {
     return { place };
   }
 
+  /** Sets the extra names `place` is found by and returns the place. Throws NoSuchPlace when there is no such place. */
   async alias({ place, aliases }: { place: string; aliases: string }) {
     const { matchedCount } = await this.places.updateOne({ _id: place }, { $set: { aliases } });
     if (!matchedCount) throw new NoSuchPlace("There is no such place.");
     return { place };
   }
 
+  /** Connects two places and returns the new connection. Throws NoSuchPlace unless both places exist. */
   async connect({
     source,
     destination,
@@ -291,6 +294,7 @@ export class WayfindingConcept {
     return best ? [{ place: best._id, name: best.name, latitude: best.latitude, longitude: best.longitude }] : [];
   }
 
+  /** Up to 40 places whose name or aliases contain `text`, entrances first. */
   async _search({ text }: { text: string }) {
     const q = text.trim().toLowerCase();
     // ponytail: scans every place per keystroke (~10k, a few ms); a text index if the map grows much larger.
@@ -302,6 +306,7 @@ export class WayfindingConcept {
       .map(({ _id, name, kind, floor, latitude, longitude, aliases }) => ({ place: _id, name, kind, floor, latitude: latitude ?? 0, longitude: longitude ?? 0, aliases: aliases ?? "" }));
   }
 
+  /** The five places matching `text` that are cheapest to reach from `source`, each with its cost; none for an unknown start. */
   async _closest({ source, text, accessibleOnly, indoorsPreferred, hour, keyless, day }: { source: string; text: string; accessibleOnly: boolean; indoorsPreferred: boolean; hour: number; keyless: boolean; day: number }) {
     const places = new Map((await this.places.find({}).toArray()).map((p) => [p._id, p]));
     if (!places.has(source)) return [];
@@ -340,6 +345,7 @@ export class WayfindingConcept {
       .map((l) => ({ other: l._id }));
   }
 
+  /** The steps of the cheapest route from `source` to `destination` under the given options; none when there is no route. */
   async _route({
     source,
     destination,
@@ -370,7 +376,7 @@ export class WayfindingConcept {
       path.unshift({ link: step.link, instruction: step.instruction, place: places.get(at)! });
       at = step.from;
     }
-    // A connection walked from its destination to its source has its path's corners in reverse order.
+    // a connection walked from its destination to its source has its path's corners in reverse order
     const walked = (link: LinkDoc, place: PlaceDoc) => (link.destination === place._id ? link.path ?? "" : (link.path ?? "").split(" ").reverse().join(" "));
     return path.map(({ link, instruction, place }, index) => ({
       step: index + 1,

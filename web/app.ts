@@ -10,8 +10,9 @@ const client: any = createHttpClient<CampusWireHttp>({ baseUrl: "/api" });
 
 type Place = { place: string; name: string; kind: string; floor: number; aliases?: string };
 const floorLabel = (floor: number) => (floor === 0 ? "Basement" : floor < 0 ? "Sub-basement" : `Floor ${floor}`);
-// Within this many metres of where an outdoor step ends counts as reaching it; further than OFF_COURSE from the route, twice in a row, reroutes.
+// metres from where an outdoor step ends that count as reaching it
 const REACHED = 40;
+// metres from the route that, twice in a row, start a reroute
 const OFF_COURSE = 75;
 const MIT: [number, number] = [42.3601, -71.0942];
 declare const L: any; // Leaflet, loaded from unpkg in index.html
@@ -43,7 +44,7 @@ function metersFromLine(p: Point, line: Point[]) {
 // from beyond the building's footprint, which the route line only starts or ends in.
 // `open` is the floor's unlabelled open floor (corridor stretches no room names), traced like the rooms.
 // `d` and `openD` are corridors and open floor smoothed for drawing (without doorway notches); route lines use `s` and `open`.
-// `ways` are the floor's corridor network: the paths of the connections between its pass-through places.
+// `ways` are the floor's corridor network, the paths of the connections between its pass-through places.
 // `hall` and `hallD` (experiment) are the floor's hallways flooded from its corridors, grown into doorways and as drawn.
 type PlanFile = { outline: [number, number][][]; floors: Record<string, { level: number; rooms: PlanRoom[]; open?: [number, number][][]; openD?: [number, number][][]; ways?: [number, number][][]; hall?: [number, number][][]; hallD?: [number, number][][]; doors?: [number, number][] }> };
 const PLAN_FILL: [RegExp, string][] = [
@@ -55,7 +56,7 @@ const PLAN_FILL: [RegExp, string][] = [
 ];
 /** Service rooms (shafts and closets) are never drawn: most sit inside corridor walls and would cover the corridor. */
 const SERVICE = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
-const CORRIDOR_WIDTH = 2.5; // metres: how wide the corridor network is drawn
+const CORRIDOR_WIDTH = 2.5; // how wide the corridor network is drawn, in metres
 const planFill = (use: string) => PLAN_FILL.find(([re]) => re.test(use))?.[1] ?? "#ffffff";
 const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 
@@ -85,8 +86,10 @@ function drawingLayer(d: Drawing) {
   return new Layer();
 }
 
-// Outdoor path points have generated names that mean nothing to a person.
-// A building's floor hub is already named "Building 32, floor 1".
+/**
+ * Where a step arrives, as "name, floor n". Outdoor path points get no label, since their generated names mean nothing
+ * to a person, and a building's floor hub keeps its name, which already reads "Building 32, floor 1".
+ */
 const arrivalLabel = (s: any) => (/^Path \d+$/.test(s.placeName) ? "" : /, floor \S+$/.test(s.placeName) ? s.placeName : `${s.placeName}, floor ${s.floor}`);
 
 type Units = "METERS" | "FEET" | "MINUTES";
@@ -341,7 +344,8 @@ const app = createApp({
     const accessibleOnly = ref(false);
     const prefStepFree = ref(false);
     const indoorsPreferred = ref(false);
-    const keyless = ref(remembered("keyless") === "on"); // kept on this device: a visitor is one all day
+    // the no-MIT-ID choice is kept on this device, since a visitor stays one all day
+    const keyless = ref(remembered("keyless") === "on");
     watch(keyless, (on) => remember("keyless", on ? "on" : "off"));
     const prefIndoors = ref(false);
     const prefLocation = ref(false);
@@ -413,12 +417,13 @@ const app = createApp({
     // Blocked passages that have no open report still need a way to be cleared.
     const unreported = computed(() => blocked.value.filter((l) => !reports.value.some((r) => r.link === l.link)));
 
+    /** Finds who is signed in, then loads their saved places and trips and, for a Commons account, MIT's drawings. */
     async function loadMe() {
       const result = await client.auth.me({});
       me.value = "error" in result ? null : result.username;
-      // Fitted drawings exist only where scripts/fit-drawings.py ran, and are served only to someone signed in with
-      // Commons; otherwise this is refused and no choice is offered.
-      fetch("/drawings/index.json").then((r) => (r.ok ? r.json() : {}), () => ({})).then((index) => { if (me.value) drawings.value = index; drawPlans(); }); // a reply after signing out is dropped
+      // fitted drawings exist only where scripts/fit-drawings.py ran, and only someone signed in with Commons is sent them.
+      // Anyone else is refused and offered no choice, and a reply that arrives after signing out is dropped.
+      fetch("/drawings/index.json").then((r) => (r.ok ? r.json() : {}), () => ({})).then((index) => { if (me.value) drawings.value = index; drawPlans(); });
       if (me.value) await loadMine();
       else mine.value = null;
     }
@@ -483,6 +488,7 @@ const app = createApp({
         INVALID_REQUEST: "That username doesn't follow the rule: 3 to 32 letters, digits, _ or -.",
         FORBIDDEN: "This sign-in has expired. Start again.",
       });
+    /** Signs out and forgets the account's saved places and MIT's drawings. */
     async function signOut() {
       await client.auth.logout({});
       me.value = null; mine.value = null; drawings.value = {}; drawPlans();
@@ -497,6 +503,7 @@ const app = createApp({
 
     let latestRoute = 0;
     let pathSteps: any[] = [];
+    /** Asks for the route between the chosen places with the current options, then lists and draws it. */
     async function findRoute() {
       const asked = ++latestRoute;
       finished.value = false;
@@ -514,13 +521,14 @@ const app = createApp({
     // ---- The map: the route as a line through the places it reaches, and where the person is. ----
     let map: any, routeLayer: any, meMarker: any;
     /**
-     * The route as map points, and for each raw step the index of the last point it reaches: each step's own path
-     * (traced by the converter over the floor's outlines; straight when it has none) ending at its place.
+     * The route as map points, and for each raw step the index of the last point it reaches. Each step follows its own
+     * path, traced by the converter over the floor's outlines (or straight when it has none), and ends at its place.
      */
     const routeGeometry = () => {
       const points: Point[] = [];
       const reached: number[] = [];
-      const group: number[] = []; // each point's run of walks on one floor of one building (or outdoors)
+      // each point's run of walks on one floor of one building (or outdoors)
+      const group: number[] = [];
       let key = "", run = 0;
       const push = (q: Point) => {
         const last = points[points.length - 1];
@@ -536,7 +544,7 @@ const app = createApp({
         if (known(s)) push([s.latitude, s.longitude]);
         reached.push(points.length - 1);
       });
-      // A walk that overshoots to a corridor's label and comes back to the room beside where it passed is cut short.
+      // a walk that overshoots to a corridor's label and comes back to the room beside where it passed is cut short
       return trimSpurs(points, group, reached);
     };
     const routeLine = (): Point[] => routeGeometry().points;
@@ -611,6 +619,7 @@ const app = createApp({
       return points;
     }
     watch(doneCount, () => map && drawProgress());
+    /** Draws the route and fits the map to it, keeping it clear of the sheet on a phone. */
     function draw() {
       if (!map) return;
       map.invalidateSize(); // the panel may have changed the map's size since it was laid out
@@ -636,10 +645,12 @@ const app = createApp({
       remember("planStyle", style);
       drawPlans();
     }
-    // Plans of the route's buildings only, or of every building in view.
+    // whether plans are drawn for the route's buildings only or for every building in view
     const planScope = ref(remembered("planScope") === "all" ? "all" : "route");
+    // every building's outline, from plans/index.json, to tell which buildings are in view
     const planIndex = ref<Record<string, [number, number][][]>>({});
     fetch("/plans/index.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : {})).then((i) => { planIndex.value = i; updatePlans(); }).catch(() => {});
+    /** Draws plans for `scope` ("route" or "all") and remembers the choice. */
     function choosePlanScope(scope: string) {
       planScope.value = scope;
       remember("planScope", scope);
@@ -654,11 +665,13 @@ const app = createApp({
       }
       return [...seen].map(([ref, levels]) => ({ ref, levels }));
     });
+    /** Building `ref`'s plan, fetched once and kept; null when it has none. */
     async function loadPlan(ref: string) {
       if (ref in planFiles.value) return planFiles.value[ref];
       // Checked with the server every time, so a regenerated map's plans replace any copy the browser kept.
       const response = await fetch(`/plans/${ref}.json`, { cache: "no-cache" }).catch(() => undefined);
-      const plan = response?.ok ? await response.json() : null; // read before copying the cache, which other loads change meanwhile
+      // read before copying the cache, which other loads change meanwhile
+      const plan = response?.ok ? await response.json() : null;
       planFiles.value = { ...planFiles.value, [ref]: plan };
       return planFiles.value[ref];
     }
@@ -687,6 +700,7 @@ const app = createApp({
       shownFloor.value = { ...shownFloor.value, [ref]: code };
       drawPlans();
     }
+    /** Draws the shown floor of each visible building's plan, or MIT's drawing of it when chosen. */
     function drawPlans() {
       if (!planLayer) return;
       planLayer.clearLayers();
@@ -697,15 +711,16 @@ const app = createApp({
         if (!plan || !code || !plan.floors[code]) continue;
         L.polygon(plan.outline, { pane: "plans", color: "#56626d", weight: 2, fillColor: "#f6f6f2", fillOpacity: 0.95 }).addTo(planLayer);
         const drawing = planStyle.value === "drawing" ? drawings.value[ref]?.[code] : undefined;
-        // The corridor network as strokes a corridor's width, the fittings (stairs and elevators) as small squares, the
-        // destination in its traced shape or ringed, and every room as its number: nothing whose shape is a guess.
+        // the corridor network is drawn as strokes a corridor wide, the fittings (stairs and elevators) as small squares,
+        // the destination in its traced shape or ringed, and every room as its number, so nothing whose shape is a guess.
+        // `px` is a corridor's width in pixels at the current zoom
         const px = CORRIDOR_WIDTH / (40_075_016 * Math.cos((map.getCenter().lat * Math.PI) / 180) / 256 / 2 ** map.getZoom());
-        // The hallways flooded from the drawing (experiment), under the network; over MIT's drawing, see-through.
+        // the hallways flooded from the drawing (experiment) go under the network, see-through over MIT's drawing
         const [pane, opacity] = drawing ? ["overDrawing", 0.45] : ["plans", 1];
         for (const ring of plan.floors[code].hallD ?? plan.floors[code].hall ?? []) {
           L.polygon(ring, { pane, color: "#e3b878", weight: 1, opacity, fillColor: planFill("CORRIDOR"), fillOpacity: opacity, interactive: false }).addTo(planLayer);
         }
-        // The network in the same colour, only on a floor the flood found no hallways on (its paths are guesses where it did).
+        // the network is drawn in the same colour only on a floor where the flood found no hallways, since elsewhere its paths are guesses
         for (const way of plan.floors[code].hall ? [] : plan.floors[code].ways ?? []) {
           L.polyline(way, { pane, color: planFill("CORRIDOR"), weight: px, opacity, lineCap: "round", lineJoin: "round", interactive: false }).addTo(planLayer);
         }
@@ -733,8 +748,9 @@ const app = createApp({
         }
       }
     }
+    // a later update supersedes one still fetching plans for an older view
+    let planUpdate = 0;
     /** At zoom 18 and closer, draw the plans in view (the route's buildings, or all); the switcher follows the one nearest the centre. */
-    let planUpdate = 0; // a later update supersedes one still fetching plans for an older view
     async function updatePlans() {
       if (!map) return;
       const update = ++planUpdate;
@@ -785,6 +801,7 @@ const app = createApp({
     ];
     const nearestKind = ref("");
     const closest = ref<any[]>([]);
+    /** Lists the five places of `kind` cheapest to reach from the start, each with its walking distance. */
     async function findNearest(kind: { label: string; text: string }) {
       nearestKind.value = kind.label;
       tab.value = "route";
@@ -843,13 +860,14 @@ const app = createApp({
         meMarker?.remove(); meMarker = undefined;
       }
     });
+    /** Moves the "You" dot, marks the steps reached, and reroutes after two readings off the route. */
     async function onReading(here: Point) {
       if (map) {
         meMarker ??= L.circleMarker(here, { radius: 8, color: "#00a6a6", fillColor: "#00a6a6", fillOpacity: 0.9 }).bindTooltip("You").addTo(map);
         meMarker.setLatLng(here);
       }
-      // Only outdoor steps can be checked (a walk along a street, or one that arrives at a building's door); reaching
-      // where one ends finishes every step before it.
+      // only outdoor steps can be checked (a walk along a street, or one that arrives at a building's door), and reaching
+      // where one ends finishes every step before it
       steps.value.forEach((s, i) => {
         if (i >= doneCount.value && (s.kind === "ENTRANCE" || s.entrance || "street" in s) && known(s) && groundMeters(here, [s.latitude, s.longitude]) <= REACHED) doneCount.value = i + 1;
       });
@@ -858,6 +876,7 @@ const app = createApp({
       offReadings = metersFromLine(here, line) > OFF_COURSE ? offReadings + 1 : 0;
       if (offReadings >= 2) await reroute(here);
     }
+    /** Finds a new route from the entrance nearest `here`, or says why it can't. */
     async function reroute(here: Point) {
       rerouting = true;
       offReadings = 0; // two fresh readings are needed before rerouting again
@@ -955,7 +974,8 @@ const app = createApp({
       // Plans have their own panes below the overlay pane (400), so the route line is always drawn over them.
       map.createPane("plans").style.zIndex = "350";
       map.createPane("drawings").style.zIndex = "355"; // MIT's drawings, over the plan's outline fill
-      Object.assign(map.createPane("overDrawing").style, { zIndex: "357", pointerEvents: "none" }); // hallways over a drawing
+      // hallways drawn over MIT's drawing
+      Object.assign(map.createPane("overDrawing").style, { zIndex: "357", pointerEvents: "none" });
       map.createPane("planLabels").style.zIndex = "360";
       planLayer = L.layerGroup().addTo(map);
       map.on("moveend", updatePlans);
@@ -1004,7 +1024,7 @@ app.component("PlacePicker", {
     // Entrances (buildings and the Simmons lobby) come first from the server, set apart by a divider.
     const pinned = computed(() => results.value.filter((p) => p.kind === "ENTRANCE"));
     const others = computed(() => results.value.filter((p) => p.kind !== "ENTRANCE"));
-    // The alias the typed text matched, when the name itself doesn't contain it ("MIT Museum" for "Building E28").
+    /** The alias the typed text matched when the name itself doesn't contain it ("MIT Museum" for "Building E28"), else empty. */
     const matchedAlias = (p: Place) => {
       const q = text.value.trim().toLowerCase();
       return q && !p.name.toLowerCase().includes(q) ? p.aliases?.split(", ").find((a) => a.toLowerCase().includes(q)) ?? "" : "";

@@ -34,7 +34,9 @@ to_m = lambda lat, lon: np.array([(lon + 71.09) * 111320 * K, (lat - 42.36) * 11
 to_ll = lambda p: [round(p[1] / 110540 + 42.36, 8), round(p[0] / (111320 * K) - 71.09, 8)]
 
 
+# a room-number label as the drawings print it
 LABEL = r"[A-Z]?\d{3}[A-Z0-9]{0,4}"
+# letters tesseract reads in place of digits, mapped back to them
 DIGITS = str.maketrans("OQDSILBZGT", "0005118267")
 
 
@@ -54,7 +56,8 @@ def read_labels(page, scale=OCR_SCALE):
                 out = subprocess.run(["tesseract", piece, "-", "--psm", "11", "-c", "tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", "tsv"], capture_output=True, text=True).stdout
                 for r in csv.DictReader(out.splitlines(), delimiter="\t"):
                     t = (r.get("text") or "").strip()
-                    if not re.fullmatch(LABEL, t):  # a basement's leading 0 reads as O or Q, a 3 as S
+                    # a basement's leading 0 reads as O or Q, a 3 as S
+                    if not re.fullmatch(LABEL, t):
                         t = t[:3].translate(DIGITS) + t[3:]
                     if re.fullmatch(LABEL, t) and float(r["conf"]) > 60:
                         cx = (x + int(r["left"]) + int(r["width"]) / 2) / scale
@@ -64,12 +67,12 @@ def read_labels(page, scale=OCR_SCALE):
     return {t: (x, y) for t, (x, y, _) in labels.items()}
 
 
-# Characters tesseract mixes up in these drawings' labels (3 for 5 above all), read as one when matching.
+# characters tesseract mixes up in these drawings' labels (3 for 5 above all), read as one when matching.
 FOLD = str.maketrans("358BSODQ01IL7TZ2G6", "333330000111112266")
 
 
 def matches(labels, at):
-    """(drawing position, map position) pairs: each label naming a room, or else read the same as exactly one unmatched room."""
+    """Returns (drawing position, map position) pairs, one for each label that names a room or reads the same as exactly one unmatched room."""
     pairs = [(labels[n], at[n]) for n in labels if n in at]
     folded = {}
     for n in at:
@@ -170,8 +173,8 @@ def share(whole, claimants, mpp, step=4):
 
 
 def prepare(page, to_map, footprint):
-    """The drawing rendered for tracing, with its ink, walls closed across doorways, the footprint masks and the
-    into_doorways() grower: the setup trace() and trace_hallways() share."""
+    """The setup trace() and trace_hallways() share. Returns the drawing rendered for tracing, its ink, its walls closed
+    across doorways, the footprint masks and the into_doorways() grower."""
     import cv2  # only needed for tracing
     from types import SimpleNamespace
     origin, ex, ey = to_map(0, 0), to_map(1, 0) - to_map(0, 0), to_map(0, 1) - to_map(0, 0)
@@ -227,13 +230,14 @@ def prepare(page, to_map, footprint):
 
 def trace(page, to_map, rooms, footprint):
     """Outlines of the rooms the drawing encloses: {room number: [[lat, lon], ...]}, only those that pass the size check."""
-    import cv2  # only needed for tracing
+    # only needed for tracing
+    import cv2
     f = prepare(page, to_map, footprint)
     img, h, w, mpp, to_pdf, ink, closed, beyond = f.img, f.h, f.w, f.mpp, f.to_pdf, f.ink, f.closed, f.beyond
     outline_mask, grow, cross, line_width, into_doorways = f.outline_mask, f.grow, f.cross, f.line_width, f.into_doorways
     _, space, stats, middles = cv2.connectedComponentsWithStats(1 - closed, connectivity=4)
-    # Spaces reaching the margin's outer edge: a corridor open at a building's end (where the next building carries
-    # it on) runs out into the margin strip around the whole outside; such spaces are cut back to the outline.
+    # spaces reaching the margin's outer edge are cut back to the outline. A corridor open at a building's end (where
+    # the next building carries it on) runs out into the margin strip around the whole outside.
     leaky = set(np.unique(space[(cv2.dilate(beyond, cross) == 1) & (beyond == 0)]).tolist()) - {0}
     outside = set(np.unique(np.concatenate([space[0], space[-1], space[:, 0], space[:, -1]])))
     area = lambda k: stats[k, cv2.CC_STAT_AREA] * mpp * mpp
@@ -416,38 +420,29 @@ def trace(page, to_map, rooms, footprint):
 
 SHARED_WALL = 0.15  # neighbouring outlines meet inside the wall between them; more overlap than this share is not that
 
-# --hallways (experiment): the hallways flooded from the corridors and lobbies themselves, not what rooms leave over.
-DOOR_LEAK = 1.2  # metres: the flood is opened (shrunk then regrown) by this, cutting leaks narrower than it (a door
-#                  left open in the drawing, a hairline gap) and single-door cut-ins; corridors are wider than this
-SMOOTH = 0.3  # metres: the hallway opened then closed by this, so text notches, recesses and pixel steps go
-HALL_HOLE = 4.0  # m²: holes in the hallway smaller than this (columns, symbols) are filled; stair blocks stay holes
-ELONGATED = 3.0  # an unlabelled open space at least this many times longer than wide, mostly surviving opening by
-#                  DOOR_LEAK (a lecture hall's seat rows are long too, but narrower), is shaped like a corridor
-DOORS = 2  # a corridor-shaped space with at least this many closed doorways into labelled rooms seeds the flood (an
-#            opening to below has a dashed railing, closed like doors, but no rooms behind it; a hall's aisle has
-#            neither); one with rooms that meets the flood across a closed doorway (fire doors) joins it
-HALL_TYPES = {"LECTURE HALL", "CLASSROOM"}  # rooms the flood takes through their double doors: carved out by their traced outlines
-DOOR_STUB = 0.15  # m²: a piece of the grown hallway beyond the hallway as drawn at least this big is a doorway off it
-LINK = 25.0  # m²: an unlabelled space under this that meets two flooded spaces across closed doorways (the stretch of
-#              corridor between its fire doors) joins them even without rooms of its own; a room or an opening to
-#              below with its door or railing on the hallway meets one
+# for --hallways (experiment), the hallways are flooded from the corridors and lobbies themselves, not from what rooms leave over
+DOOR_LEAK = 1.2  # metres the flood is shrunk then regrown by, cutting leaks narrower than a corridor (open doors, hairline gaps)
+SMOOTH = 0.3  # metres the hallway is opened then closed by, so text notches, recesses and pixel steps go
+HALL_HOLE = 4.0  # m² under which holes in the hallway (columns, symbols) are filled, while stair blocks stay holes
+ELONGATED = 3.0  # how many times longer than wide an unlabelled open space must be to count as shaped like a corridor
+DOORS = 2  # closed doorways into labelled rooms that let a corridor-shaped space seed the flood (railings and aisles have no rooms)
+HALL_TYPES = {"LECTURE HALL", "CLASSROOM"}  # rooms the flood takes through their double doors, carved out again by their outlines
+DOOR_STUB = 0.15  # m² from which a piece of the grown hallway beyond the hallway as drawn is a doorway off it
+LINK = 25.0  # m² under which an unlabelled space meeting two flooded spaces across closed doorways joins them (fire doors)
 
 
 def trace_hallways(f, rooms, carve=None, hints=()):
-    """One hallway mask per floor, flooded from the positions of the corridors, lobbies and bridges (and from
-    unlabelled open floor shaped like a corridor), through open floor whose only barriers are walls: ink smaller
-    than MARK across (text, symbols, columns, dotted lines) is dropped, so a lounge open to the hallway floods with
-    it and a walled one stays out. Returns the mask grown into doorways, the mask as drawn, the seeds used, the
-    rooms found open to the hallway, the doorways off it (pixel points) and a sanity report. `carve`, a mask, is
-    taken out of the hallway (the traced outlines of lecture halls and classrooms, which the flood takes through
-    their double doors). `hints` are pixel points of the room-first tracing's unlabelled open floor: each seeds the
-    unlabelled corridor-shaped space it lies in (label-poor floors)."""
+    """Floods one floor's hallway from its corridors, lobbies and bridges (and corridor-shaped open floor) through open
+    floor whose only barriers are walls. Ink smaller than MARK across is dropped, so a lounge open to the hallway floods
+    with it and a walled one stays out. Returns the hallway grown into doorways, the hallway as drawn, the seeds, the
+    rooms open to it, its doorways (pixel points) and a sanity report. `carve` is a mask taken out of the hallway, and
+    `hints` are pixel points of unlabelled open floor that can seed the space they lie in on label-poor floors."""
     import cv2
     mpp, h, w = f.mpp, f.h, f.w
     barrier = f.shut | f.beyond
     _, space, stats, _ = cv2.connectedComponentsWithStats(1 - barrier, connectivity=4)
     area = lambda k: stats[k, cv2.CC_STAT_AREA] * mpp * mpp
-    # Spaces next to the margin's outer edge: the strip between the walls and the footprint margin, or a leak into it.
+    # spaces next to the margin's outer edge are the strip between the walls and the footprint margin, or a leak into it
     edge = (cv2.dilate(f.beyond, f.cross) == 1) & (f.beyond == 0)
     leaky = set(np.unique(space[edge]).tolist()) - {0}
     at = {}
@@ -469,15 +464,18 @@ def trace_hallways(f, rooms, carve=None, hints=()):
         i = np.argmin((xs + x0 - x) ** 2 + (ys + y0 - y) ** 2)
         return int(xs[i] + x0), int(ys[i] + y0)
     seeds = [(*snap(*at[n]), n) for n in at if use[n] in CIRCULATION]
-    # Stairs and elevators label their spaces too; closet labels sit in corridors and label nothing.
+    # stairs and elevators label their spaces too, but closet labels sit in corridors and label nothing
     labelled = {space[y, x] for n, (x, y) in at.items() if use[n] not in CIRCULATION | SERVICE} - {0}
     comps = {space[y, x] for x, y, _ in seeds} - {0}
     leak = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * round(DOOR_LEAK / mpp / 2) + 1,) * 2)
-    doors = f.shut & (1 - f.walls)  # what closing the walls across doorways added
-    span = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * f.grow + 3,) * 2)  # reaches across a closed doorway
+    # what closing the walls across doorways added
+    doors = f.shut & (1 - f.walls)
+    # reaches across a closed doorway
+    span = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * f.grow + 3,) * 2)
 
     def corridor_shaped(region):
-        """Whether a space mostly survives opening by DOOR_LEAK and is ELONGATED times longer than wide."""
+        """Whether a space mostly survives opening by DOOR_LEAK and is ELONGATED times longer than wide. A lecture
+        hall's seat rows are long too, but too narrow to survive the opening."""
         contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return False
@@ -491,7 +489,8 @@ def trace_hallways(f, rooms, carve=None, hints=()):
         border = set(np.unique(np.concatenate([holes[0], holes[-1], holes[:, 0], holes[:, -1]])).tolist())
         small = [k for k in range(1, n_holes) if k not in border and hstats[k, cv2.CC_STAT_AREA] * mpp * mpp < HALL_HOLE]
         return mask | np.isin(holes, small).astype(np.uint8)
-    shaped = {}  # unlabelled spaces wide enough for a corridor: k -> (a seed pixel, corridor-shaped, doorways into rooms)
+    # unlabelled spaces wide enough for a corridor, as k -> (a seed pixel, corridor-shaped, doorways into rooms)
+    shaped = {}
     for k in range(1, len(stats)):
         if k in comps or k in labelled or k in leaky or area(k) < UNCLAIMED_MIN:
             continue
@@ -502,12 +501,15 @@ def trace_hallways(f, rooms, carve=None, hints=()):
         if cv2.morphologyEx(region, cv2.MORPH_OPEN, leak).sum() < 0.5 * region.sum():
             continue
         ys, xs = np.nonzero(region)
-        i = np.argmin((xs - xs.mean()) ** 2 + (ys - ys.mean()) ** 2)  # a pixel of the space nearest its middle
+        # a pixel of the space nearest its middle
+        i = np.argmin((xs - xs.mean()) ** 2 + (ys - ys.mean()) ** 2)
         n_doors, door = cv2.connectedComponents((cv2.dilate(region, f.cross) & doors[y0:y1, x0:x1]).astype(np.uint8), connectivity=8)
         into_rooms = 0
         for d in range(1, n_doors):
-            beside = set(np.unique(space[y0:y1, x0:x1][cv2.dilate((door == d).astype(np.uint8), span) == 1]).tolist())  # past the door leaf
-            into_rooms += bool(beside & labelled - comps)  # not a seeded hallway an open lounge's label lies in
+            # the spaces past the door leaf
+            beside = set(np.unique(space[y0:y1, x0:x1][cv2.dilate((door == d).astype(np.uint8), span) == 1]).tolist())
+            # a labelled room, not a seeded hallway an open lounge's label lies in
+            into_rooms += bool(beside & labelled - comps)
         shaped[k] = ((int(xs[i] + x0), int(ys[i] + y0)), corridor_shaped(region), into_rooms)
     for k, (seed, shape, into_rooms) in shaped.items():
         if shape and into_rooms >= DOORS:
@@ -516,11 +518,12 @@ def trace_hallways(f, rooms, carve=None, hints=()):
     for hx, hy in hints:
         if 0 <= hy < h and 0 <= hx < w:
             k = space[hy, hx]
-            if k in shaped and k not in comps and shaped[k][2]:  # wide, with a door into a room; any shape
+            # wide, with a door into a room, and of any shape
+            if k in shaped and k not in comps and shaped[k][2]:
                 seeds.append((*shaped[k][0], f"open{k}"))
                 comps.add(k)
     flood = np.isin(space, list(comps)).astype(np.uint8)
-    # Corridor-shaped spaces that meet the flood across a closed doorway carry the corridor on past its fire doors.
+    # corridor-shaped spaces that meet the flood across a closed doorway carry the corridor on past its fire doors.
     waiting = {k: (seed, 1 if shape and into_rooms else 2) for k, (seed, shape, into_rooms) in shaped.items() if k not in comps and ((shape and into_rooms) or area(k) < LINK)}
 
     def meets(k):
@@ -541,14 +544,15 @@ def trace_hallways(f, rooms, carve=None, hints=()):
         flood = np.isin(space, list(comps)).astype(np.uint8)
     reaches_margin = bool(comps & leaky)
     if reaches_margin and f.outline_mask is not None:
-        flood &= f.outline_mask  # a lobby open to the outdoors: cut back to the outline, as trace() does
+        # a lobby open to the outdoors is cut back to the outline, as trace() does
+        flood &= f.outline_mask
     opened = cv2.morphologyEx(flood, cv2.MORPH_OPEN, leak)
     _, pieces = cv2.connectedComponents(opened, connectivity=4)
     near_seed = np.zeros((h, w), np.uint8)
     for x, y, _ in seeds:
         near_seed[y, x] = 1
     hit = set(np.unique(pieces[(cv2.dilate(near_seed, leak) == 1) & (opened == 1)]).tolist()) - {0}
-    # Opening also splits a corridor at its fire doors: the seedless piece beyond them is kept by its shape.
+    # opening also splits a corridor at its fire doors, so the seedless piece beyond them is kept by its shape
     n_pieces, pieces, pstats, _ = cv2.connectedComponentsWithStats(opened, connectivity=4)
     for k in range(1, n_pieces):
         if k not in hit and pstats[k, cv2.CC_STAT_AREA] * mpp * mpp >= UNCLAIMED_MIN:
@@ -556,7 +560,7 @@ def trace_hallways(f, rooms, carve=None, hints=()):
             if corridor_shaped((pieces[top:top + bh, left:left + bw] == k).astype(np.uint8)):
                 hit.add(k)
     kept = np.isin(pieces, list(hit)).astype(np.uint8)
-    # What the opening cut off around a seed (a small stair lobby): back in, when it is no room-sized leak.
+    # what the opening cut off around a seed (a small stair lobby) goes back in, unless it is a room-sized leak
     _, lost, lstats, _ = cv2.connectedComponentsWithStats(flood & (1 - kept), connectivity=4)
     for x, y, _ in seeds:
         k = lost[y, x]
@@ -568,9 +572,10 @@ def trace_hallways(f, rooms, carve=None, hints=()):
     smooth_k = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * round(SMOOTH / mpp) + 1,) * 2)
     smooth = cv2.morphologyEx(cv2.morphologyEx(kept, cv2.MORPH_OPEN, smooth_k), cv2.MORPH_CLOSE, smooth_k)
     drawn = filled(cv2.dilate(smooth, f.line_width))
-    grown = filled(f.into_doorways(smooth))  # growing stops at every drawn line, so text inside comes back as holes
+    # growing stops at every drawn line, so text inside comes back as holes
+    grown = filled(f.into_doorways(smooth))
     open_rooms = sorted(n for n, (x, y) in at.items() if use[n] not in CIRCULATION | SERVICE | NEVER_TRACED and grown[y, x])
-    # Doorways off the hallway: where growing into doorways reached beyond the hallway as drawn.
+    # the doorways off the hallway are where growing into doorways reached beyond the hallway as drawn
     n_stubs, _, sstats, scen = cv2.connectedComponentsWithStats(grown & (1 - drawn), connectivity=8)
     doors = [(float(scen[k][0]), float(scen[k][1])) for k in range(1, n_stubs) if sstats[k, cv2.CC_STAT_AREA] * mpp * mpp >= DOOR_STUB]
     report = {
@@ -586,18 +591,18 @@ def trace_hallways(f, rooms, carve=None, hints=()):
 
 
 def slit(mask):
-    """The mask with each hole (a core or stair block the hallway rings) cut to the outside by a line along
-    the shortest cut, two pixels wide, from the hole's edge to the nearest pixel outside the hallway, so its outer ring alone does not
-    cover the hole. Rings carry no holes, and a ring that did would make the block inside it walkable. The shortest
-    cut crosses only the arm of the hallway between the two, never another."""
+    """The mask with each hole (a core or stair block the hallway rings) cut open to the outside along the shortest
+    line. Rings carry no holes, so without the cut the block inside would be walkable. The shortest cut crosses only the
+    arm of the hallway between the hole and the outside, never another."""
     import cv2
     mask = mask.copy()
     n, holes, _, _ = cv2.connectedComponentsWithStats(1 - mask, connectivity=4)
     border = set(np.unique(np.concatenate([holes[0], holes[-1], holes[:, 0], holes[:, -1]])).tolist())
     outside = np.isin(holes, list(border))
     if n <= len(border) + 1:
-        return mask  # no holes
-    # Every pixel's distance to the nearest outside pixel, and which one (labels number the outside pixels).
+        # no holes
+        return mask
+    # every pixel's distance to the nearest outside pixel, and which one (labels number the outside pixels).
     dist, labels = cv2.distanceTransformWithLabels((~outside).astype(np.uint8), cv2.DIST_L2, 3, labelType=cv2.DIST_LABEL_PIXEL)
     ys, xs = np.nonzero(outside)
     where = np.zeros((labels.max() + 1, 2), np.int32)
@@ -609,7 +614,8 @@ def slit(mask):
         i = np.argmin(dist[hy, hx])
         y0, x0 = int(hy[i]), int(hx[i])
         y1, x1 = (int(v) for v in where[labels[y0, x0]])
-        cv2.line(mask, (x0, y0), (x1, y1), 0, 2)  # two wide: a one-pixel diagonal leaves the 8-connected sides joined
+        # two pixels wide, since a one-pixel diagonal leaves the 8-connected sides joined
+        cv2.line(mask, (x0, y0), (x1, y1), 0, 2)
     return mask
 
 
@@ -628,9 +634,9 @@ def rings_of(mask, f, to_map):
 
 
 def hallways_floor(pdf, to_map, rooms, footprint, current, debug_png):
-    """The --hallways keys for one floor, cut to the footprint, and its debug image: the drawing in grey, the
-    room-first corridors and open floor (`current`, the floor's outline file entry) in blue, the hallway in orange,
-    seeds as green dots, rooms found open in magenta."""
+    """The --hallways keys for one floor, cut to the footprint, and its sanity report. Also writes a debug image with the
+    drawing in grey, the room-first corridors and open floor (`current`, the floor's outline file entry) in blue, the
+    hallway in orange, seeds as green dots and rooms found open in magenta."""
     import cv2
     f = prepare(pypdfium2.PdfDocument(str(pdf))[0], to_map, footprint)
     px = lambda ring: np.array([f.to_pdf(to_m(*p)) * TRACE_SCALE for p in ring]).round().astype(np.int32)
@@ -649,7 +655,7 @@ def hallways_floor(pdf, to_map, rooms, footprint, current, debug_png):
            "~hall": [c for ring in rings_of(drawn, f, to_map) if (c := cut_to(building, ring))],
            "hall-open": open_rooms,
            "hall-doors": [to_ll(to_map(px / TRACE_SCALE, py / TRACE_SCALE)) for px, py in doors]}
-    # Debug image, at half the tracing scale.
+    # the debug image, at half the tracing scale
     base = 255 - (255 - f.img) // 2
     img = cv2.cvtColor(base, cv2.COLOR_GRAY2BGR)
     tint = img.copy()
@@ -688,8 +694,9 @@ def building_shape(footprint):
 def cut_to(building, ring):
     """The ring cut to the building's outline (its largest piece), or None when nothing is left."""
     from shapely.geometry import Polygon
+    # simplified away to a line
     if len(ring) < 3:
-        return None  # simplified away to a line
+        return None
     shape = Polygon(ring).buffer(0)
     if building is None:
         return ring
@@ -727,6 +734,7 @@ def traced_floor(pdf, to_map, rooms, footprint):
     return out
 
 def main():
+    """Fits each drawing not fitted yet (all with --again), or with --hallways traces the hallways of fitted floors."""
     OUT.mkdir(parents=True, exist_ok=True)
     index_file = OUT / "index.json"
     index = json.loads(index_file.read_text()) if index_file.exists() else {}
@@ -744,7 +752,7 @@ def main():
         page = pypdfium2.PdfDocument(str(pdf))[0]
         outline_file = OUT / "outlines" / f"{ref}.json"
         if hallways and fitted and "--again" not in sys.argv:
-            # The stored fit, rebuilt from where the drawing's corners landed: no OCR, and the room-first keys stay.
+            # rebuild the stored fit from where the drawing's corners landed, with no OCR, and keep the room-first keys
             _, (x0, y0, x1, y1) = drawing_box(page)
             corners = index[ref][floor]["corners"]
             to_map, _ = fit([((x / IMAGE_SCALE, y / IMAGE_SCALE), to_m(*c)) for (x, y), c in zip([(x0, y0), (x1, y0), (x0, y1)], corners)])
@@ -760,7 +768,8 @@ def main():
             continue
         labels = read_labels(page)
         pairs = matches(labels, at)
-        if len(pairs) < MIN_LABELS:  # a drawing at twice the usual scale (1/8" to the foot) has labels too big to read
+        # a drawing at twice the usual scale (1/8" to the foot) has labels too big to read, so try again at half the scale
+        if len(pairs) < MIN_LABELS:
             labels = read_labels(page, OCR_SCALE / 2)
             pairs = matches(labels, at)
         if len(pairs) < MIN_LABELS:

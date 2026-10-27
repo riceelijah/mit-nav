@@ -52,6 +52,7 @@ const ChooseUsername = endpoint(
   { validators: { input: textInput } },
 );
 
+/** Answers whether the signed-in account is linked to Commons, so the page server can decide who sees MIT's drawings. */
 const Linked = endpoint(
   "/auth/commons/linked",
   ({ session, user, linked }) =>

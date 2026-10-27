@@ -12,7 +12,7 @@ function proxy(request: Request) {
   );
 }
 
-// Whether the request's session belongs to an account signed in with Commons.
+/** Whether the request's session belongs to an account signed in with Commons; false when the backend can't say. */
 async function linked(request: Request) {
   const answer = await fetch(new URL("/api/auth/commons/linked", backend), {
     method: "POST",
@@ -22,11 +22,12 @@ async function linked(request: Request) {
   return answer?.ok === true && (await answer.json()).linked === true;
 }
 
+// a drawing's file name, or their index
 const DRAWING = /^([A-Z0-9]+_[A-Z0-9]+\.png|index\.json)$/;
-// Bun's S3 client reads its bucket and keys from S3_* (or AWS_*) variables, which adding S3 storage sets.
+// whether S3 storage is attached (Bun's S3 client reads its bucket and keys from the S3_* or AWS_* variables it sets)
 const STORAGE = !!(process.env.S3_BUCKET ?? process.env.AWS_BUCKET);
 
-// An upload carries the token set on this server; with none set, nothing is accepted.
+/** Whether an upload carries the token set on this server. With no token of at least 32 characters set, nothing is accepted. */
 function uploadAllowed(request: Request) {
   const token = process.env.DRAWINGS_UPLOAD_TOKEN ?? "";
   const given = Buffer.from(request.headers.get("Authorization")?.replace(/^Bearer /, "") ?? "");
@@ -50,12 +51,13 @@ const server = Bun.serve({
       return new Response(plan, { headers: { "Cache-Control": "no-cache" } });
     },
     // MIT's own drawings, fitted by scripts/fit-drawings.py, are kept in the app's S3 storage where
-    // scripts/upload-drawings.ts sent them, or in the local folder where they were made, and are shown only to someone
-    // signed in with Commons, so with MIT's login (MIT Facilities' condition).
+    // scripts/upload-drawings.ts sent them, or in the local folder where they were made. MIT Facilities asked that they be
+    // shown only behind MIT's login, so only someone signed in with Commons sees them.
     "/drawings/:file": {
+      /** The drawing or index to someone signed in with Commons; 403 for anyone else, 404 when there is no such file. */
       GET: async (request) => {
         const file = request.params.file;
-        // Signed in first, so someone who isn't can't tell which drawings exist.
+        // check sign-in first, so someone who isn't signed in can't tell which drawings exist
         if (!(await linked(request))) return new Response("Sign in with Commons to see MIT's drawings", { status: 403 });
         if (!DRAWING.test(file)) return new Response("Not found", { status: 404 });
         const headers = { "Cache-Control": "no-store", "Content-Type": file.endsWith(".png") ? "image/png" : "application/json" };
@@ -64,6 +66,7 @@ const server = Bun.serve({
         const local = Bun.file(new URL(`../data/raw/drawings/${file}`, import.meta.url));
         return (await local.exists()) ? new Response(local, { headers }) : new Response("Not found", { status: 404 });
       },
+      /** Stores an uploaded drawing in S3 and answers 204; 403 without the token or storage, 400 for a name that isn't a drawing's. */
       PUT: async (request) => {
         const file = request.params.file;
         if (!STORAGE || !uploadAllowed(request)) return new Response("Uploads need the upload token and S3 storage", { status: 403 });

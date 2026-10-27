@@ -35,7 +35,7 @@ import { roomShapes } from "../web/shapes.ts";
 type Kind = "ENTRANCE" | "HALLWAY" | "ROOM" | "TRANSIT";
 export type Place = { name: string; kind: Kind; floor: number; latitude: number; longitude: number; aliases?: string };
 
-// Everyday names for landmarks, on the building that holds them or, for one outdoors, the building in front of it.
+// everyday names for landmarks, on the building that holds them or, for one outdoors, the building in front of it.
 const LANDMARKS: Record<string, string> = {
   "7": "Lobby 7, Little Dome, 77 Massachusetts Avenue, 77 Mass Ave, Information Center",
   "10": "Lobby 10, Great Dome, Infinite Corridor, Killian Court",
@@ -43,10 +43,11 @@ const LANDMARKS: Record<string, string> = {
   E28: "MIT Museum, Gambrill Center",
   E38: "Admissions, Welcome Center",
 };
+// the other names a lavatory is found by
 const LAVATORY = "bathroom, restroom, toilet, washroom";
 // source, destination, forward, backward, accessible, closedFrom, closedUntil, service, distance, outdoor (only outdoor walks carry
 // it), the path walked, "lat,lon lat,lon ..." (only links traced over a floor's outlines carry it; see withPaths), and
-// keyed (the ways in from outside: locked to anyone without an MIT ID outside public hours)
+// keyed (the ways in from outside, which are locked to anyone without an MIT ID outside public hours)
 export type Link = [string, string, string, string, boolean, number, number, string, number, boolean?, string?, boolean?];
 export type Point = [number, number];
 type Building = { ref: string; name: string; rings: Point[][]; center: Point };
@@ -66,6 +67,7 @@ const MEETING_METERS = 15; // corridors of any two buildings this close on one f
 // Corridors are marked at their middles, so where two touching buildings join, each has a corridor this close to the other's outline.
 const REACHES_NEIGHBOUR = 35;
 const ENTRANCE_REACH = 15;
+// the building number at the start of a place's name
 const BUILDING_PREFIX = /^([A-Z]*\d+[A-Z]*)-/;
 const CORRIDORS = new Set(["CORRIDOR", "LOBBY", "BRIDGE/TUNNEL"]);
 const STAIRS_PER_FLOOR = 2;
@@ -234,7 +236,7 @@ export function interior(ref: string, csv: string, located: Located = new Map())
   };
   const walkTo = (m: number | undefined, what: string) => (m === undefined ? `Go to ${what}` : `Walk about ${m} m to ${what}`);
 
-  // Each stop and landing is a place of its own, reached from its corridor by a walk, so a route changes floor there.
+  /** Adds an elevator stop or stair landing as a place of its own, reached from its corridor by a walk, and returns its name. */
   const landing = (what: string, id: string, stop: { code: string; at?: Point; number: string }) => {
     const name = `${stop.number} ${title(what)}`;
     const { corridor, meters: m, at } = attach(stop.code, stop.at);
@@ -314,6 +316,7 @@ function direction([ax, ay]: Point, [bx, by]: Point) {
   return names[(Math.round(Math.atan2(by - ay, bx - ax) / (Math.PI / 4)) + 8) % 8];
 }
 
+/** Every MIT building with its outline and centre, from OpenStreetMap and MapIT. Throws when Overpass or MapIT refuses. */
 async function loadBuildings(): Promise<Building[]> {
   const file = new URL("osm.json", raw);
   if (!existsSync(file)) {
@@ -334,17 +337,18 @@ async function loadBuildings(): Promise<Building[]> {
   }
   const centers = JSON.parse(readFileSync(centersFile, "utf8"));
   const centerOf = new Map<string, any>(centers.map((c: any) => [c.building, c]));
+  /** Whether MapIT's centre for building `n` lies within the bounds of OpenStreetMap element `e`. */
   const holds = (e: any, n: string) => {
     const c = centerOf.get(n), b = e.bounds;
     return c && b && b.minlat <= Number(c.lat) && Number(c.lat) <= b.maxlat && b.minlon <= Number(c.long) && Number(c.long) <= b.maxlon;
   };
-  // Relations Overpass answered without their members' geometry (W4, 46): their outer ways from OpenStreetMap's API.
+  // relations Overpass answered without their members' geometry (W4, 46) get their outer ways from OpenStreetMap's API
   const relationsFile = new URL("osm-relations.json", raw);
   const relations: Record<string, { lat: number; lon: number }[][]> = existsSync(relationsFile) ? JSON.parse(readFileSync(relationsFile, "utf8")) : {};
   const byRef = new Map<string, Building>();
   for (const e of JSON.parse(readFileSync(file, "utf8")).elements) {
-    // Some footprints carry the number only in their name ("E15 Wiesner Building"): taken when MapIT's centre for
-    // that number lies within the footprint's bounds.
+    // some footprints carry the number only in their name ("E15 Wiesner Building"), which is taken when MapIT's centre
+    // for that number lies within the footprint's bounds
     const ref: string | undefined = e.tags?.ref ?? [/^(\S+)(?: |$)/.exec(e.tags?.name ?? "")?.[1]].find((n) => n && holds(e, n));
     // MIT building numbers: 32, 6C, E14, NW86, W85ABC. Leaves out street addresses such as 181MA.
     if (!ref || !/^(?:[NESW]{1,2}|WW)?\d+[A-Z]*$/.test(ref) || /MA$/.test(ref)) continue;
@@ -365,7 +369,7 @@ async function loadBuildings(): Promise<Building[]> {
     b.rings.push(...rings);
     b.name ||= name;
   }
-  // Buildings OpenStreetMap has no outline for come in as a single point at
+  // buildings OpenStreetMap has no outline for come in as a single point at
   // the centre MapIT publishes, which is enough for outdoor walks; they just never count as touching.
   for (const c of centers) {
     if (byRef.has(c.building)) continue;
@@ -526,7 +530,7 @@ export type PathEdge = { from: string; to: string; meters: number; stepFree: boo
 export function pathNetwork(elements: any[], streets: Street[] = []) {
   const nodes = new Map<number, Point>();
   for (const e of elements) if (e.type === "node") nodes.set(e.id, toMeters(e.lon, e.lat));
-  // An indoor way (the Infinite Corridor) is left out: the building's own floors are the way through it.
+  // an indoor way (the Infinite Corridor) is left out, since the building's own floors are the way through it
   const indoor = (t: any) => t?.highway === "corridor" || t?.indoor === "yes";
   const ways = elements.filter((e) => e.type === "way" && WALKABLE.test(e.tags?.highway ?? "") && !indoor(e.tags) && e.nodes.every((n: number) => nodes.has(n)));
   const uses = new Map<number, number>();
@@ -620,21 +624,24 @@ function loadLocated(): Map<string, Located> {
   return byBuilding;
 }
 
+// room uses that people walk through
 const CIRCULATION = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION)$/;
 const HALL_COVERED = 0.7; // a corridor-network path this much inside the flooded hallway is not drawn as a stroke
-const SNAP = 6; // metres: a corridor marked beside its traced floor is moved onto it
-const HALL_REACH = 15; // metres: a room without an outline is met at the open floor this near it
-const DOOR_REACH = 4; // metres: a traced room is joined through its door at the open floor this near it
-const DOOR_NEAR = 25; // metres: a room without an outline is met at the hallway doorway this near its position, when the floor has them
+const SNAP = 6; // a corridor marked within this many metres of its traced floor is moved onto it
+const HALL_REACH = 15; // a room without an outline is met at the open floor within this many metres of it
+const DOOR_REACH = 4; // a traced room is joined through its door at the open floor within this many metres of it
+const DOOR_NEAR = 25; // a room without an outline is met at the hallway doorway within this many metres, when the floor has them
 type LatLon = [number, number];
 const encode = (path: LatLon[]) => path.map(([lat, lon]) => `${lat.toFixed(7)},${lon.toFixed(7)}`).join(" ");
 const latLonMeters = (a: LatLon, b: LatLon) => Math.hypot((b[1] - a[1]) * 111_320 * Math.cos((a[0] * Math.PI) / 180), (b[0] - a[0]) * 111_320);
-/** A rectangle STRIP_WIDTH metres wide around the segment from `p` to `q`. */
+// width in metres of the walkable strip that joins two buildings' places
 const STRIP_WIDTH = 3;
+/** A rectangle STRIP_WIDTH metres wide around the segment from `p` to `q`. */
 function strip(p: LatLon, q: LatLon): LatLon[] {
   const k = Math.cos((p[0] * Math.PI) / 180);
   const dx = (q[1] - p[1]) * 111_320 * k, dy = (q[0] - p[0]) * 111_320, len = Math.hypot(dx, dy) || 1;
-  const nx = (-dy / len) * (STRIP_WIDTH / 2), ny = (dx / len) * (STRIP_WIDTH / 2); // half the width, across the segment
+  // half the width, across the segment
+  const nx = (-dy / len) * (STRIP_WIDTH / 2), ny = (dx / len) * (STRIP_WIDTH / 2);
   const off = (r: LatLon, x: number, y: number): LatLon => [r[0] + y / 111_320, r[1] + x / (111_320 * k)];
   return [off(p, nx, ny), off(q, nx, ny), off(q, -nx, -ny), off(p, -nx, -ny)];
 }
@@ -650,7 +657,7 @@ function buildingAxis(rings: LatLon[][]) {
   }
   return axis;
 }
-const TIDY = 0.4; // metres: a traced outline's corners closer than this to the line between their neighbours are dropped
+const TIDY = 0.4; // a traced outline's corners closer than this many metres to the line between their neighbours are dropped
 /** A traced ring with its tracing jitter and doorway notches smoothed away (Douglas-Peucker, TIDY metres). */
 export function tidy(ring: LatLon[]): LatLon[] {
   const k = Math.cos((ring[0][0] * Math.PI) / 180);
@@ -678,14 +685,11 @@ export function tidy(ring: LatLon[]): LatLon[] {
 const pathMeters = (path: LatLon[]) => path.reduce((t, p, i) => (i ? t + latLonMeters(path[i - 1], p) : 0), 0);
 
 /**
- * The route line, settled once here instead of in the page: every indoor connection on a traced floor gets the path a
- * person walks along it through the floor's traced spaces (corridors, lobbies, bridges, lounges, unlabelled open floor
- * and the connection's own two rooms at normal cost, other traced rooms twenty times dearer, as web/indoor.ts does), and
- * its distance and metres become that path's length. A corridor marked beside its floor is first moved onto it (within
- * SNAP). A room without an outline (a seated hall) is met at the open floor nearest it, within HALL_REACH, and the path
- * then runs straight to its position. A connection between two buildings on one floor is one walk over both floors,
- * with a strip between the two places making the gap between the outlines walkable. A connection the floor does not
- * join keeps its straight line; the count of those says how much tracing is still missing.
+ * Settles the route line here instead of in the page. Each indoor connection on a traced floor gets the path a person
+ * walks through the floor's traced spaces, with other rooms twenty times dearer as in web/indoor.ts, and its distance
+ * and metres become that path's length. Corridors marked beside their floor are moved onto it first, a room without an
+ * outline is met at the open floor nearest it, and a connection between two buildings is one walk joined by a strip.
+ * Returns how many paths were traced and how many stay straight because the floor does not join them.
  */
 export function withPaths(places: Place[], links: Link[], planFiles: Map<string, any>) {
   const byName = new Map(places.map((p) => [p.name, p]));
@@ -695,14 +699,17 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     const plan = planFiles.get(ref);
     return plan && Object.values<any>(plan.floors).find((f) => f.level === level && f.rooms.length);
   };
+  // shafts and closets, which the page never draws
   const SERVICE = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
-  // Every room's shape on a floor, traced or approximate, as the page draws it; closets are left out as there.
+  // every room's shape on a floor, traced or approximate, as the page draws it, with closets left out as there
   const shapesOf = new Map<any, { room: any; shapes: LatLon[][] }[]>();
   const shaped = (ref: string, f: any) => shapesOf.get(f) ?? shapesOf.set(f, roomShapes(f.rooms.filter((r: any) => !SERVICE.test(r.u)), planFiles.get(ref).outline)).get(f)!;
   const at = (p: Place): LatLon => [p.latitude, p.longitude];
-  // The floor's walkable space: the whole outline except the rooms (traced corridors, lobbies, bridges, lounges and open
-  // floor count as open even where a room's approximate shape covers them), and the connection's own two rooms.
-  // The floor's hallways flooded from its corridors (`hall`, experiment) are open floor too, where they were traced.
+  /**
+   * The floor's walkable space for a walk between rooms `own`, or undefined when the floor has no plan. That is the whole
+   * outline except the rooms, but traced corridors, lobbies, bridges, lounges, open floor, flooded hallways (`hall`,
+   * experiment) and the walk's own two rooms count as open even where a room's approximate shape covers them.
+   */
   const spaces = (ref: string, level: number, own: string[]) => {
     const f = floorOf(ref, level);
     if (!f) return undefined;
@@ -721,8 +728,7 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     for (const q of s.doors) { const m = latLonMeters(at(p), q); if (m < d) [best, d] = [q, m]; }
     return best;
   };
-  // Corridors onto their floor: the nearest traced open floor, or, on a floor without tracing, the nearest point of the
-  // outline that no room's square covers (labels often sit under a neighbour's square).
+  /** Whether `q` is inside `ring` (even-odd rule). */
   const inside = (q: LatLon, ring: LatLon[]) => {
     let hit = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -731,6 +737,8 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     }
     return hit;
   };
+  // each corridor moves onto its floor, at the nearest traced open floor or, on a floor without tracing, the nearest
+  // point of the outline that no room's square covers (labels often sit under a neighbour's square)
   for (const p of places) {
     const ref = building(p.name);
     if (p.kind !== "TRANSIT" || !ref) continue;
@@ -753,7 +761,7 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
   for (const l of links) {
     const a = byName.get(l[0])!, b = byName.get(l[1])!;
     const ra = building(a.name), rb = building(b.name);
-    // An entrance (the building's place or one of its other doors) walks in to its corridor on the corridor's floor.
+    // an entrance (the building's place or one of its other doors) walks in to its corridor on the corridor's floor.
     const door = (p: Place, ref: string) => p.name.includes(`Building ${ref})`) || p.name === `Building ${ref}` || p.name.startsWith(`Building ${ref}, entrance`);
     const entering = !ra !== !rb && door(ra ? b : a, ra ?? rb!);
     if (l[9] || (!entering && (!ra || !rb || a.floor !== b.floor))) continue;
@@ -761,9 +769,9 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
     const sa = ra ? spaces(ra, a.floor, own) : undefined, sb = ra === rb ? sa : rb ? spaces(rb, b.floor, own) : undefined;
     if (!sa && !sb) continue;
     const reach = (s: NonNullable<typeof sa>, p: Place) => (!building(p.name) || s.traced(roomOf(p.name, building(p.name)!)) || p.kind === "TRANSIT" ? DOOR_REACH : HALL_REACH);
-    // An untraced room with a hallway doorway near it is entered by that door: the walk ends there and runs straight in.
+    // an untraced room with a hallway doorway near it is entered by that door, so the walk ends there and runs straight in
     const doorA = doorOf(sa, a), doorB = doorOf(sb, b);
-    // Out of a hall the walk is found backwards, so it starts at the open floor the hall is met from. A connection between
+    // out of a hall the walk is found backwards, so it starts at the open floor the hall is met from. A connection between
     // two buildings, or in from a door, is one walk with a strip between the two places making the gap between the
     // outlines (a door, bridge or passage) walkable; rooms in either building still cost as rooms.
     const both = ra === rb ? sa! : { preferred: [...(sa?.preferred ?? []), ...(sb?.preferred ?? [])], other: [...(sa?.other ?? []), ...(sb?.other ?? [])], base: [...(sa?.base ?? []), ...(sb?.base ?? []), strip(at(a), at(b))] };
@@ -780,6 +788,7 @@ export function withPaths(places: Place[], links: Link[], planFiles: Map<string,
   return { traced, straight };
 }
 
+/** The whole campus map, with its places, connections and plan files, and the counts the summary prints. */
 async function buildCampus() {
   const buildings = await loadBuildings();
   const places: Place[] = [];
@@ -820,7 +829,7 @@ async function buildCampus() {
     links.push([pathName(e.from), pathName(e.to), text, text, e.stepFree, 0, 0, "", e.meters / 50, true]);
   }
   const unreached: number[] = [];
-  // The building's place is its main entrance; every other mapped entrance is a place of its own at the door, only
+  // the building's place is its main entrance; every other mapped entrance is a place of its own at the door, only
   // passed through, so a route enters by the door it reaches instead of crossing the building to the main one.
   const doorName = (b: Building, n: number) => `${buildingPlace(b)}, entrance ${n}`;
   const entrances = (b: Building) => doorsOf.get(b.ref)!.map((d, n) => ({ at: d.at, name: n ? doorName(b, n + 1) : buildingPlace(b) }));
@@ -865,7 +874,7 @@ async function buildCampus() {
     places.push(...plan.places.map(({ at, ...p }) => ({ ...p, ...toLatLon(at ?? b.center) })));
     links.push(...plan.links);
     if (!plan.ground) continue;
-    // In from each entrance to the corridor nearest it (or from the building's place to the one nearest its centre).
+    // in from each entrance to the corridor nearest it (or from the building's place to the one nearest its centre).
     const doors = plan.ground.hub ? [] : entrances(b);
     const ways = new Map<string, [string, number]>(); // entrance -> entry corridor and the metres to it
     for (const door of doors.length ? doors : [{ at: b.center, name: buildingPlace(b) }]) {
@@ -923,8 +932,8 @@ async function buildCampus() {
       (f as any).open = traced[code][""].map(tidy);
       if (traced[code]["~open"]?.length === traced[code][""].length) (f as any).openD = traced[code]["~open"].map(tidy);
     }
-    // Experiment (fit-drawings.py --hallways): the floor's hallways flooded from its corridors, `hall` grown into
-    // doorways (withPaths routes through them as well as `open`) and `hallD` as drawn.
+    // as an experiment (fit-drawings.py --hallways), each floor gets its hallways flooded from its corridors, with `hall`
+    // grown into doorways (withPaths routes through them as well as `open`) and `hallD` as drawn
     for (const [code, f] of Object.entries(floors)) {
       if (!traced[code]?.hall?.length) continue;
       (f as any).hall = traced[code].hall;
@@ -935,11 +944,12 @@ async function buildCampus() {
     planFiles.set(b.ref, { outline: b.rings.map((ring) => ring.map(latLon)), floors });
   }
   const lines = withPaths(places, links, planFiles);
-  // The corridor network each plan draws: the paths of every connection between two pass-through places (corridors,
-  // landings) on a building's floor, so the plan shows the ways through, and the route line lies on them. A path whose
-  // midway point is inside a traced room (not circulation, not open to the hallway) crosses that room and is not drawn;
-  // nor is one that runs mostly (HALL_COVERED) inside the floor's flooded hallway, which already shows that way.
+  // each plan draws the corridor network, the paths of every connection between two pass-through places (corridors,
+  // landings) on a building's floor, so the plan shows the ways through and the route line lies on them. A path whose
+  // midway point is inside a traced room (not circulation, not open to the hallway) crosses that room and is not drawn,
+  // and neither is one that runs mostly (HALL_COVERED) inside the floor's flooded hallway, which already shows that way.
   const kinds = new Map(places.map((p) => [p.name, p.kind]));
+  /** Whether the [lat, lon] point is inside `ring` (even-odd rule). */
   const within = ([y, x]: number[], ring: number[][]) => {
     let hit = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -948,7 +958,8 @@ async function buildCampus() {
     }
     return hit;
   };
-  const along = (way: LatLon[], step: number) => { // points every `step` metres along a path
+  /** Points every `step` metres along a path. */
+  const along = (way: LatLon[], step: number) => {
     const out: LatLon[] = [];
     for (let i = 1; i < way.length; i++) {
       const n = Math.max(1, Math.ceil(latLonMeters(way[i - 1], way[i]) / step));
@@ -961,7 +972,7 @@ async function buildCampus() {
     if (!l[10] || kinds.get(l[0]) === "ROOM" || kinds.get(l[1]) === "ROOM") continue;
     const level = places.find((p) => p.name === l[0] && BUILDING_PREFIX.test(p.name))?.floor ?? places.find((p) => p.name === l[1])!.floor;
     const way = l[10].split(" ").map((c) => c.split(",").map(Number) as LatLon), mid = midway(way);
-    // Only a way within one building: an entrance walk or a join between buildings crosses ground the plan doesn't show.
+    // only a way within one building counts, since an entrance walk or a join between buildings crosses ground the plan doesn't show
     const [ra, rb] = [l[0], l[1]].map((n) => BUILDING_PREFIX.exec(n)?.[1]);
     for (const ref of ra && ra === rb ? [ra] : []) {
       const floor = Object.values<any>((planFiles.get(ref) as any)?.floors ?? {}).find((f) => f.level === level);
@@ -979,7 +990,7 @@ if (import.meta.main) {
   const plans = new URL("../web/plans/", import.meta.url);
   mkdirSync(plans, { recursive: true });
   for (const [ref, plan] of planFiles) writeFileSync(new URL(`${ref}.json`, plans), JSON.stringify(plan) + "\n");
-  // Which buildings have floors to show, and where, so the page can show every plan in view without fetching them all.
+  // which buildings have floors to show, and where, so the page can show every plan in view without fetching them all.
   const index = Object.fromEntries([...planFiles].filter(([, p]) => Object.keys(p.floors).length).map(([ref, p]) => [ref, p.outline]));
   writeFileSync(new URL("index.json", plans), JSON.stringify(index) + "\n");
   writeFileSync(

@@ -12,6 +12,7 @@ import type { Db } from "mongodb";
 type Link = [string, string, string, string, boolean, number?, number?, string?, number?, boolean?, string?];
 export type CampusMap = { places: { name: string; kind: string; floor: number; latitude: number; longitude: number; aliases?: string }[]; links: Link[] };
 
+/** Writes `map` into `database`, keeping the identities of places and connections that did not change, as described above. */
 export async function seed(database: Db, map: CampusMap) {
   const places = database.collection<any>("wayfinding.places");
   const links = database.collection<any>("wayfinding.links");
