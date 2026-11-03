@@ -1,1 +1,0 @@
-Review the fuller-plans design change (Campus floor plans from static plan files with floor switcher; ShowFloor/FloorPlan, _onFloor, place area removed) against the brief. Report Verdict with numbered findings.

@@ -1,1 +1,0 @@
-Verify the revised tracing and indoor-line rules in Campus.md (from the implementation blocker in .sync-engine/work/indoor-lines/2026-10-19T13-04-59Z-application-worker-implementation.response.md) against the brief, without new problems.

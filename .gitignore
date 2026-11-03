@@ -6,6 +6,10 @@ node_modules/
 .DS_Store
 !.env.example
 data/raw
+CLAUDE.md
 
 # Demo videos live on YouTube or Drive, not in git (the deploy platform limits commits to 50 MB).
 demo/
+
+# sync-engine run logs, kept locally
+.sync-engine/

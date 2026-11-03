@@ -7,6 +7,7 @@ MIT Navigator gives step-by-step walking directions across MIT, from building to
 - [The deployed app](https://mit-nav.mit-sdg.dev)
 - [Design document](design/design-document.md), which summarizes how the design changed since P1 and P3
 - [Demo video](design/demo.md)
+- [User testing](design/user-testing.md), the P5 task list, study reports, and design flaws
 - [Design notes](design/design-notes.md) on the routing and route-line redesign
 - [User journey](design/journey.md)
 - [Concept specifications](design/concepts/), with the shared types in [design/types.md](design/types.md)

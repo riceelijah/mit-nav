@@ -1,1 +1,0 @@
-Implement: path-network converter, entrances, Simmons generated (retire simmons map/seed), outlines.json, Wayfinding _onFloor, Campus ShowFloor/FloorPlan, frontend outdoor-step merge and floor plans, tests, docs.

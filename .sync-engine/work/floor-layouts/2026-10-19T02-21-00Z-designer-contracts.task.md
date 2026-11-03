@@ -1,1 +1,0 @@
-Update Campus.md prose for corridor networks, real indoor positions and distances, entrances from OSM, and the 15 m corridor rule for joining buildings (with the footprint fallback). No concept changes. Check syntax.

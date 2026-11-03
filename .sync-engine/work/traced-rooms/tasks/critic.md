@@ -1,1 +1,0 @@
-Review the traced-rooms design change in design/compositions/Campus.md (room outlines traced from fitted MIT drawings, merged into plan files) against the brief. Report Verdict with numbered findings.

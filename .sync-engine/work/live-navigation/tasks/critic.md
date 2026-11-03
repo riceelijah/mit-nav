@@ -1,1 +1,0 @@
-Review the live-navigation design (Wayfinding positions and _nearest; Campus NearestPlace endpoint and the client-side tracking/rerouting prose) against the brief. Report Verdict with numbered findings.
