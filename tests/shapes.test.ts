@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { tidy } from "../web/shapes.ts";
+import { roomPieces, tidy } from "../web/shapes.ts";
 
 // Rings in metres east (x) and north (y) of a point near MIT, as [lat, lon].
 const LAT = 42.36, LON = -71.09, K = Math.cos((LAT * Math.PI) / 180);
@@ -23,5 +23,28 @@ describe("tidy", () => {
   test("an L-shaped room keeps its inner corner, wider than a doorway", () => {
     const l = ring([[0, 0], [8, 0], [8, 3], [3, 3], [3, 8], [0, 8]]);
     expect(tidy(l).map(metres)).toEqual([[0, 0], [8, 0], [8, 3], [3, 3], [3, 8], [0, 8], [0, 0]]);
+  });
+});
+
+describe("roomPieces", () => {
+  const hall = { n: "123", u: "LECTURE HALL", at: at([0, 0]), a: 300 };
+  test("open floor within an untraced hall is the hall's; open floor beyond it, or holding another room's label, is not", () => {
+    const aisle = ring([[-6, 2], [6, 2], [6, 4], [-6, 4]]);
+    const corridor = ring([[-40, 15], [40, 15], [40, 18], [-40, 18]]);
+    const lobby = ring([[-3, -6], [3, -6], [3, -3], [-3, -3]]);
+    const corner = { n: "100LB", u: "LOBBY", at: at([0, -4.5]), a: 18 };
+    expect([...roomPieces([hall, corner], [aisle, corridor, lobby])]).toEqual([[0, "123"]]);
+  });
+  test("a piece holding only an untraced room's label (and a shaft's) is that room's, however far it reaches", () => {
+    const gym = { n: "130", u: "ATHLETIC FACIL", at: at([0, 0]), a: 700 };
+    const shaft = { n: "121Z", u: "SHAFT SPACE", at: at([25, 2]), a: 2 };
+    const floor = ring([[-30, -8], [30, -8], [30, 8], [-30, 8]]);
+    expect([...roomPieces([gym, shaft], [floor])]).toEqual([[0, "130"]]);
+    // Nearly twice the room's area is more than the room: open floor around it, not the room.
+    expect(roomPieces([{ ...gym, a: 500 }], [floor]).size).toBe(0);
+  });
+  test("a room traced at its size keeps no open floor", () => {
+    const traced = { ...hall, s: ring([[-9, -9], [9, -9], [9, 9], [-9, 9]]) };
+    expect(roomPieces([traced], [ring([[-6, 2], [6, 2], [6, 4], [-6, 4]])]).size).toBe(0);
   });
 });

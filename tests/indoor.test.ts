@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { corridorPath, walkToward } from "../web/indoor.ts";
+import { corridorPath, doorOf, walkToward } from "../web/indoor.ts";
 
 test("indoor line follows an L-shaped corridor round its corner instead of cutting across", () => {
   // An L of two 3 m wide corridors, in metres around (42.36, -71.09): along x from 0 to 30, then up y from 0 to 30.
@@ -51,4 +51,23 @@ test("a walk to an unreachable place ends at the reachable open floor nearest it
   // Without allowance it finds nothing; and the open floor must be within the distance given.
   expect(walkToward([corridor, pocket], ll([1, 1.5]), hall, [], 0)).toBeUndefined();
   expect(walkToward([corridor, pocket], ll([1, 1.5]), hall, [], 5)).toBeUndefined();
+});
+
+test("a room's door is where the corridor's outline pokes through its wall, else where the wall is thinnest", () => {
+  const k = Math.cos((42.36 * Math.PI) / 180);
+  const ll = ([x, y]: [number, number]): [number, number] => [42.36 + y / 111_320, -71.09 + x / (111_320 * k)];
+  const ring = (points: [number, number][]) => [...points, points[0]].map(ll);
+  const metres = ([lat, lon]: [number, number]) => [Math.round((lon + 71.09) * 111_320 * k * 10) / 10, Math.round((lat - 42.36) * 111_320 * 10) / 10];
+  // A 6 m office north of a corridor, behind a 0.4 m wall; the corridor's doorway notch at x = 4 reaches 0.3 m into it.
+  const office = ring([[0, 3.4], [6, 3.4], [6, 9], [0, 9]]);
+  const corridor = ring([[-10, 0], [3.5, 0], [3.5, 3], [3.6, 3], [3.6, 3.7], [4.4, 3.7], [4.4, 3], [10, 3], [10, 0]]);
+  const door = doorOf(office, [corridor], ll([0, 0]))!;
+  expect(metres(door.inside)[0]).toBeGreaterThanOrEqual(3.6);
+  expect(metres(door.inside)[0]).toBeLessThanOrEqual(4.4);
+  // Without a notch, the thinnest stretch of wall: here the corridor bends to within 0.2 m at the office's east end.
+  const bent = ring([[-10, 0], [5, 0], [5, 3.2], [6, 3.2], [10, 3], [10, 0]]);
+  const near = doorOf(office, [bent], ll([0, 0]))!;
+  expect(metres(near.inside)[0]).toBeGreaterThanOrEqual(5);
+  // No open floor within a metre: no door.
+  expect(doorOf(office, [ring([[-10, -5], [10, -5], [10, -2], [-10, -2]])], ll([0, 0]))).toBeUndefined();
 });

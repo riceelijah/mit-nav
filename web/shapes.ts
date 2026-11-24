@@ -90,3 +90,59 @@ export function tidyOnce(ring: LatLon[]) {
   if (!t) tidied.set(ring, (t = tidy(ring)));
   return t;
 }
+
+/** Spaces that are never a room's own (passages, lifts, stairs), and closets and shafts, which are never drawn. */
+const NOT_A_ROOM = /^(CORRIDOR|LOBBY|BRIDGE\/TUNNEL|PVT CIRCULATION|LOUNGE|ELEVATOR|STAIRWAY|SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
+const UNDRAWN = /^(SHAFT SPACE|ELECTRIC CLOSET|TELECOM CLOSET|UTILITY\/MECH RM|CUSTODIAL CLOSET)$/;
+type PlanRoom = { n: string; u: string; at: LatLon; a: number; s?: LatLon[] };
+/**
+ * The pieces of a floor's unlabelled open floor that are really part of a room the drawing did not trace whole (no
+ * outline, or one under 60% of its recorded area): a lecture hall's aisles and rows, an apartment's inner rooms, a gym.
+ * By index into `open`, with the room's number. A piece is the room's when no other room's label lies in it (closets'
+ * and shafts' aside), and either the room's own label does and the piece is under 1.5 times the room's area, or, for a
+ * room of 40 m² or more, nearly all of the piece lies within the room's reach of its label (a circle holding a square
+ * of its area) and it is no bigger than the room.
+ */
+export function roomPieces(rooms: PlanRoom[], open: LatLon[][]): Map<number, string> {
+  const pieces = new Map<number, string>();
+  if (!open.length) return pieces;
+  const [lat0, lon0] = open[0][0], k = Math.cos((lat0 * Math.PI) / 180);
+  const flat = ([lat, lon]: LatLon): Flat => [(lon - lon0) * 111_320 * k, (lat - lat0) * 111_320];
+  const rings = open.map((r) => r.map(flat));
+  const sizes = rings.map((r) => Math.abs(area(r)));
+  const labels = rooms.map((r) => flat(r.at));
+  const holds = (p: Flat, ring: Flat[]) => {
+    let hit = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  const someoneElse = (h: number, ring: Flat[]) => rooms.some((r, j) => j !== h && !UNDRAWN.test(r.u) && holds(labels[j], ring));
+  const claimants = rooms
+    .map((room, h) => ({ room, h }))
+    .filter(({ room }) => !NOT_A_ROOM.test(room.u) && room.a > 0 && !(room.s && Math.abs(area(room.s.map(flat))) >= 0.6 * room.a));
+  // The piece holding a room's own label first, so a big room nearby cannot take it by reach.
+  for (const { room, h } of claimants)
+    rings.forEach((ring, i) => {
+      if (!pieces.has(i) && sizes[i] <= 1.5 * room.a && holds(labels[h], ring) && !someoneElse(h, ring)) pieces.set(i, room.n);
+    });
+  for (const { room, h } of claimants) {
+    if (room.a < 40) continue;
+    const reach = 0.75 * Math.sqrt(room.a), centre = labels[h];
+    rings.forEach((ring, i) => {
+      if (pieces.has(i) || sizes[i] > room.a) return;
+      if (ring.filter((p) => distance(p, centre) <= reach).length < 0.9 * ring.length) return;
+      if (!someoneElse(h, ring)) pieces.set(i, room.n);
+    });
+  }
+  return pieces;
+}
+const pieceCache = new WeakMap<object, Map<number, string>>();
+/** roomPieces for a plan floor, remembered per floor. */
+export function roomPiecesOnce(floor: { rooms: PlanRoom[]; open?: LatLon[][] }) {
+  let p = pieceCache.get(floor);
+  if (!p) pieceCache.set(floor, (p = roomPieces(floor.rooms, floor.open ?? [])));
+  return p;
+}

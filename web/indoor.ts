@@ -170,3 +170,71 @@ export function nearestOpen(rings: LatLon[][], p: LatLon, reach: number): LatLon
     }
   return best && [p[0] + best[1] / 111_320, p[1] + best[0] / (111_320 * k)];
 }
+
+/**
+ * Where a traced room opens onto the walkable floor: `inside` on the room's side of its doorway, `outside` on the open
+ * floor's. The tracer closes doorways by growing walls and lets corridors grow back through them, so a corridor's
+ * outline pokes into the room at its door (or the room's into the corridor); the deepest such overlap is the door.
+ * Without one, the door is where the room comes closest to the open floor, within 1 m. Of several, the one nearest
+ * `toward`. Outlines are [lat, lon] rings.
+ */
+export function doorOf(room: LatLon[], walkable: LatLon[][], toward: LatLon): { inside: LatLon; outside: LatLon } | undefined {
+  if (room.length < 4 || !walkable.length) return undefined;
+  const [lat0, lon0] = room[0], k = Math.cos((lat0 * Math.PI) / 180);
+  const flat = ([lat, lon]: LatLon): [number, number] => [(lon - lon0) * 111_320 * k, (lat - lat0) * 111_320];
+  const back = ([x, y]: [number, number]): LatLon => [lat0 + y / 111_320, lon0 + x / (111_320 * k)];
+  const ring = room.map(flat), goal = flat(toward);
+  const xs = ring.map(([x]) => x), ys = ring.map(([, y]) => y);
+  const box = [Math.min(...xs) - 2, Math.max(...xs) + 2, Math.min(...ys) - 2, Math.max(...ys) + 2];
+  const near = walkable.map((r) => r.map(flat)).filter((r) => r.some(([x, y]) => x >= box[0] && x <= box[1] && y >= box[2] && y <= box[3]));
+  if (!near.length) return undefined;
+  /** The nearest point of `rings`' edges to `p`, and how far it is. */
+  const closest = (p: [number, number], rings: [number, number][][]) => {
+    let best: [number, number] = p, bestD = Infinity;
+    for (const r of rings)
+      for (let i = 0; i + 1 < r.length; i++) {
+        const [a, b] = [r[i], r[i + 1]], dx = b[0] - a[0], dy = b[1] - a[1], length = dx * dx + dy * dy;
+        const t = length ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length)) : 0;
+        const q: [number, number] = [a[0] + t * dx, a[1] + t * dy], d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+        if (d < bestD) [best, bestD] = [q, d];
+      }
+    return { at: best, d: bestD };
+  };
+  type Door = { inside: [number, number]; outside: [number, number]; score: number };
+  const doors: Door[] = [];
+  // Open floor poking into the room, and the room poking into open floor, at least 10 cm deep.
+  for (const r of near)
+    for (const p of r.slice(0, -1)) {
+      if (!inside(p, ring)) continue;
+      const depth = closest(p, [ring]).d;
+      if (depth >= 0.1) doors.push({ inside: p, outside: closest(p, [ring]).at, score: depth });
+    }
+  for (const p of ring.slice(0, -1)) {
+    const holder = near.find((r) => inside(p, r));
+    if (!holder) continue;
+    const depth = closest(p, [holder]).d;
+    if (depth >= 0.1) doors.push({ inside: closest(p, [holder]).at, outside: p, score: depth });
+  }
+  if (!doors.length) {
+    // The narrowest gap, sampled every 25 cm round the room; near-ties (a thin wall) go to the end nearest `toward`.
+    const gaps: Door[] = [];
+    for (let i = 0; i + 1 < ring.length; i++) {
+      const [a, b] = [ring[i], ring[i + 1]], length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      for (let t = 0; t < length; t += 0.25) {
+        const p: [number, number] = [a[0] + ((b[0] - a[0]) * t) / length, a[1] + ((b[1] - a[1]) * t) / length];
+        const c = closest(p, near);
+        if (c.d <= 1) gaps.push({ inside: p, outside: c.at, score: -c.d });
+      }
+    }
+    if (!gaps.length) return undefined;
+    const widest = Math.max(...gaps.map((g) => g.score));
+    doors.push(...gaps.filter((g) => g.score >= widest - 0.05));
+  } else {
+    // Each doorway's points: keep the deepest within 1.5 m of one another.
+    doors.sort((p, q) => q.score - p.score);
+    for (let i = doors.length - 1; i > 0; i--)
+      if (doors.slice(0, i).some((d) => Math.hypot(d.inside[0] - doors[i].inside[0], d.inside[1] - doors[i].inside[1]) < 1.5)) doors.splice(i, 1);
+  }
+  const door = doors.reduce((p, q) => (Math.hypot(q.inside[0] - goal[0], q.inside[1] - goal[1]) < Math.hypot(p.inside[0] - goal[0], p.inside[1] - goal[1]) ? q : p));
+  return { inside: back(door.inside), outside: back(door.outside) };
+}
